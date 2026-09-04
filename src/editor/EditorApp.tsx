@@ -68,7 +68,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
           await audioRef.current.loadFile(level.song.url);
         }
       }
-      audioRef.current.start(level.timing.bpm);
+      audioRef.current.start(level.timing.bpm, currentTime);
       setIsPlaying(true);
     }
   };

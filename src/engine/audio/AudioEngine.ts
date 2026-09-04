@@ -82,10 +82,25 @@ export class AudioEngine implements TimeSource {
    * Returns time elapsed since start() was called.
    */
   private startTime = 0;
+  private pauseOffset = 0;
+  private isResuming = false;
 
   getTime(): number {
     if (!this.ctx) return 0;
-    return this.ctx.currentTime - this.startTime;
+    
+    const timeSinceStart = this.ctx.currentTime - this.startTime;
+    
+    // Prevent time from reporting backwards during the scheduling delay
+    if (this.isResuming) {
+      if (timeSinceStart >= this.pauseOffset) {
+        this.isResuming = false;
+        return timeSinceStart;
+      } else {
+        return this.pauseOffset; // Freeze the clock until the scheduled start
+      }
+    }
+    
+    return timeSinceStart;
   }
 
   get isPlaying(): boolean {
@@ -132,32 +147,42 @@ export class AudioEngine implements TimeSource {
    * Start playback. If an audio file was loaded via loadFile(), plays that
    * file. Otherwise, starts the procedural synthesizer.
    */
-  start(bpm: number): void {
+  start(bpm: number, offset: number = 0): void {
     if (!this.ctx || !this.masterGain) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
     this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
     this.bpm = bpm;
     this.playing = true;
-    this.startTime = this.ctx.currentTime + 0.1;
+    
+    // 40ms scheduling delay gives the OS/audio-hardware enough time to buffer.
+    // Without this, the first few frames might be dropped, causing a perceived stutter.
+    const delay = 0.04;
+    const scheduledStart = this.ctx.currentTime + delay;
+    this.startTime = scheduledStart - offset;
+    
+    this.pauseOffset = offset;
+    this.isResuming = true;
 
     if (this.useFile && this.audioBuffer) {
-      this.startFilePlayback();
+      this.startFilePlayback(scheduledStart, offset);
     } else {
-      this.startSynthPlayback();
+      this.startSynthPlayback(scheduledStart, offset);
     }
   }
 
   /** Play a loaded audio file with beat scheduling. */
-  private startFilePlayback(): void {
+  private startFilePlayback(scheduledStart: number, offset: number): void {
     if (!this.ctx || !this.masterGain || !this.audioBuffer) return;
 
     this.bufferSource = this.ctx.createBufferSource();
     this.bufferSource.buffer = this.audioBuffer;
     this.bufferSource.connect(this.masterGain);
-    this.bufferSource.start(this.startTime);
+    this.bufferSource.start(scheduledStart, offset);
     this.fileStartTime = this.startTime;
 
     // Schedule beat callbacks based on BPM
-    this.beatCount = 0;
+    this.beatCount = Math.floor(offset / (60 / this.bpm));
     this.scheduleFileBeats();
 
     // Stop when the song ends
@@ -187,10 +212,18 @@ export class AudioEngine implements TimeSource {
   };
 
   /** Start the procedural synthesizer (fallback when no file is loaded). */
-  private startSynthPlayback(): void {
+  private startSynthPlayback(scheduledStart: number, offset: number): void {
     if (!this.ctx || !this.masterGain) return;
-    this.nextBeatTime = this.startTime;
-    this.beatCount = 0;
+    const beatLen = 60 / this.bpm;
+    this.beatCount = Math.floor(offset / beatLen);
+    
+    // Find the next upcoming beat time
+    this.nextBeatTime = this.startTime + (this.beatCount * beatLen);
+    while (this.nextBeatTime < scheduledStart) {
+      this.beatCount++;
+      this.nextBeatTime = this.startTime + (this.beatCount * beatLen);
+    }
+    
     this.scheduleLoop();
   }
 
