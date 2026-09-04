@@ -31,7 +31,14 @@ const initialLevel: LevelData = {
     windows: { perfect: 0.05, good: 0.1, miss: 0.2 },
   },
   visual: {
-    nodes: [],
+    nodes: [
+      {
+        id: 'test_rect',
+        type: 'rectangle',
+        transform: { x: 500, y: 300 },
+        properties: { width: 200, height: 100, color: '#00e5ff' }
+      }
+    ],
     animations: [],
     triggers: [],
   },
@@ -44,6 +51,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [activeTab, setActiveTab] = useState<EditorTab>('timeline');
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const audioRef = useRef<AudioEngine | null>(null);
   const visualRef = useRef<VisualEngine | null>(null);
@@ -56,6 +64,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     if (visualRef.current) return; // Already initialized
 
     const ve = new VisualEngine(canvasContainerRef.current, level, null as any);
+    ve.onNodeSelect = (id) => setSelectedNodeId(id);
     ve.init().then(() => {
       visualRef.current = ve;
     });
@@ -149,6 +158,20 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     const s = Math.floor(t % 60).toString().padStart(2, '0');
     const ms = Math.floor((t % 1) * 10);
     return `${m}:${s}.${ms}`;
+  };
+
+  const selectedNode = level.visual.nodes.find(n => n.id === selectedNodeId);
+  const updateSelectedNode = (updates: any) => {
+    if (!selectedNode) return;
+    const newNode = { ...selectedNode, ...updates };
+    setLevel(prev => {
+      const idx = prev.visual.nodes.findIndex(n => n.id === newNode.id);
+      if (idx === -1) return prev;
+      const newNodes = [...prev.visual.nodes];
+      newNodes[idx] = newNode;
+      return { ...prev, visual: { ...prev.visual, nodes: newNodes } };
+    });
+    visualRef.current?.updateNode(newNode);
   };
 
   return (
@@ -284,18 +307,70 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         </main>
 
         {/* Right Sidebar (Properties) */}
-        <aside className="w-56 border-l border-white/10 bg-black/20 p-4 shrink-0 flex flex-col">
+        <aside className="w-64 border-l border-white/10 bg-black/20 p-4 shrink-0 flex flex-col overflow-y-auto">
           <h2 className="text-xs font-bold text-white/50 uppercase tracking-widest mb-4 flex items-center gap-2">
             <SlidersHorizontal className="w-4 h-4" /> Properties
           </h2>
-          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30">
-            <MousePointerClick className="w-8 h-8 mb-2" />
-            <div className="text-sm italic">
-              {activeTab === 'preview'
-                ? 'Select a node in the canvas to edit.'
-                : 'Switch to Live Preview to select visual nodes.'}
+
+          {selectedNode ? (
+            <div className="flex flex-col gap-4 text-sm">
+              <div className="p-2 bg-white/5 border border-white/10 rounded flex flex-col gap-1">
+                <span className="text-white/50 text-xs uppercase">Node ID</span>
+                <span className="font-mono text-[#00e5ff]">{selectedNode.id}</span>
+              </div>
+              <div className="p-2 bg-white/5 border border-white/10 rounded flex flex-col gap-1">
+                <span className="text-white/50 text-xs uppercase">Type</span>
+                <span className="font-mono">{selectedNode.type}</span>
+              </div>
+
+              {/* Transform */}
+              <div className="flex flex-col gap-2 mt-2">
+                <h3 className="text-xs text-white/40 uppercase">Transform</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-xs text-white/60">
+                    X
+                    <input type="number" value={selectedNode.transform?.x ?? 0} onChange={e => updateSelectedNode({ transform: { ...selectedNode.transform, x: Number(e.target.value) } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white focus:border-[#00e5ff] outline-none" />
+                  </label>
+                  <label className="flex flex-col text-xs text-white/60">
+                    Y
+                    <input type="number" value={selectedNode.transform?.y ?? 0} onChange={e => updateSelectedNode({ transform: { ...selectedNode.transform, y: Number(e.target.value) } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white focus:border-[#00e5ff] outline-none" />
+                  </label>
+                </div>
+              </div>
+
+              {/* Properties */}
+              <div className="flex flex-col gap-2 mt-2">
+                <h3 className="text-xs text-white/40 uppercase">Node Properties</h3>
+                {selectedNode.properties?.width !== undefined && (
+                  <label className="flex flex-col text-xs text-white/60">
+                    Width
+                    <input type="number" value={selectedNode.properties.width} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, width: Number(e.target.value) } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white focus:border-[#00e5ff] outline-none" />
+                  </label>
+                )}
+                {selectedNode.properties?.height !== undefined && (
+                  <label className="flex flex-col text-xs text-white/60">
+                    Height
+                    <input type="number" value={selectedNode.properties.height} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, height: Number(e.target.value) } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white focus:border-[#00e5ff] outline-none" />
+                  </label>
+                )}
+                {selectedNode.properties?.color !== undefined && (
+                  <label className="flex flex-col text-xs text-white/60">
+                    Color
+                    <input type="text" value={selectedNode.properties.color} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, color: e.target.value } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00e5ff] outline-none" />
+                  </label>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30 mt-8">
+              <MousePointerClick className="w-8 h-8 mb-2" />
+              <div className="text-sm italic">
+                {activeTab === 'preview'
+                  ? 'Click a node in the canvas to select it.'
+                  : 'Switch to Live Preview to select nodes.'}
+              </div>
+            </div>
+          )}
         </aside>
 
       </div>

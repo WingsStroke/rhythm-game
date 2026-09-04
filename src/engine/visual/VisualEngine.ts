@@ -80,6 +80,8 @@ export class VisualEngine {
 
   /** Emitted when player clicks/touches a pad directly */
   public onPadInput: ((padId: PadId, pressed: boolean) => void) | null = null;
+  /** Emitted when a SceneNode is clicked */
+  public onNodeSelect: ((nodeId: string) => void) | null = null;
 
   constructor(root: HTMLElement, level: LevelData, _audio: AudioEngine) {
     this.root = root;
@@ -156,6 +158,10 @@ export class VisualEngine {
     this.bgLayer.addChild(this.bgRect);
     this.bgLayer.addChild(this.bgGrid);
     this.bgLayer.addChild(this.laneGfx);
+    
+    this.sceneGraph.onNodeSelect = (id) => {
+      if (this.onNodeSelect) this.onNodeSelect(id);
+    };
 
     // Pads
     const padCount = this.pads.length;
@@ -612,6 +618,13 @@ export class VisualEngine {
     // Combo text pulse
     if (this.comboText.text) {
       this.comboText.scale.set(1 + bands.amplitude * 0.12);
+    }
+  }
+
+  public updateNode(nodeData: SceneNodeData): void {
+    const node = this.sceneGraph.getNode(nodeData.id);
+    if (node) {
+      node.updateData(nodeData);
     }
   }
 

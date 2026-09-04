@@ -23,7 +23,29 @@ export class SceneNode {
       }
     }
 
+    this.container.eventMode = 'static';
+    this.container.cursor = 'pointer';
+
     this.applyProperties(data);
+  }
+
+  public updateData(newData: SceneNodeData) {
+    this.data = newData;
+    
+    // Recreate visual representation
+    if (this.displayObject) {
+      this.displayObject.destroy();
+      this.container.removeChild(this.displayObject);
+    }
+    
+    if (newData.type !== 'group') {
+      this.displayObject = this.createDisplayObject(newData);
+      if (this.displayObject) {
+        this.container.addChild(this.displayObject);
+      }
+    }
+    
+    this.applyProperties(newData);
   }
 
   /**

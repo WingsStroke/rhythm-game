@@ -7,6 +7,7 @@ import type { LevelData, SceneNodeData } from '../types';
  */
 export class SceneGraph {
   public root: Container;
+  public onNodeSelect?: (nodeId: string) => void;
   private nodes: Map<string, SceneNode> = new Map();
 
   constructor(container: Container) {
@@ -25,6 +26,10 @@ export class SceneGraph {
     // 1. Create all nodes first
     for (const nodeData of nodesData) {
       const node = new SceneNode(nodeData);
+      node.container.on('pointerdown', (e) => {
+        e.stopPropagation();
+        this.onNodeSelect?.(node.id);
+      });
       this.nodes.set(node.id, node);
     }
 
@@ -53,6 +58,10 @@ export class SceneGraph {
 
   public addNode(nodeData: SceneNodeData) {
     const node = new SceneNode(nodeData);
+    node.container.on('pointerdown', (e) => {
+      e.stopPropagation();
+      this.onNodeSelect?.(node.id);
+    });
     this.nodes.set(node.id, node);
     
     if (nodeData.parentId) {
