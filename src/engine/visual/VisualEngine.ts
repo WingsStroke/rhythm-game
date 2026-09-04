@@ -102,6 +102,17 @@ export class VisualEngine {
     this.setupFilters();
   }
 
+  public syncNotes(newNotes: Note[]): void {
+    // Destroy graphics for notes that are no longer in the new array
+    for (const [note, gfx] of this.noteGraphics) {
+      if (!newNotes.includes(note)) {
+        gfx.destroy();
+        this.noteGraphics.delete(note);
+      }
+    }
+    this.notes = newNotes;
+  }
+
   private setupScene(): void {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
