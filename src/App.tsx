@@ -10,6 +10,8 @@ export default function App() {
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [songSource, setSongSource] = useState<'file' | 'procedural'>('procedural');
   const [hasSongFile, setHasSongFile] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const gameRef = useRef<Game | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -22,26 +24,40 @@ export default function App() {
 
   const startGame = useCallback(async () => {
     if (!containerRef.current) return;
-    setScreen('playing');
-    setPlayerState(null);
+    setErrorMsg(null);
+    setLoading(true);
 
-    // Wait for the container to be rendered
-    await new Promise((r) => setTimeout(r, 50));
+    try {
+      setScreen('playing');
+      setPlayerState(null);
 
-    // Use the external song file if it exists; otherwise procedural audio
-    const songUrl = hasSongFile ? SONG_URL : undefined;
-    const level = createPrototypeLevel(songUrl);
-    const game = new Game(containerRef.current, level);
-    gameRef.current = game;
-    setSongSource(game.songSource);
+      // Wait for the container to be rendered
+      await new Promise((r) => setTimeout(r, 50));
 
-    game.onScoreUpdate = (state) => setPlayerState(state);
-    game.onGameComplete = (state) => {
-      setPlayerState(state);
-      setScreen('results');
-    };
+      // Use the external song file if it exists; otherwise procedural audio
+      const songUrl = hasSongFile ? SONG_URL : undefined;
+      const level = createPrototypeLevel(songUrl);
+      const game = new Game(containerRef.current, level);
+      gameRef.current = game;
+      setSongSource(game.songSource);
 
-    await game.start();
+      game.onScoreUpdate = (state) => setPlayerState(state);
+      game.onGameComplete = (state) => {
+        setPlayerState(state);
+        setScreen('results');
+      };
+
+      await game.start();
+    } catch (err) {
+      console.error('Failed to start game:', err);
+      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong starting the game.');
+      // Clean up any partial state
+      gameRef.current?.dispose();
+      gameRef.current = null;
+      setScreen('start');
+    } finally {
+      setLoading(false);
+    }
   }, [hasSongFile]);
 
   const stopGame = useCallback(() => {
@@ -61,7 +77,7 @@ export default function App() {
   return (
     <div className="min-h-screen w-full bg-[#05050f] text-white overflow-hidden relative">
       {screen === 'start' && (
-        <StartScreen onStart={startGame} hasSongFile={hasSongFile} />
+        <StartScreen onStart={startGame} hasSongFile={hasSongFile} errorMsg={errorMsg} loading={loading} />
       )}
       {screen === 'playing' && (
         <PlayingScreen
@@ -80,7 +96,7 @@ export default function App() {
 
 // ---- Start Screen ----
 
-function StartScreen({ onStart, hasSongFile }: { onStart: () => void; hasSongFile: boolean }) {
+function StartScreen({ onStart, hasSongFile, errorMsg, loading }: { onStart: () => void; hasSongFile: boolean; errorMsg: string | null; loading: boolean }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6">
       {/* Animated background */}
@@ -112,10 +128,16 @@ function StartScreen({ onStart, hasSongFile }: { onStart: () => void; hasSongFil
         <div className="flex flex-col gap-4 items-center">
           <button
             onClick={onStart}
-            className="px-12 py-4 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white text-xl font-bold rounded-xl hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-[#ff2d6f]/30"
+            disabled={loading}
+            className="px-12 py-4 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white text-xl font-bold rounded-xl hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-[#ff2d6f]/30 disabled:opacity-50 disabled:hover:scale-100"
           >
-            PLAY
+            {loading ? 'LOADING...' : 'PLAY'}
           </button>
+          {errorMsg && (
+            <div className="max-w-md px-4 py-3 rounded-lg bg-red-500/20 border border-red-500/40 text-sm text-red-300">
+              {errorMsg}
+            </div>
+          )}
           <div className="text-sm text-white/40 mt-4">
             <p className="mb-2">Controls — press the keys as notes land on the pads:</p>
             <div className="flex gap-3 justify-center">
