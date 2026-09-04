@@ -53,6 +53,15 @@ export default function App() {
 
       game.onScoreUpdate = (state) => setPlayerState(state);
       game.onGameComplete = (state) => {
+        try {
+          gameRef.current?.dispose();
+        } catch (e) {
+          console.warn('Error disposing on complete:', e);
+        }
+        gameRef.current = null;
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
         setPlayerState(state);
         setScreen('results');
       };
@@ -61,8 +70,15 @@ export default function App() {
     } catch (err) {
       console.error('Failed to start game:', err);
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong starting the game.');
-      gameRef.current?.dispose();
+      try {
+        gameRef.current?.dispose();
+      } catch {
+        // Ignored
+      }
       gameRef.current = null;
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
       setScreen('start');
     } finally {
       setLoading(false);
@@ -70,15 +86,27 @@ export default function App() {
   }, [hasSongFile]);
 
   const stopGame = useCallback(() => {
-    gameRef.current?.dispose();
+    try {
+      gameRef.current?.dispose();
+    } catch (err) {
+      console.warn('Error during game disposal:', err);
+    }
     gameRef.current = null;
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+    }
+    setPlayerState(null);
     setScreen('start');
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      gameRef.current?.dispose();
+      try {
+        gameRef.current?.dispose();
+      } catch {
+        // Ignored
+      }
       gameRef.current = null;
     };
   }, []);
@@ -109,8 +137,21 @@ export default function App() {
       )}
 
       {/* Results Screen Overlay */}
-      {screen === 'results' && playerState && (
-        <ResultsScreen state={playerState} onRetry={startGame} onMenu={stopGame} />
+      {screen === 'results' && (
+        <ResultsScreen
+          state={
+            playerState || {
+              score: 0,
+              combo: 0,
+              maxCombo: 0,
+              perfectCount: 0,
+              goodCount: 0,
+              missCount: 0,
+            }
+          }
+          onRetry={startGame}
+          onMenu={stopGame}
+        />
       )}
     </div>
   );
@@ -234,6 +275,17 @@ function PlayingScreen({
     return () => cancelAnimationFrame(animId);
   }, []);
 
+  // Keyboard shortcut for Quit: Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onQuit();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onQuit]);
+
   return (
     <div className="relative z-10 w-full h-screen pointer-events-none">
       {/* Top Left: Audio Source & FPS Monitor */}
@@ -255,10 +307,11 @@ function PlayingScreen({
 
       {/* Top Right: Quit Button */}
       <button
+        id="quit-button"
         onClick={onQuit}
-        className="pointer-events-auto absolute top-4 right-4 z-50 px-4 py-2 bg-white/10 hover:bg-white/25 active:scale-95 backdrop-blur-md rounded-xl text-sm font-semibold text-white/80 hover:text-white transition-all cursor-pointer border border-white/15"
+        className="pointer-events-auto absolute top-4 right-4 z-50 px-4 py-2 bg-red-500/20 hover:bg-red-500/35 active:scale-95 backdrop-blur-md rounded-xl text-sm font-bold text-red-200 hover:text-white transition-all cursor-pointer border border-red-500/40 shadow-lg"
       >
-        Quit
+        ✕ QUIT (ESC)
       </button>
 
       {/* Center Top: Score & Judgement HUD */}

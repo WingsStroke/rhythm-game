@@ -118,19 +118,37 @@ export class Game {
     // Check for game completion
     if (this.gameplay.isComplete) {
       this.running = false;
-      this.onGameComplete?.(this.gameplay.state);
+      this.stop();
+      const finalState = this.gameplay.state;
+      this.onGameComplete?.(finalState);
     }
   }
 
   stop(): void {
     this.running = false;
-    this.audio.stop();
-    this.input.detach();
+    try {
+      this.audio.stop();
+    } catch (e) {
+      console.warn('Error stopping audio:', e);
+    }
+    try {
+      this.input.detach();
+    } catch (e) {
+      console.warn('Error detaching input:', e);
+    }
   }
 
   dispose(): void {
     this.stop();
-    this.visual.dispose();
-    this.audio.dispose();
+    try {
+      this.visual.dispose();
+    } catch (e) {
+      console.warn('Error disposing visual engine:', e);
+    }
+    try {
+      this.audio.dispose();
+    } catch (e) {
+      console.warn('Error disposing audio engine:', e);
+    }
   }
 }

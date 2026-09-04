@@ -585,22 +585,53 @@ export class VisualEngine {
   }
 
   dispose(): void {
-    if (this.tickerCb) this.app.ticker.remove(this.tickerCb);
-    this.tickerCb = null;
+    if (this.tickerCb) {
+      try {
+        this.app.ticker?.remove(this.tickerCb);
+      } catch {
+        // Ticker already stopped
+      }
+      this.tickerCb = null;
+    }
 
     for (const [, gfx] of this.noteGraphics) {
-      gfx.destroy();
+      try {
+        if (!gfx.destroyed) gfx.destroy();
+      } catch {
+        // Ignored
+      }
     }
     this.noteGraphics.clear();
 
     for (const popup of this.judgementPopups) {
-      popup.text.destroy();
+      try {
+        if (!popup.text.destroyed) popup.text.destroy();
+      } catch {
+        // Ignored
+      }
     }
     this.judgementPopups = [];
 
-    this.app.destroy(true);
-    if (this.app.canvas?.parentNode) {
-      this.app.canvas.parentNode.removeChild(this.app.canvas);
+    // Safely capture canvas reference before destroying Application
+    let canvas: HTMLCanvasElement | null = null;
+    try {
+      canvas = this.app.canvas;
+    } catch {
+      canvas = null;
+    }
+
+    try {
+      this.app.destroy(true, { children: true });
+    } catch (err) {
+      console.warn('Notice during Pixi app destroy:', err);
+    }
+
+    try {
+      if (canvas && canvas.parentNode) {
+        canvas.parentNode.removeChild(canvas);
+      }
+    } catch {
+      // Ignored
     }
   }
 }

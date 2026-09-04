@@ -133,6 +133,7 @@ export class AudioEngine {
    */
   start(bpm: number): void {
     if (!this.ctx || !this.masterGain) return;
+    this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
     this.bpm = bpm;
     this.playing = true;
     this.startTime = this.ctx.currentTime + 0.1;
@@ -206,6 +207,14 @@ export class AudioEngine {
       try { this.bufferSource.stop(); } catch { /* already stopped */ }
       this.bufferSource.disconnect();
       this.bufferSource = null;
+    }
+    if (this.masterGain && this.ctx) {
+      try {
+        this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      } catch {
+        // Gain cancel ignored
+      }
     }
   }
 
