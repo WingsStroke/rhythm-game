@@ -28,6 +28,11 @@ export class Game {
   // Callbacks for React UI
   public onScoreUpdate: ((state: PlayerState) => void) | null = null;
   public onGameComplete: ((state: PlayerState) => void) | null = null;
+  public onLoadStatus: ((status: string) => void) | null = null;
+
+  get songSource(): 'file' | 'procedural' {
+    return this.audio.isUsingFile ? 'file' : 'procedural';
+  }
 
   constructor(container: HTMLElement, level: LevelData) {
     this.container = container;
@@ -42,17 +47,22 @@ export class Game {
     // 1. Initialize audio (must be from user gesture)
     await this.audio.init();
 
-    // 2. Initialize visual engine (PixiJS)
+    // 2. Load external audio file if the level specifies one
+    if (this.level.song.url) {
+      await this.audio.loadFile(this.level.song.url);
+    }
+
+    // 3. Initialize visual engine (PixiJS)
     await this.visual.init();
 
-    // 3. Wire up input -> gameplay -> visual feedback
+    // 4. Wire up input -> gameplay -> visual feedback
     this.setupInput();
     this.setupGameplayCallbacks();
 
-    // 4. Set up the update loop on PixiJS ticker
+    // 5. Set up the update loop on PixiJS ticker
     this.visual.setUpdateCallback((_ticker: Ticker) => this.frameUpdate());
 
-    // 5. Start audio + gameplay
+    // 6. Start audio + gameplay
     this.gameplay.start();
     this.audio.onBeat = (beatIndex: number) => this.visual.onBeat(beatIndex);
     this.audio.start(this.level.song.bpm);

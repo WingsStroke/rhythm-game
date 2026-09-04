@@ -42,6 +42,12 @@ export interface SongInfo {
   offset: number;
   /** Duration in seconds. */
   duration: number;
+  /**
+   * URL to an external audio file. When provided, the AudioEngine loads and
+   * plays this file instead of synthesizing procedural music.
+   * Leave undefined to use the built-in procedural synthesizer.
+   */
+  url?: string;
 }
 
 /** Judgement result for a hit note. */

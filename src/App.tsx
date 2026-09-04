@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, type RefObject } from 'react';
 import { Game } from '@/engine/Game';
-import { createPrototypeLevel } from '@/game/createPrototypeLevel';
+import { createPrototypeLevel, SONG_URL } from '@/game/createPrototypeLevel';
 import type { PlayerState } from '@/engine/types';
 
 type Screen = 'start' | 'playing' | 'results';
@@ -8,8 +8,17 @@ type Screen = 'start' | 'playing' | 'results';
 export default function App() {
   const [screen, setScreen] = useState<Screen>('start');
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
+  const [songSource, setSongSource] = useState<'file' | 'procedural'>('procedural');
+  const [hasSongFile, setHasSongFile] = useState(false);
   const gameRef = useRef<Game | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Check if an external song file exists at the expected path
+  useEffect(() => {
+    fetch(SONG_URL, { method: 'HEAD' })
+      .then((r) => setHasSongFile(r.ok))
+      .catch(() => setHasSongFile(false));
+  }, []);
 
   const startGame = useCallback(async () => {
     if (!containerRef.current) return;
@@ -19,9 +28,12 @@ export default function App() {
     // Wait for the container to be rendered
     await new Promise((r) => setTimeout(r, 50));
 
-    const level = createPrototypeLevel();
+    // Use the external song file if it exists; otherwise procedural audio
+    const songUrl = hasSongFile ? SONG_URL : undefined;
+    const level = createPrototypeLevel(songUrl);
     const game = new Game(containerRef.current, level);
     gameRef.current = game;
+    setSongSource(game.songSource);
 
     game.onScoreUpdate = (state) => setPlayerState(state);
     game.onGameComplete = (state) => {
@@ -30,7 +42,7 @@ export default function App() {
     };
 
     await game.start();
-  }, []);
+  }, [hasSongFile]);
 
   const stopGame = useCallback(() => {
     gameRef.current?.dispose();
@@ -48,12 +60,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full bg-[#05050f] text-white overflow-hidden relative">
-      {screen === 'start' && <StartScreen onStart={startGame} />}
+      {screen === 'start' && (
+        <StartScreen onStart={startGame} hasSongFile={hasSongFile} />
+      )}
       {screen === 'playing' && (
         <PlayingScreen
           containerRef={containerRef}
           playerState={playerState}
           onQuit={stopGame}
+          songSource={songSource}
         />
       )}
       {screen === 'results' && playerState && (
@@ -65,7 +80,7 @@ export default function App() {
 
 // ---- Start Screen ----
 
-function StartScreen({ onStart }: { onStart: () => void }) {
+function StartScreen({ onStart, hasSongFile }: { onStart: () => void; hasSongFile: boolean }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6">
       {/* Animated background */}
@@ -84,6 +99,14 @@ function StartScreen({ onStart }: { onStart: () => void }) {
           <p className="text-lg md:text-xl text-white/50 font-light tracking-wider">
             A RHYTHM ENGINE PROTOTYPE
           </p>
+        </div>
+
+        {/* Audio source indicator */}
+        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
+          <div className={`w-2 h-2 rounded-full ${hasSongFile ? 'bg-[#00ff9d]' : 'bg-[#ffcc00]'} animate-pulse`} />
+          <span className="text-sm text-white/60">
+            {hasSongFile ? 'Audio file detected — using external song' : 'No audio file — using procedural synth'}
+          </span>
         </div>
 
         <div className="flex flex-col gap-4 items-center">
@@ -126,10 +149,12 @@ function PlayingScreen({
   containerRef,
   playerState,
   onQuit,
+  songSource,
 }: {
   containerRef: RefObject<HTMLDivElement>,
   playerState: PlayerState | null;
   onQuit: () => void;
+  songSource: 'file' | 'procedural';
 }) {
   return (
     <div className="relative w-full h-screen">
@@ -143,6 +168,14 @@ function PlayingScreen({
       >
         Quit
       </button>
+
+      {/* Audio source badge */}
+      <div className="absolute top-4 left-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm">
+        <div className={`w-2 h-2 rounded-full ${songSource === 'file' ? 'bg-[#00ff9d]' : 'bg-[#ffcc00]'}`} />
+        <span className="text-xs text-white/50">
+          {songSource === 'file' ? 'External Audio' : 'Procedural Synth'}
+        </span>
+      </div>
 
       {/* Score overlay (React HUD on top of canvas) */}
       {playerState && (

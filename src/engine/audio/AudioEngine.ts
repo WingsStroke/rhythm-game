@@ -28,6 +28,15 @@ export class AudioEngine {
   private bpm = 120;
   private playing = false;
 
+  // External audio file state
+  private audioBuffer: AudioBuffer | null = null;
+  private bufferSource: AudioBufferSourceNode | null = null;
+  private useFile = false;
+
+  // Beat detection for file playback
+  private beatTimer: number | null = null;
+  private fileStartTime = 0;
+
   // Callback fired on every beat (for gameplay/visual sync)
   public onBeat: ((beatIndex: number, beatTime: number) => void) | null = null;
 
@@ -86,16 +95,86 @@ export class AudioEngine {
     return this.bpm;
   }
 
+  get isUsingFile(): boolean {
+    return this.useFile;
+  }
+
   /**
-   * Start the procedural backing track.
-   * The track is a simple electronic loop: kick + snare + hat + bass + lead.
-   * It synthesizes in real-time via scheduled OscillatorNodes / buffers.
+   * Load an external audio file (mp3, wav, ogg, etc.) for playback.
+   * Must be called after init(). The file is decoded into an AudioBuffer
+   * and played through the same master gain → analyser chain.
+   */
+  async loadFile(url: string): Promise<void> {
+    if (!this.ctx) throw new Error('AudioEngine not initialized — call init() first');
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load audio file: ${response.status} ${response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+    this.useFile = true;
+  }
+
+  /**
+   * Start playback. If an audio file was loaded via loadFile(), plays that
+   * file. Otherwise, starts the procedural synthesizer.
    */
   start(bpm: number): void {
     if (!this.ctx || !this.masterGain) return;
     this.bpm = bpm;
     this.playing = true;
-    this.startTime = this.ctx.currentTime + 0.1; // small lead-in
+    this.startTime = this.ctx.currentTime + 0.1;
+
+    if (this.useFile && this.audioBuffer) {
+      this.startFilePlayback();
+    } else {
+      this.startSynthPlayback();
+    }
+  }
+
+  /** Play a loaded audio file with beat scheduling. */
+  private startFilePlayback(): void {
+    if (!this.ctx || !this.masterGain || !this.audioBuffer) return;
+
+    this.bufferSource = this.ctx.createBufferSource();
+    this.bufferSource.buffer = this.audioBuffer;
+    this.bufferSource.connect(this.masterGain);
+    this.bufferSource.start(this.startTime);
+    this.fileStartTime = this.startTime;
+
+    // Schedule beat callbacks based on BPM
+    this.beatCount = 0;
+    this.scheduleFileBeats();
+
+    // Stop when the song ends
+    this.bufferSource.onended = () => {
+      this.playing = false;
+      if (this.beatTimer !== null) {
+        clearTimeout(this.beatTimer);
+        this.beatTimer = null;
+      }
+    };
+  }
+
+  /** Schedule beat callbacks during file playback. */
+  private scheduleFileBeats = (): void => {
+    if (!this.ctx || !this.playing) return;
+    const beatLen = 60 / this.bpm;
+    const currentTime = this.ctx.currentTime;
+    const songTime = currentTime - this.fileStartTime;
+
+    // Fire any beats that have passed since last check
+    while (this.beatCount * beatLen <= songTime) {
+      if (this.onBeat) this.onBeat(this.beatCount, this.beatCount * beatLen);
+      this.beatCount++;
+    }
+
+    this.beatTimer = window.setTimeout(this.scheduleFileBeats, 20);
+  };
+
+  /** Start the procedural synthesizer (fallback when no file is loaded). */
+  private startSynthPlayback(): void {
+    if (!this.ctx || !this.masterGain) return;
     this.nextBeatTime = this.startTime;
     this.beatCount = 0;
     this.scheduleLoop();
@@ -106,6 +185,15 @@ export class AudioEngine {
     if (this.musicTimer !== null) {
       clearTimeout(this.musicTimer);
       this.musicTimer = null;
+    }
+    if (this.beatTimer !== null) {
+      clearTimeout(this.beatTimer);
+      this.beatTimer = null;
+    }
+    if (this.bufferSource) {
+      try { this.bufferSource.stop(); } catch { /* already stopped */ }
+      this.bufferSource.disconnect();
+      this.bufferSource = null;
     }
   }
 

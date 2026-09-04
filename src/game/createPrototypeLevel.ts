@@ -2,14 +2,28 @@ import type { LevelData } from '../engine/types';
 import { BeatmapGenerator } from '../engine/beatmap/BeatmapGenerator';
 
 /**
- * Creates the default prototype level.
- * The prototype uses a procedural beatmap synced to a 128 BPM track.
- * When a real song is provided, this would be replaced by loaded data.
+ * Path where the game looks for an external audio file.
+ * Place a song at public/audio/song.mp3 to use it instead of the
+ * procedural synthesizer. If the file doesn't exist, the game falls
+ * back to procedural audio automatically.
  */
-export function createPrototypeLevel(): LevelData {
+export const SONG_URL = '/audio/song.mp3';
+
+/**
+ * Creates the default prototype level.
+ *
+ * If `songUrl` is provided, the level references that audio file and the
+ * AudioEngine will load it. If omitted, the procedural synthesizer plays.
+ *
+ * The beatmap is always generated procedurally and synced to the BPM —
+ * this is a prototype. When a real beatmap is authored (via the editor),
+ * it will replace the generated notes.
+ */
+export function createPrototypeLevel(songUrl?: string): LevelData {
   const bpm = 128;
   const bars = 16; // ~30 seconds of gameplay
   const notes = BeatmapGenerator.generate(bpm, bars);
+  const duration = (bars * 4 * 60) / bpm;
 
   return {
     metadata: {
@@ -21,10 +35,11 @@ export function createPrototypeLevel(): LevelData {
     song: {
       id: 'proto-song',
       title: 'Neon Pulse',
-      artist: 'Procedural Audio',
+      artist: songUrl ? 'External Audio' : 'Procedural Audio',
       bpm,
       offset: 0,
-      duration: (bars * 4 * 60) / bpm,
+      duration,
+      url: songUrl,
     },
     pads: BeatmapGenerator.defaultPads(),
     notes,
