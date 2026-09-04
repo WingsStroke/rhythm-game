@@ -22,8 +22,9 @@ export const SONG_URL = '/audio/song.mp3';
 export function createPrototypeLevel(songUrl?: string): LevelData {
   const bpm = 128;
   const bars = 16; // ~30 seconds of gameplay
-  const notes = BeatmapGenerator.generate(bpm, bars);
-  const duration = (bars * 4 * 60) / bpm;
+  const leadInBars = 2;
+  const notes = BeatmapGenerator.generate(bpm, bars, leadInBars);
+  const duration = ((bars + leadInBars) * 4 * 60) / bpm;
 
   return {
     metadata: {

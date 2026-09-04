@@ -82,6 +82,13 @@ export class Game {
     this.input.setHandler((event) => this.gameplay.handleInput(event));
     this.input.onPadPress = (pad) => this.visual.pressPad(pad);
     this.input.onPadRelease = (pad) => this.visual.releasePad(pad);
+    this.visual.onPadInput = (padId, pressed) => {
+      if (pressed) {
+        this.input.pressPad(padId);
+      } else {
+        this.input.releasePad(padId);
+      }
+    };
     this.input.attach();
   }
 

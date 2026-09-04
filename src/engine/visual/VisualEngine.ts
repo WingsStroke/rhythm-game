@@ -5,7 +5,7 @@ import { AudioEngine } from '../audio/AudioEngine';
 /**
  * VisualEngine — all rendering using PixiJS v8.
  *
- * Scene graph with layers: background, notes, pads, particles, effects.
+ * Scene graph with layers: background, lanes, notes, pads, particles, effects.
  * The beatmap describes WHAT; this engine decides HOW to render it.
  * Audio reactivity: background, pads, and particles respond to FFT bands.
  */
@@ -18,12 +18,21 @@ interface PadVisual {
   container: Container;
   rect: Graphics;
   label: Text;
+  keyText: Text;
   glow: Graphics;
   baseColor: number;
   pressed: boolean;
   pressAnim: number;
   x: number;
   bandIndex: number;
+}
+
+interface JudgementPopup {
+  text: Text;
+  life: number;
+  maxLife: number;
+  baseX: number;
+  baseY: number;
 }
 
 export class VisualEngine {
@@ -42,20 +51,27 @@ export class VisualEngine {
   // Visual objects
   private bgRect!: Graphics;
   private bgGrid!: Graphics;
+  private laneGfx!: Graphics;
   private noteGraphics: Map<Note, Graphics> = new Map();
   private padVisuals: Map<PadId, PadVisual> = new Map();
   private particlePool: Graphics[] = [];
   private particleIndex = 0;
+  private judgementPopups: JudgementPopup[] = [];
   private scoreText!: Text;
   private comboText!: Text;
 
   private padXPositions: Map<PadId, number> = new Map();
   private padY = 0;
+  private lastWidth = 0;
+  private lastHeight = 0;
   private leadTime = 1.5;
   private beatPulse = 0;
   private bloomFilter: ColorMatrixFilter | null = null;
   private rgbFilter: Filter | null = null;
   private tickerCb: ((ticker: Ticker) => void) | null = null;
+
+  /** Emitted when player clicks/touches a pad directly */
+  public onPadInput: ((padId: PadId, pressed: boolean) => void) | null = null;
 
   constructor(root: HTMLElement, level: LevelData, _audio: AudioEngine) {
     this.root = root;
@@ -66,8 +82,6 @@ export class VisualEngine {
 
   async init(): Promise<void> {
     await this.app.init({
-      width: 800,
-      height: 600,
       backgroundAlpha: 0,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
@@ -82,7 +96,9 @@ export class VisualEngine {
   private setupScene(): void {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
-    this.padY = h - PAD_HEIGHT - 20;
+    this.lastWidth = w;
+    this.lastHeight = h;
+    this.padY = h - PAD_HEIGHT - 30;
 
     // Create layers
     this.bgLayer = new Container();
@@ -100,56 +116,89 @@ export class VisualEngine {
     this.app.stage.sortableChildren = true;
     this.app.stage.addChild(this.bgLayer, this.noteLayer, this.particleLayer, this.padLayer, this.fxLayer);
 
-    // Background
+    // Background rect & grid
     this.bgRect = new Graphics();
     this.bgGrid = new Graphics();
-    this.bgRect.rect(0, 0, w, h).fill({ color: 0x0a0a16 });
+    this.laneGfx = new Graphics();
+    this.bgRect.rect(0, 0, w, h).fill({ color: 0x070714 });
     this.bgLayer.addChild(this.bgRect);
     this.bgLayer.addChild(this.bgGrid);
+    this.bgLayer.addChild(this.laneGfx);
 
     // Pads
     const padCount = this.pads.length;
-    const totalPadWidth = padCount * 100 + (padCount - 1) * 20;
+    const padWidth = 100;
+    const padGap = 20;
+    const totalPadWidth = padCount * padWidth + (padCount - 1) * padGap;
     const startX = (w - totalPadWidth) / 2;
 
     this.pads.forEach((pad, i) => {
-      const x = startX + i * 120;
+      const x = startX + i * (padWidth + padGap);
       this.padXPositions.set(pad.id, x);
       const color = this.hexToInt(pad.color);
 
       const container = new Container();
       container.x = x;
       container.y = this.padY;
+      container.eventMode = 'static';
+      container.cursor = 'pointer';
+
+      // Mouse & touch interaction on pad
+      container.on('pointerdown', (e) => {
+        e.stopPropagation();
+        this.onPadInput?.(pad.id, true);
+      });
+      container.on('pointerup', (e) => {
+        e.stopPropagation();
+        this.onPadInput?.(pad.id, false);
+      });
+      container.on('pointerupoutside', () => {
+        this.onPadInput?.(pad.id, false);
+      });
 
       const glow = new Graphics();
-      glow.roundRect(-15, -15, 130, PAD_HEIGHT + 30, 12).fill({ color, alpha: 0.15 });
+      glow.roundRect(-15, -15, 130, PAD_HEIGHT + 30, 14).fill({ color, alpha: 0.15 });
       glow.zIndex = 0;
       container.addChild(glow);
 
       const rect = new Graphics();
-      rect.roundRect(0, 0, 100, PAD_HEIGHT, 10).fill({ color, alpha: 0.3 });
-      rect.stroke({ color, width: 2, alpha: 0.6 });
+      rect.roundRect(0, 0, 100, PAD_HEIGHT, 10).fill({ color, alpha: 0.25 });
+      rect.stroke({ color, width: 2, alpha: 0.7 });
       rect.zIndex = 1;
       container.addChild(rect);
 
+      // Key hint (A, S, D, F)
+      const keyText = new Text({
+        text: pad.keyHint || '',
+        style: { fontFamily: 'monospace', fontSize: 22, fill: 0xffffff, fontWeight: 'bold' },
+      });
+      keyText.anchor.set(0.5);
+      keyText.x = 50;
+      keyText.y = PAD_HEIGHT / 2 - 10;
+      keyText.zIndex = 2;
+      container.addChild(keyText);
+
+      // Pad role label (Kick, Snare, etc)
       const label = new Text({
         text: pad.label,
-        style: { fontFamily: 'monospace', fontSize: 14, fill: 0xffffff, align: 'center' },
+        style: { fontFamily: 'monospace', fontSize: 12, fill: 0xcccccc, align: 'center' },
       });
       label.anchor.set(0.5);
       label.x = 50;
-      label.y = PAD_HEIGHT / 2;
+      label.y = PAD_HEIGHT / 2 + 16;
       label.zIndex = 2;
       container.addChild(label);
 
       this.padLayer.addChild(container);
       this.padVisuals.set(pad.id, {
-        container, rect, label, glow,
+        container, rect, label, keyText, glow,
         baseColor: color,
         pressed: false, pressAnim: 0, x,
         bandIndex: i,
       });
     });
+
+    this.drawLanes();
 
     // HUD text
     this.scoreText = new Text({ text: '0', style: { fontFamily: 'monospace', fontSize: 28, fill: 0xffffff } });
@@ -157,14 +206,14 @@ export class VisualEngine {
     this.scoreText.y = 20;
     this.fxLayer.addChild(this.scoreText);
 
-    this.comboText = new Text({ text: '', style: { fontFamily: 'monospace', fontSize: 36, fill: 0xffffff } });
+    this.comboText = new Text({ text: '', style: { fontFamily: 'monospace', fontSize: 34, fill: 0xffffff, fontWeight: 'bold' } });
     this.comboText.anchor.set(0.5);
     this.comboText.x = w / 2;
     this.comboText.y = 60;
     this.fxLayer.addChild(this.comboText);
 
     // Particle pool
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 60; i++) {
       const p = new Graphics();
       p.visible = false;
       this.particleLayer.addChild(p);
@@ -172,13 +221,69 @@ export class VisualEngine {
     }
   }
 
+  private drawLanes(): void {
+    this.laneGfx.clear();
+    const h = this.app.screen.height;
+
+    for (const pad of this.pads) {
+      const x = this.padXPositions.get(pad.id);
+      if (x === undefined) continue;
+      const color = this.hexToInt(pad.color);
+
+      // Lane background column
+      this.laneGfx.rect(x, 0, 100, this.padY + PAD_HEIGHT).fill({ color, alpha: 0.035 });
+
+      // Left & Right lane borders
+      this.laneGfx.moveTo(x, 0).lineTo(x, this.padY + PAD_HEIGHT).stroke({ color, width: 1, alpha: 0.18 });
+      this.laneGfx.moveTo(x + 100, 0).lineTo(x + 100, this.padY + PAD_HEIGHT).stroke({ color, width: 1, alpha: 0.18 });
+
+      // Target receptor outline on the pad zone
+      this.laneGfx.roundRect(x + 5, this.padY + 5, 90, PAD_HEIGHT - 10, 8).stroke({ color, width: 1.5, alpha: 0.35 });
+    }
+  }
+
+  private updateLayout(): void {
+    const w = this.app.screen.width;
+    const h = this.app.screen.height;
+    if (w === this.lastWidth && h === this.lastHeight) return;
+
+    this.lastWidth = w;
+    this.lastHeight = h;
+    this.padY = h - PAD_HEIGHT - 30;
+
+    const padCount = this.pads.length;
+    const padWidth = 100;
+    const padGap = 20;
+    const totalPadWidth = padCount * padWidth + (padCount - 1) * padGap;
+    const startX = (w - totalPadWidth) / 2;
+
+    this.pads.forEach((pad, i) => {
+      const x = startX + i * (padWidth + padGap);
+      this.padXPositions.set(pad.id, x);
+      const pv = this.padVisuals.get(pad.id);
+      if (pv) {
+        pv.x = x;
+        if (!pv.pressed && pv.pressAnim < 0.05) {
+          pv.container.x = x;
+          pv.container.y = this.padY;
+        }
+      }
+    });
+
+    if (this.comboText) {
+      this.comboText.x = w / 2;
+    }
+
+    this.drawLanes();
+  }
+
   private setupFilters(): void {
     try {
       this.bloomFilter = new ColorMatrixFilter();
-      this.bloomFilter.brightness(1.08, false);
+      this.bloomFilter.brightness(1.06, false);
       this.fxLayer.filters = [this.bloomFilter];
     } catch {
-      // ColorMatrixFilter unavailable — skip
+      this.bloomFilter = null;
     }
 
     try {
@@ -191,7 +296,7 @@ export class VisualEngine {
         uniform float uAmp;
         void main() {
           vec2 uv = vTextureCoord;
-          float shift = 0.003 + uBass * 0.01 + uAmp * 0.005;
+          float shift = 0.002 + uBass * 0.006 + uAmp * 0.003;
           float r = texture2D(uTexture, uv + vec2(shift, 0.0)).r;
           float g = texture2D(uTexture, uv).g;
           float b = texture2D(uTexture, uv - vec2(shift, 0.0)).b;
@@ -218,24 +323,27 @@ export class VisualEngine {
       this.particleIndex = (this.particleIndex + 1) % this.particlePool.length;
 
       p.clear();
-      p.circle(0, 0, 3 + Math.random() * 4).fill({ color, alpha: 0.9 });
+      p.circle(0, 0, 3 + Math.random() * 4).fill({ color, alpha: 0.95 });
       p.x = x;
       p.y = y;
       p.visible = true;
       p.alpha = 1;
 
       const angle = Math.random() * Math.PI * 2;
-      const speed = 80 + Math.random() * 200;
+      const speed = 100 + Math.random() * 220;
       const ext = p as Graphics & { _vx?: number; _vy?: number; _life?: number };
       ext._vx = Math.cos(angle) * speed;
-      ext._vy = Math.sin(angle) * speed - 50;
+      ext._vy = Math.sin(angle) * speed - 60;
       ext._life = 1.0;
     }
   }
 
   pressPad(padId: PadId): void {
     const pv = this.padVisuals.get(padId);
-    if (pv) { pv.pressed = true; pv.pressAnim = 1.0; }
+    if (pv) {
+      pv.pressed = true;
+      pv.pressAnim = 1.0;
+    }
   }
 
   releasePad(padId: PadId): void {
@@ -244,19 +352,66 @@ export class VisualEngine {
   }
 
   showJudgement(note: Note, judgement: Judgement): void {
+    // 1. Immediately remove note sprite from screen
+    const noteGfx = this.noteGraphics.get(note);
+    if (noteGfx) {
+      noteGfx.destroy();
+      this.noteGraphics.delete(note);
+    }
+
     const pv = this.padVisuals.get(note.pad);
     if (!pv) return;
     const x = pv.x + 50;
     const y = this.padY + PAD_HEIGHT / 2;
 
+    // 2. Spawn particles
     if (judgement === 'perfect') {
-      this.spawnBurst(x, y, pv.baseColor, 12);
-      this.spawnBurst(x, y, 0xffffff, 6);
+      this.spawnBurst(x, y, pv.baseColor, 14);
+      this.spawnBurst(x, y, 0xffffff, 8);
     } else if (judgement === 'good') {
-      this.spawnBurst(x, y, pv.baseColor, 6);
+      this.spawnBurst(x, y, pv.baseColor, 8);
     } else {
-      this.spawnBurst(x, y, 0xff3333, 4);
+      this.spawnBurst(x, y, 0xff3344, 6);
     }
+
+    // 3. Floating Judgement popup
+    let textStr = 'PERFECT!';
+    let textColor = 0xffcc00;
+    let fontSize = 20;
+
+    if (judgement === 'good') {
+      textStr = 'GOOD';
+      textColor = 0x00e5ff;
+      fontSize = 17;
+    } else if (judgement === 'miss') {
+      textStr = 'MISS';
+      textColor = 0xff3344;
+      fontSize = 17;
+    }
+
+    const popupText = new Text({
+      text: textStr,
+      style: {
+        fontFamily: 'monospace',
+        fontSize,
+        fill: textColor,
+        fontWeight: 'bold',
+        stroke: { color: 0x000000, width: 3 },
+      },
+    });
+    popupText.anchor.set(0.5);
+    popupText.x = x;
+    popupText.y = this.padY - 24;
+    popupText.scale.set(1.25);
+    this.fxLayer.addChild(popupText);
+
+    this.judgementPopups.push({
+      text: popupText,
+      life: 0.65,
+      maxLife: 0.65,
+      baseX: x,
+      baseY: this.padY - 24,
+    });
   }
 
   updateScore(score: number, combo: number): void {
@@ -270,72 +425,94 @@ export class VisualEngine {
   }
 
   update(audioTime: number, bands: AudioBands): void {
+    this.updateLayout();
+
     const w = this.app.screen.width;
     const h = this.app.screen.height;
 
-    // Background
+    // Background reaction to bass & beats
     const bgIntensity = bands.bass * 0.6 + this.beatPulse * 0.4;
-    const bgHue = 0x0a0a16;
-    const br = ((bgHue >> 16) & 0xff) + bgIntensity * 40;
-    const bg = ((bgHue >> 8) & 0xff) + bgIntensity * 20;
-    const bb = (bgHue & 0xff) + bgIntensity * 60;
+    const br = Math.min(255, 7 + bgIntensity * 35);
+    const bg = Math.min(255, 7 + bgIntensity * 18);
+    const bb = Math.min(255, 20 + bgIntensity * 55);
     this.bgRect.clear();
-    this.bgRect.rect(0, 0, w, h).fill({ color: (Math.min(255, br) << 16) | (Math.min(255, bg) << 8) | Math.min(255, bb) });
+    this.bgRect.rect(0, 0, w, h).fill({ color: (Math.round(br) << 16) | (Math.round(bg) << 8) | Math.round(bb) });
 
-    // Grid
+    // Grid pulse
     this.bgGrid.clear();
-    const gridAlpha = 0.05 + this.beatPulse * 0.1 + bands.mids * 0.05;
-    const gridSpacing = 40 + bands.bass * 10;
-    this.bgGrid.setStrokeStyle({ width: 1, color: 0x3a3a5a, alpha: gridAlpha });
-    for (let x = 0; x < w; x += gridSpacing) this.bgGrid.moveTo(x, 0).lineTo(x, h);
-    for (let y = 0; y < h; y += gridSpacing) this.bgGrid.moveTo(0, y).lineTo(w, y);
-    this.bgGrid.stroke();
+    const gridAlpha = 0.04 + this.beatPulse * 0.08 + bands.mids * 0.04;
+    const gridSpacing = 40 + bands.bass * 8;
+    for (let gx = 0; gx < w; gx += gridSpacing) {
+      this.bgGrid.moveTo(gx, 0).lineTo(gx, h);
+    }
+    for (let gy = 0; gy < h; gy += gridSpacing) {
+      this.bgGrid.moveTo(0, gy).lineTo(w, gy);
+    }
+    this.bgGrid.stroke({ width: 1, color: 0x303055, alpha: gridAlpha });
     this.beatPulse *= 0.92;
 
-    // RGB shift uniforms
+    // RGB shift uniforms safe update
     if (this.rgbFilter) {
-      const u = this.rgbFilter as unknown as { uniforms: Record<string, number> };
-      u.uniforms.uTime = audioTime;
-      u.uniforms.uBass = bands.bass;
-      u.uniforms.uAmp = bands.amplitude;
+      try {
+        const u = this.rgbFilter as unknown as {
+          resources?: { filterUniforms?: { uniforms?: Record<string, number> } };
+          uniforms?: Record<string, number>;
+        };
+        if (u.resources?.filterUniforms?.uniforms) {
+          u.resources.filterUniforms.uniforms.uTime = audioTime;
+          u.resources.filterUniforms.uniforms.uBass = bands.bass;
+          u.resources.filterUniforms.uniforms.uAmp = bands.amplitude;
+        } else if (u.uniforms) {
+          u.uniforms.uTime = audioTime;
+          u.uniforms.uBass = bands.bass;
+          u.uniforms.uAmp = bands.amplitude;
+        }
+      } catch {
+        // Ignored
+      }
     }
 
-    // Notes cleanup
+    // Cleanup notes that fell past the pads
     for (const [note, gfx] of this.noteGraphics) {
-      if (note.time + 0.5 < audioTime) {
+      if (note.time + 0.4 < audioTime) {
         gfx.destroy();
         this.noteGraphics.delete(note);
       }
     }
 
-    // Note spawning
+    // Spawn notes approaching within leadTime window
     for (const note of this.notes) {
       if (this.noteGraphics.has(note)) continue;
       const timeUntilHit = note.time - audioTime;
-      if (timeUntilHit > this.leadTime || timeUntilHit < -0.3) continue;
+      if (timeUntilHit > this.leadTime || timeUntilHit < -0.2) continue;
       const padConfig = this.pads.find(p => p.id === note.pad);
       if (!padConfig) continue;
 
       const gfx = new Graphics();
       const color = this.hexToInt(padConfig.color);
-      gfx.roundRect(-NOTE_SIZE / 2, -NOTE_SIZE / 2, NOTE_SIZE, NOTE_SIZE, 8).fill({ color, alpha: 0.85 });
-      gfx.stroke({ color: 0xffffff, width: 2, alpha: 0.5 });
+      // Note body with glow stroke
+      gfx.roundRect(-NOTE_SIZE / 2, -NOTE_SIZE / 2, NOTE_SIZE, NOTE_SIZE, 8).fill({ color, alpha: 0.92 });
+      gfx.stroke({ color: 0xffffff, width: 2, alpha: 0.7 });
       this.noteLayer.addChild(gfx);
       this.noteGraphics.set(note, gfx);
     }
 
-    // Note positions
+    // Note positions: fall from top towards pad center
+    const targetY = this.padY + PAD_HEIGHT / 2;
     for (const [note, gfx] of this.noteGraphics) {
       const x = this.padXPositions.get(note.pad) ?? 0;
+      // progress goes from 0.0 (far away at spawn) to 1.0 (exact hit moment)
       const progress = 1 - (note.time - audioTime) / this.leadTime;
-      const y = this.padY + PAD_HEIGHT / 2 - FALL_DISTANCE * progress;
+      // Correct downward fall trajectory: starts at targetY - FALL_DISTANCE and arrives at targetY
+      const y = targetY - FALL_DISTANCE * (1 - progress);
+
       gfx.x = x + 50;
       gfx.y = y;
-      gfx.scale.set(0.8 + progress * 0.2);
-      gfx.alpha = progress < 0.1 ? progress * 10 : 1;
+      gfx.scale.set(0.85 + Math.min(progress, 1) * 0.15);
+      gfx.alpha = progress < 0.08 ? progress * 12.5 : 1;
     }
 
-    // Pads
+    // Pad animations
     for (const [, pv] of this.padVisuals) {
       let bandValue = 0;
       if (pv.bandIndex === 0) bandValue = bands.bass;
@@ -343,42 +520,61 @@ export class VisualEngine {
       else if (pv.bandIndex === 2) bandValue = bands.treble;
       else bandValue = bands.amplitude;
 
-      const idleGlow = 0.15 + bandValue * 0.3;
-      const pressGlow = pv.pressAnim * 0.5;
+      const idleGlow = 0.12 + bandValue * 0.28;
+      const pressGlow = pv.pressAnim * 0.55;
 
       pv.glow.clear();
-      pv.glow.roundRect(-15 - bandValue * 5, -15 - bandValue * 5, 130 + bandValue * 10, PAD_HEIGHT + 30 + bandValue * 10, 12)
+      pv.glow.roundRect(-15 - bandValue * 4, -15 - bandValue * 4, 130 + bandValue * 8, PAD_HEIGHT + 30 + bandValue * 8, 14)
         .fill({ color: pv.baseColor, alpha: idleGlow + pressGlow });
 
       pv.rect.clear();
-      const fillAlpha = 0.3 + bandValue * 0.2 + pv.pressAnim * 0.4;
+      const fillAlpha = 0.25 + bandValue * 0.18 + pv.pressAnim * 0.45;
       pv.rect.roundRect(0, 0, 100, PAD_HEIGHT, 10).fill({ color: pv.baseColor, alpha: fillAlpha });
-      pv.rect.stroke({ color: pv.baseColor, width: 2 + pv.pressAnim * 2, alpha: 0.6 + pv.pressAnim * 0.4 });
+      pv.rect.stroke({ color: pv.baseColor, width: 2 + pv.pressAnim * 2.5, alpha: 0.6 + pv.pressAnim * 0.4 });
 
-      const pressScale = 1 + pv.pressAnim * 0.15;
+      const pressScale = 1 + pv.pressAnim * 0.12;
       pv.container.scale.set(pressScale);
       pv.container.x = pv.x - (pressScale - 1) * 50;
-      pv.container.y = this.padY - (pressScale - 1) * PAD_HEIGHT / 2;
-      pv.pressAnim *= 0.85;
+      pv.container.y = this.padY - (pressScale - 1) * (PAD_HEIGHT / 2);
+      pv.pressAnim *= 0.84;
     }
 
-    // Particles
+    // Particles update
+    const dt = 1 / 60;
     for (const p of this.particlePool) {
       if (!p.visible) continue;
       const ext = p as Graphics & { _vx?: number; _vy?: number; _life?: number };
-      if (ext._life === undefined || ext._life <= 0) { p.visible = false; continue; }
-      const dt = 1 / 60;
+      if (ext._life === undefined || ext._life <= 0) {
+        p.visible = false;
+        continue;
+      }
       p.x += (ext._vx ?? 0) * dt;
       p.y += (ext._vy ?? 0) * dt;
-      ext._vy = (ext._vy ?? 0) + 400 * dt;
-      ext._life -= dt * 2;
+      ext._vy = (ext._vy ?? 0) + 420 * dt;
+      ext._life -= dt * 2.2;
       p.alpha = Math.max(0, ext._life);
       p.scale.set(Math.max(0.1, ext._life));
     }
 
-    // Combo pulse
+    // Judgement popups update
+    for (let i = this.judgementPopups.length - 1; i >= 0; i--) {
+      const popup = this.judgementPopups[i];
+      popup.life -= dt;
+      if (popup.life <= 0) {
+        popup.text.destroy();
+        this.judgementPopups.splice(i, 1);
+        continue;
+      }
+      const tRatio = 1 - popup.life / popup.maxLife;
+      popup.text.y = popup.baseY - tRatio * 32;
+      popup.text.alpha = Math.min(1, popup.life / (popup.maxLife * 0.35));
+      const sc = 1.25 - tRatio * 0.25;
+      popup.text.scale.set(Math.max(1, sc));
+    }
+
+    // Combo text pulse
     if (this.comboText.text) {
-      this.comboText.scale.set(1 + bands.amplitude * 0.1);
+      this.comboText.scale.set(1 + bands.amplitude * 0.12);
     }
   }
 
@@ -391,6 +587,17 @@ export class VisualEngine {
   dispose(): void {
     if (this.tickerCb) this.app.ticker.remove(this.tickerCb);
     this.tickerCb = null;
+
+    for (const [, gfx] of this.noteGraphics) {
+      gfx.destroy();
+    }
+    this.noteGraphics.clear();
+
+    for (const popup of this.judgementPopups) {
+      popup.text.destroy();
+    }
+    this.judgementPopups = [];
+
     this.app.destroy(true);
     if (this.app.canvas?.parentNode) {
       this.app.canvas.parentNode.removeChild(this.app.canvas);

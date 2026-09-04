@@ -12,16 +12,17 @@ import type { LevelData, Note, PadConfig, PadId } from '../types';
  */
 export class BeatmapGenerator {
   /**
-   * @param bpm  Tempo of the song.
-   * @param bars Number of musical bars (4 beats each) to generate.
-   * @returns    Note array with timestamps in seconds.
+   * @param bpm        Tempo of the song.
+   * @param bars       Number of musical bars (4 beats each) to generate.
+   * @param leadInBars Bars of intro silence/groove before the first note (default 2).
+   * @returns          Note array with timestamps in seconds.
    */
-  static generate(bpm: number, bars: number): Note[] {
+  static generate(bpm: number, bars: number, leadInBars = 2): Note[] {
     const beatLen = 60 / bpm;
     const notes: Note[] = [];
     const pads: PadId[] = ['pad_0', 'pad_1', 'pad_2', 'pad_3'];
 
-    let t = 0;
+    let t = leadInBars * 4 * beatLen;
     for (let bar = 0; bar < bars; bar++) {
       const inSection = bar % 4;
 

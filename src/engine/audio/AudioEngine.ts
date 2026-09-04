@@ -104,15 +104,27 @@ export class AudioEngine {
    * Must be called after init(). The file is decoded into an AudioBuffer
    * and played through the same master gain → analyser chain.
    */
-  async loadFile(url: string): Promise<void> {
+  async loadFile(url: string): Promise<boolean> {
     if (!this.ctx) throw new Error('AudioEngine not initialized — call init() first');
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to load audio file: ${response.status} ${response.statusText}`);
+    try {
+      const response = await fetch(url);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || contentType.includes('text/html')) {
+        console.warn(`Audio file not found or returned HTML (${response.status}, ${contentType}). Using procedural synthesizer.`);
+        this.useFile = false;
+        this.audioBuffer = null;
+        return false;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      this.useFile = true;
+      return true;
+    } catch (err) {
+      console.warn('Audio decoding failed, falling back to procedural synthesizer:', err);
+      this.useFile = false;
+      this.audioBuffer = null;
+      return false;
     }
-    const arrayBuffer = await response.arrayBuffer();
-    this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-    this.useFile = true;
   }
 
   /**
