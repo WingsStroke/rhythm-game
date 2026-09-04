@@ -1,6 +1,8 @@
 import { Application, Container, Graphics, Text, ColorMatrixFilter, Filter, Ticker } from 'pixi.js';
 import type { LevelData, Note, PadId, PadConfig, AudioBands, Judgement } from '../types';
 import { AudioEngine } from '../audio/AudioEngine';
+import { SceneGraph } from './SceneGraph';
+import { Animator } from './Animator';
 
 /**
  * VisualEngine — all rendering using PixiJS v8.
@@ -38,6 +40,7 @@ interface JudgementPopup {
 export class VisualEngine {
   private app: Application;
   private root: HTMLElement;
+  private level: LevelData;
   private pads: PadConfig[];
   private notes: Note[];
 
@@ -47,6 +50,11 @@ export class VisualEngine {
   private padLayer!: Container;
   private particleLayer!: Container;
   private fxLayer!: Container;
+  private sceneLayer!: Container;
+
+  // Scene Graph
+  private sceneGraph!: SceneGraph;
+  private animator!: Animator;
 
   // Visual objects
   private bgRect!: Graphics;
@@ -75,6 +83,7 @@ export class VisualEngine {
 
   constructor(root: HTMLElement, level: LevelData, _audio: AudioEngine) {
     this.root = root;
+    this.level = level;
     this.pads = level.pads;
     this.notes = level.notes;
     this.app = new Application();
@@ -106,15 +115,27 @@ export class VisualEngine {
     this.padLayer = new Container();
     this.particleLayer = new Container();
     this.fxLayer = new Container();
+    this.sceneLayer = new Container();
 
     this.bgLayer.zIndex = 0;
+    this.sceneLayer.zIndex = 5;
     this.noteLayer.zIndex = 10;
     this.padLayer.zIndex = 20;
     this.particleLayer.zIndex = 15;
     this.fxLayer.zIndex = 25;
 
     this.app.stage.sortableChildren = true;
-    this.app.stage.addChild(this.bgLayer, this.noteLayer, this.particleLayer, this.padLayer, this.fxLayer);
+    this.app.stage.addChild(this.bgLayer, this.sceneLayer, this.noteLayer, this.particleLayer, this.padLayer, this.fxLayer);
+
+    // Initialize SceneGraph
+    this.sceneGraph = new SceneGraph(this.sceneLayer);
+    this.animator = new Animator(this.sceneGraph);
+    
+    // Load data-driven visual elements
+    this.sceneGraph.buildFromData(this.level as any);
+    if (this.level.animations) {
+      this.animator.setAnimations(this.level.animations);
+    }
 
     // Background rect & grid
     this.bgRect = new Graphics();
@@ -426,6 +447,11 @@ export class VisualEngine {
 
   update(audioTime: number, bands: AudioBands): void {
     this.updateLayout();
+    
+    // Update data-driven animations
+    if (this.animator) {
+      this.animator.update(audioTime);
+    }
 
     const w = this.app.screen.width;
     const h = this.app.screen.height;

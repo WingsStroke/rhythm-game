@@ -95,6 +95,61 @@ export interface LevelData {
     offset: number;
     windows: TimingWindows;
   };
+  // Stage 2: Data-Driven Visual Engine
+  objects?: VisualObjectData[];
+  groups?: SceneGroupData[];
+  animations?: AnimationData[];
+}
+
+// ---- Data-Driven Visual Engine Types ----
+
+export type VisualObjectType = 'sprite' | 'rectangle' | 'circle' | 'particle' | 'custom';
+
+export interface VisualObjectData {
+  id: string;
+  type: VisualObjectType;
+  groupId?: string; // Optional parent group
+  properties: {
+    x?: number;
+    y?: number;
+    scaleX?: number;
+    scaleY?: number;
+    rotation?: number;
+    alpha?: number;
+    color?: string;
+    width?: number;
+    height?: number;
+    radius?: number;
+    texture?: string;
+  };
+}
+
+export interface SceneGroupData {
+  id: string;
+  parentId?: string; // Nested groups
+  properties: {
+    x?: number;
+    y?: number;
+    scaleX?: number;
+    scaleY?: number;
+    rotation?: number;
+    alpha?: number;
+  };
+}
+
+export type EasingType = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
+
+export interface Keyframe {
+  time: number; // in seconds
+  value: number;
+  easing?: EasingType;
+}
+
+export interface AnimationData {
+  id: string;
+  targetId: string; // ID of the VisualObject or SceneGroup
+  property: 'x' | 'y' | 'scaleX' | 'scaleY' | 'rotation' | 'alpha';
+  keyframes: Keyframe[];
 }
 
 /** Audio frequency band data for visual reactivity. */

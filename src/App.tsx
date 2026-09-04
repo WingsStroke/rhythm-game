@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Game } from '@/engine/Game';
 import { createPrototypeLevel, SONG_URL } from '@/game/createPrototypeLevel';
 import type { PlayerState } from '@/engine/types';
+import { EditorApp } from '@/editor/EditorApp';
 
-type Screen = 'start' | 'playing' | 'results';
+type Screen = 'start' | 'playing' | 'results' | 'editor';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('start');
@@ -124,7 +125,12 @@ export default function App() {
 
       {/* Start Screen Overlay */}
       {screen === 'start' && (
-        <StartScreen onStart={startGame} hasSongFile={hasSongFile} errorMsg={errorMsg} loading={loading} />
+        <StartScreen onStart={startGame} onOpenEditor={() => setScreen('editor')} hasSongFile={hasSongFile} errorMsg={errorMsg} loading={loading} />
+      )}
+
+      {/* Level Editor */}
+      {screen === 'editor' && (
+        <EditorApp onExit={() => setScreen('start')} />
       )}
 
       {/* HUD & Overlay during Playing */}
@@ -161,11 +167,13 @@ export default function App() {
 
 function StartScreen({
   onStart,
+  onOpenEditor,
   hasSongFile,
   errorMsg,
   loading,
 }: {
   onStart: () => void;
+  onOpenEditor: () => void;
   hasSongFile: boolean;
   errorMsg: string | null;
   loading: boolean;
@@ -200,14 +208,24 @@ function StartScreen({
         </div>
 
         <div className="flex flex-col gap-4 items-center w-full">
-          <button
-            id="play-button"
-            onClick={onStart}
-            disabled={loading}
-            className="w-64 py-4 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white text-2xl font-black rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-[#ff2d6f]/40 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer tracking-wider"
-          >
-            {loading ? 'STARTING...' : 'PLAY'}
-          </button>
+          <div className="flex gap-4 w-64">
+            <button
+              id="play-button"
+              onClick={onStart}
+              disabled={loading}
+              className="flex-1 py-4 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white text-2xl font-black rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-[#ff2d6f]/40 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer tracking-wider"
+            >
+              {loading ? '...' : 'PLAY'}
+            </button>
+            <button
+              onClick={onOpenEditor}
+              disabled={loading}
+              className="px-4 py-4 bg-white/10 text-white font-bold rounded-2xl hover:bg-white/20 hover:scale-105 active:scale-95 transition-all shadow-xl disabled:opacity-50 border border-white/20 cursor-pointer"
+              title="Open Level Editor"
+            >
+              EDITOR
+            </button>
+          </div>
 
           {errorMsg && (
             <div className="w-full px-4 py-3 rounded-xl bg-red-500/20 border border-red-500/40 text-sm text-red-300">
