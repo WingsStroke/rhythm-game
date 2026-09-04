@@ -1,4 +1,5 @@
 import type { AudioBands } from '../types';
+import type { TimeSource } from '../time/TimeSource';
 
 /**
  * AudioEngine — wraps the Web Audio API.
@@ -13,7 +14,7 @@ import type { AudioBands } from '../types';
  * The audio clock is the PRIMARY clock. requestAnimationFrame drives
  * rendering only; timing/score/hit-detection all read from getTime().
  */
-export class AudioEngine {
+export class AudioEngine implements TimeSource {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;

@@ -81,6 +81,7 @@ export interface PadInputEvent {
 
 /** Level format — data-driven, renderer-agnostic. */
 export interface LevelData {
+  formatVersion: number;
   metadata: {
     id: string;
     name: string;
@@ -95,46 +96,35 @@ export interface LevelData {
     offset: number;
     windows: TimingWindows;
   };
-  // Stage 2: Data-Driven Visual Engine
-  objects?: VisualObjectData[];
-  groups?: SceneGroupData[];
-  animations?: AnimationData[];
+  visual: {
+    nodes: SceneNodeData[];
+    animations: AnimationData[];
+    triggers: TriggerData[];
+  };
 }
 
 // ---- Data-Driven Visual Engine Types ----
 
-export type VisualObjectType = 'sprite' | 'rectangle' | 'circle' | 'particle' | 'custom';
-
-export interface VisualObjectData {
+export interface SceneNodeData {
   id: string;
-  type: VisualObjectType;
-  groupId?: string; // Optional parent group
-  properties: {
+  type: string;
+  parentId?: string;
+  transform?: {
     x?: number;
     y?: number;
+    rotation?: number;
     scaleX?: number;
     scaleY?: number;
-    rotation?: number;
-    alpha?: number;
-    color?: string;
-    width?: number;
-    height?: number;
-    radius?: number;
-    texture?: string;
+    opacity?: number;
   };
+  properties?: Record<string, unknown>;
 }
 
-export interface SceneGroupData {
+export interface TriggerData {
+  // Placeholder for future trigger system
   id: string;
-  parentId?: string; // Nested groups
-  properties: {
-    x?: number;
-    y?: number;
-    scaleX?: number;
-    scaleY?: number;
-    rotation?: number;
-    alpha?: number;
-  };
+  type: string;
+  [key: string]: unknown;
 }
 
 export type EasingType = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';

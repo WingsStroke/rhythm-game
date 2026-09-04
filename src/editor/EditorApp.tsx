@@ -5,6 +5,7 @@ import { BeatmapGenerator } from '../engine/beatmap/BeatmapGenerator';
 
 // A mock initial level data
 const initialLevel: LevelData = {
+  formatVersion: 1,
   metadata: {
     id: 'editor-level-1',
     name: 'New Level',
@@ -25,6 +26,11 @@ const initialLevel: LevelData = {
     bpm: 120,
     offset: 0,
     windows: { perfect: 0.05, good: 0.1, miss: 0.2 },
+  },
+  visual: {
+    nodes: [],
+    animations: [],
+    triggers: [],
   },
 };
 

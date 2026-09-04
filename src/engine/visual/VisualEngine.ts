@@ -132,9 +132,9 @@ export class VisualEngine {
     this.animator = new Animator(this.sceneGraph);
     
     // Load data-driven visual elements
-    this.sceneGraph.buildFromData(this.level as any);
-    if (this.level.animations) {
-      this.animator.setAnimations(this.level.animations);
+    this.sceneGraph.buildFromData(this.level);
+    if (this.level.visual?.animations) {
+      this.animator.setAnimations(this.level.visual.animations);
     }
 
     // Background rect & grid

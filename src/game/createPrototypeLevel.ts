@@ -27,6 +27,7 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
   const duration = ((bars + leadInBars) * 4 * 60) / bpm;
 
   return {
+    formatVersion: 1,
     metadata: {
       id: 'proto-001',
       name: 'Neon Pulse',
@@ -52,6 +53,36 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
         good: 0.090,     // ±90ms
         miss: 0.150,     // ±150ms -> auto-miss
       },
+    },
+    visual: {
+      nodes: [
+        {
+          id: 'test_rect',
+          type: 'rectangle',
+          transform: {
+            x: 500,
+            y: 300,
+          },
+          properties: {
+            width: 200,
+            height: 100,
+            color: '#00e5ff'
+          }
+        }
+      ],
+      animations: [
+        {
+          id: 'test_anim',
+          targetId: 'test_rect',
+          property: 'x',
+          keyframes: [
+            { time: 0, value: 500, easing: 'easeInOut' },
+            { time: 2, value: 900, easing: 'easeInOut' },
+            { time: 4, value: 500, easing: 'easeInOut' }
+          ]
+        }
+      ],
+      triggers: [],
     },
   };
 }
