@@ -3,15 +3,36 @@ import type { LevelData, PadId, Note } from '../engine/types';
 
 interface TimelineProps {
   level: LevelData;
+  currentTime: number;
+  onSeek?: (time: number) => void;
   onAddNote: (time: number, padId: PadId) => void;
   onRemoveNote: (index: number) => void;
 }
 
 const SECONDS_PER_PIXEL = 0.01; // Zoom level
 
-export function Timeline({ level, onAddNote, onRemoveNote }: TimelineProps) {
-  const [currentTime, setCurrentTime] = useState(0);
+export function Timeline({ level, currentTime, onSeek, onAddNote, onRemoveNote }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const isAutoScrolling = useRef(false);
+
+  // Auto-scroll timeline to follow playhead
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const container = containerRef.current;
+    const playheadX = currentTime / SECONDS_PER_PIXEL;
+    
+    // Auto-scroll logic: keep playhead in view
+    const leftBound = container.scrollLeft;
+    const rightBound = leftBound + container.clientWidth;
+    
+    if (playheadX > rightBound - 100) {
+      container.scrollLeft = playheadX - container.clientWidth + 100;
+      isAutoScrolling.current = true;
+    } else if (playheadX < leftBound) {
+      container.scrollLeft = Math.max(0, playheadX - 100);
+      isAutoScrolling.current = true;
+    }
+  }, [currentTime]);
 
   // Generate grid lines based on BPM
   const beatDuration = 60 / level.timing.bpm; // seconds per beat
@@ -35,10 +56,21 @@ export function Timeline({ level, onAddNote, onRemoveNote }: TimelineProps) {
     onAddNote(snappedTime, padId);
   };
 
+  const handleSeek = (e: React.MouseEvent) => {
+    if (!containerRef.current || !onSeek) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left + containerRef.current.scrollLeft;
+    const clickedTime = clickX * SECONDS_PER_PIXEL;
+    onSeek(Math.max(0, clickedTime));
+  };
+
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden">
       {/* Time Ruler */}
-      <div className="h-8 border-b border-white/10 bg-black/40 relative overflow-hidden flex-shrink-0" >
+      <div 
+        className="h-8 border-b border-white/10 bg-black/40 relative overflow-hidden flex-shrink-0 cursor-crosshair"
+        onClick={handleSeek}
+      >
          {/* Ruler markings can go here */}
          <div className="absolute top-0 left-0 h-full flex items-end text-[10px] text-white/40" style={{ width: widthPx }}>
             {Array.from({ length: totalBeats }).map((_, i) => (

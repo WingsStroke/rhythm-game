@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Timeline } from './Timeline';
+import { AudioEngine } from '../engine/audio/AudioEngine';
 import type { LevelData, Note, PadId } from '../engine/types';
 import { BeatmapGenerator } from '../engine/beatmap/BeatmapGenerator';
 
@@ -36,6 +37,41 @@ const initialLevel: LevelData = {
 
 export function EditorApp({ onExit }: { onExit: () => void }) {
   const [level, setLevel] = useState<LevelData>(initialLevel);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const audioRef = useRef<AudioEngine | null>(null);
+
+  // Sync editor time with audio engine when playing
+  useEffect(() => {
+    let animId: number;
+    const loop = () => {
+      if (isPlaying && audioRef.current) {
+        setCurrentTime(audioRef.current.getTime());
+      }
+      animId = requestAnimationFrame(loop);
+    };
+    if (isPlaying) {
+      animId = requestAnimationFrame(loop);
+    }
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying]);
+
+  const togglePlay = async () => {
+    if (isPlaying) {
+      audioRef.current?.stop();
+      setIsPlaying(false);
+    } else {
+      if (!audioRef.current) {
+        audioRef.current = new AudioEngine();
+        await audioRef.current.init();
+        if (level.song.url) {
+          await audioRef.current.loadFile(level.song.url);
+        }
+      }
+      audioRef.current.start(level.timing.bpm);
+      setIsPlaying(true);
+    }
+  };
 
   const handleExport = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(level, null, 2));
@@ -70,11 +106,19 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
           <span className="font-bold text-xl tracking-wider text-[#00e5ff]">BEATMAP EDITOR</span>
           <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">BPM: {level.timing.bpm}</div>
         </div>
+        <div className="flex items-center gap-2">
+          <button onClick={togglePlay} className="px-4 py-1.5 bg-[#00ff9d]/20 text-[#00ff9d] rounded hover:bg-[#00ff9d]/40 transition-colors text-sm font-bold">
+            {isPlaying ? 'PAUSE' : 'PLAY'}
+          </button>
+          <button onClick={() => { audioRef.current?.stop(); setIsPlaying(false); setCurrentTime(0); }} className="px-4 py-1.5 bg-white/10 text-white rounded hover:bg-white/20 transition-colors text-sm font-bold">
+            STOP
+          </button>
+        </div>
         <div className="flex items-center gap-3">
           <button onClick={handleExport} className="px-4 py-1.5 bg-[#00e5ff]/20 text-[#00e5ff] rounded hover:bg-[#00e5ff]/40 transition-colors text-sm font-semibold">
             Export JSON
           </button>
-          <button onClick={onExit} className="px-4 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/40 transition-colors text-sm font-semibold">
+          <button onClick={() => { audioRef.current?.dispose(); onExit(); }} className="px-4 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/40 transition-colors text-sm font-semibold">
             Exit
           </button>
         </div>
@@ -112,7 +156,13 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
 
         {/* Center Canvas (Timeline) */}
         <main className="flex-1 flex flex-col relative overflow-hidden bg-black/60">
-          <Timeline level={level} onAddNote={addNote} onRemoveNote={removeNote} />
+          <Timeline 
+            level={level} 
+            currentTime={currentTime} 
+            onSeek={(t) => setCurrentTime(t)}
+            onAddNote={addNote} 
+            onRemoveNote={removeNote} 
+          />
         </main>
 
         {/* Right Sidebar (Properties) */}
