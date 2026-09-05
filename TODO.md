@@ -156,10 +156,7 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
 - [ ] **[P1] Formato de Archivo Unificado .rhythm / .zip**
   - Empaquetador que comprima: `level.json` + `audio.mp3` + `cover.png` + `background.png` en un solo archivo descargable y cargable con drag & drop directo en la ventana del navegador.
 
-- [ ] **[P2] Importador de Formatos Estandar (.osu osu!mania, .sm StepMania)**
-  - Conversor automatico que lea archivos de beatmaps comunitarios de 4 teclas (`4K`) y los traduzca automaticamente a `LevelData` nativo de Neon Pulse.
-
-- [ ] **[P3] Generador Asistido de Beatmaps por Deteccion de Transientes (Onset Detection)**
+- [ ] **[P2] Generador Asistido de Beatmaps por Deteccion de Transientes (Onset Detection)**
   - Analizar cualquier cancion subida por el usuario mediante FFT en el cliente, detectar los transientes de percusion y generar una propuesta inicial de notas en Easy/Normal/Hard para editar sobre ella.
 
 ---
@@ -170,11 +167,11 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
   - Inicio de sesion con correo o proveedores OAuth (Discord / Google).
   - Tabla de perfiles de jugador: avatar, nivel de experiencia, puntuacion total acumulada.
 
-- [ ] **[P1] Tablas de Clasificacion Globales (Global & Difficulty Leaderboards)**
+- [ ] **[P2] Tablas de Clasificacion Globales (Global & Difficulty Leaderboards)**
   - Registro del Top 50 mundial por cancion y por dificultad (Easy, Normal, Hard).
   - Envio seguro de puntajes con verificacion basica de integridad (hash/checksum del replay para evitar trampas).
 
-- [ ] **[P2] Guardado en la Nube de Niveles Propios (Cloud Saves)**
+- [ ] **[P3] Guardado en la Nube de Niveles Propios (Cloud Saves)**
   - Guardar y sincronizar beatmaps creados en el editor en la nube del usuario para continuar editando desde cualquier equipo.
 
 ---
@@ -185,13 +182,13 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
   - Grabar la lista de entradas del jugador (`time`, `padId`, `action`) durante una partida.
   - Permitir guardar el replay junto al puntaje y reproducir la partida exacta desde la pantalla de resultados o leaderboards.
 
-- [ ] **[P2] Modo Duelo 1v1 en Tiempo Real**
-  - Dos jugadores compiten en simultaneo por WebSockets / WebRTC con la misma cancion, viendo la barra de progreso y puntaje del rival en tiempo real.
+- [ ] **[P3] Modo Collab en Tiempo Real**
+  - Dos jugadores interpretan la misma canción en simultaneo con WebSockets / WebRTC.
 
-- [ ] **[P2] Modo Mashup Cooperativo**
+- [ ] **[P3] Modo Mashup Cooperativo**
   - Dos jugadores con Launchpads independientes interpretan secciones complementarias (e.g. Jugador 1: Percusion/Bajos; Jugador 2: Melodias/Sintetizadores) sobre una pista combinada.
 
-- [ ] **[P3] Navegador y Catalogo Comunitario (Community Song Hub)**
+- [ ] **[P4] Navegador y Catalogo Comunitario (Community Song Hub)**
   - Explorador dentro del juego para buscar, escuchar fragmentos, descargar y votar canciones creadas por la comunidad.
 
 ---
