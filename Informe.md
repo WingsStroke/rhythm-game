@@ -1002,13 +1002,14 @@ El proyecto evoluciona por fases estandarizadas, coordinadas directamente con la
 * HUD de rendimiento en tiempo real (barra de progreso, multiplicador animado, precisión %)
 * Pantalla de resultados con calificaciones (SS a D) y desglose de juicios
 
-### Fase 5 — Content Pipeline y Gestión de Assets *(Siguiente Fase)*
+### Fase 5 — Content Pipeline y Gestión de Assets *(Completada)*
 * Integración activa de `SongRegistry` con `AudioEngine` y `AudioTransport`
-* Caching de buffers de audio decodificados en memoria (`AudioBuffer`) para evitar duplicaciones
-* Vinculación de múltiples dificultades (Easy, Normal, Hard) compartiendo una misma canción
-* Empaquetado, validación de esquemas y preloading de niveles
+* Caching de buffers de audio decodificados en memoria (`AudioBuffer`) para evitar duplicaciones y eliminar latencia al cambiar de pista o dificultad
+* Vinculación de múltiples dificultades (Easy, Normal, Hard) compartiendo una misma canción y buffer de audio
+* Validación estricta de esquemas y sanitización profunda de niveles (`LevelValidator`)
+* Orquestador de empaquetado y preloading de niveles (`ContentManager`)
 
-### Fase 6 — Optimización y Pulido
+### Fase 6 — Optimización y Pulido *(Siguiente Fase)*
 * Object pooling intensivo para display objects y partículas
 * Profiling de rendimiento en GPU/CPU y calidad adaptativa
 * Garantía de estabilidad continua a 60+ FPS y pruebas de respuesta táctil

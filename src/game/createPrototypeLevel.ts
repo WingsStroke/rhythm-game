@@ -21,19 +21,30 @@ export const SONG_URL = '/audio/song.mp3';
  *  - Pad 2 (Lead)     → role: 'lead',  behavior: 'tap'
  *  - Pad 3 (FX)       → role: 'fx',    behavior: 'tap'
  */
-export function createPrototypeLevel(songUrl?: string): LevelData {
+export function createPrototypeLevel(
+  songUrl?: string,
+  difficulty: 'Easy' | 'Normal' | 'Hard' = 'Normal'
+): LevelData {
   const bpm = 128;
   const bars = 16; // ~30 seconds of gameplay
   const leadInBars = 2;
-  const events = BeatmapGenerator.generate(bpm, bars, leadInBars);
+  const events = BeatmapGenerator.generateDifficulty(bpm, bars, difficulty, leadInBars);
   const duration = ((bars + leadInBars) * 4 * 60) / bpm;
+
+  // Scale timing windows to match difficulty
+  const windows =
+    difficulty === 'Easy'
+      ? { perfect: 0.060, good: 0.120, miss: 0.200 }
+      : difficulty === 'Hard'
+        ? { perfect: 0.030, good: 0.065, miss: 0.100 }
+        : { perfect: 0.045, good: 0.090, miss: 0.150 };
 
   return {
     formatVersion: 1,
     metadata: {
-      id: 'proto-001',
+      id: `proto-${difficulty.toLowerCase()}`,
       name: 'Neon Pulse',
-      difficulty: 'Normal',
+      difficulty,
       author: 'Prototype',
     },
     songId: 'proto-song',
@@ -51,11 +62,7 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
     timing: {
       bpm,
       offset: 0,
-      windows: {
-        perfect: 0.045,  // ±45ms
-        good: 0.090,     // ±90ms
-        miss: 0.150,     // ±150ms -> auto-miss
-      },
+      windows,
     },
     visual: {
       nodes: [

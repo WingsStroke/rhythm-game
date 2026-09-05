@@ -387,12 +387,12 @@ export function useEditorEngine({
   }, []);
 
   const loadAudioFile = useCallback(
-    async (file: File): Promise<{ success: boolean; duration: number }> => {
+    async (file: File, songId?: string): Promise<{ success: boolean; duration: number }> => {
       if (!transportRef.current) {
         transportRef.current = new AudioTransport();
         await transportRef.current.init();
       }
-      const result = await transportRef.current.loadAudio(file);
+      const result = await transportRef.current.loadAudio(file, songId);
       if (result.success) {
         setIsPlaying(false);
         setIsRecording(false);

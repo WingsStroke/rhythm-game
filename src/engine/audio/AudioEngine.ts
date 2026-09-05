@@ -1,5 +1,6 @@
 import type { AudioBands } from '../types';
 import type { TimeSource } from '../time/TimeSource';
+import { SongRegistry } from '../content/SongRegistry';
 
 /**
  * AudioEngine — wraps the Web Audio API.
@@ -116,11 +117,38 @@ export class AudioEngine implements TimeSource {
   }
 
   /**
+   * Directly sets a pre-decoded AudioBuffer (e.g. from SongRegistry cache).
+   * Bypasses network fetch and audio decoding entirely.
+   */
+  loadAudioBuffer(buffer: AudioBuffer): { success: boolean; duration: number } {
+    this.audioBuffer = buffer;
+    this.useFile = true;
+    return { success: true, duration: buffer.duration };
+  }
+
+  getAudioBuffer(): AudioBuffer | null {
+    return this.audioBuffer;
+  }
+
+  /**
    * Load audio from a URL, a File object, or an ArrayBuffer.
+   * If songId is provided, checks SongRegistry memory cache first.
    * Decodes into an AudioBuffer and returns the success status and duration in seconds.
    */
-  async loadAudio(source: string | File | ArrayBuffer): Promise<{ success: boolean; duration: number }> {
+  async loadAudio(
+    source: string | File | ArrayBuffer,
+    songId?: string
+  ): Promise<{ success: boolean; duration: number }> {
     if (!this.ctx) throw new Error('AudioEngine not initialized — call init() first');
+
+    // 1. Check SongRegistry memory cache if songId is provided
+    if (songId) {
+      const cached = SongRegistry.getInstance().getAudioBuffer(songId);
+      if (cached) {
+        return this.loadAudioBuffer(cached);
+      }
+    }
+
     try {
       let arrayBuffer: ArrayBuffer;
       if (source instanceof File) {
@@ -141,6 +169,12 @@ export class AudioEngine implements TimeSource {
 
       this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
       this.useFile = true;
+
+      // 2. Cache decoded buffer in SongRegistry if songId is provided
+      if (songId) {
+        SongRegistry.getInstance().setAudioBuffer(songId, this.audioBuffer);
+      }
+
       return { success: true, duration: this.audioBuffer.duration };
     } catch (err) {
       console.warn('Audio decoding failed, falling back to procedural synthesizer:', err);
@@ -155,8 +189,8 @@ export class AudioEngine implements TimeSource {
    * Must be called after init(). The file is decoded into an AudioBuffer
    * and played through the same master gain → analyser chain.
    */
-  async loadFile(url: string): Promise<boolean> {
-    const res = await this.loadAudio(url);
+  async loadFile(url: string, songId?: string): Promise<boolean> {
+    const res = await this.loadAudio(url, songId);
     return res.success;
   }
 

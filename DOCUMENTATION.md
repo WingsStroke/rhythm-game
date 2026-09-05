@@ -407,19 +407,20 @@ SceneNodeData fields:
 - Scene graph with parent-child hierarchy, immutable `uid` node indexing, and numeric `targetId` trigger grouping.
 - TriggerDispatcher: time-sorted execution, seek-safe cumulative replay.
 - Animator: eased property transitions for scene nodes.
+- Content Pipeline & Asset Management (`SongRegistry`): Active singleton managing track metadata, in-memory decoded `AudioBuffer` caching, and asynchronous request deduplication.
+- Zero-latency difficulty switching: `AudioEngine` and `AudioTransport` load directly from cached `AudioBuffer` in RAM (`loadAudioBuffer`), eliminating redundant network fetches and decoding overhead.
+- Multi-difficulty level packages (`LevelPackage`): Easy, Normal, and Hard beatmaps sharing identical song metadata and audio buffers with tailored rhythmic densities and difficulty-scaled timing windows.
+- Deep level schema validation & sanitization (`LevelValidator`): Comprehensive structural and type validation for JSON imports and editor exports, ensuring format version compliance, chronological event ordering, and safe visual node indexing.
+- Unified Content Orchestrator (`ContentManager`): High-level preloading pipeline combining schema verification, asset caching, and multi-difficulty bundle creation.
+- Start Screen Content Suite: Interactive difficulty selection (Easy, Normal, Hard), real-time metadata inspector (BPM, duration, note count), in-memory RAM cache status badge, and formatted validation error alerts.
 - ParticlePool: pooled particle bursts on hit events.
 
 ### Planned (not yet implemented)
 
-#### Phase 5 — Content Pipeline & Asset Management (Next)
-- Active `SongRegistry` integration with `AudioEngine` and `AudioTransport`.
-- In-memory decoded `AudioBuffer` caching to prevent duplicate allocations across difficulty levels.
-- Multi-difficulty level linking (e.g. Easy, Normal, Hard sharing song assets).
-- Beatmap and level packaging, validation, and metadata integrity checks.
-
-#### Phase 6 — Engine Optimization & Polish
+#### Phase 6 — Engine Optimization & Polish (Next)
 - Particle and display object pooling optimization.
 - GPU shader profiling and mobile responsive performance tuning.
+- Adaptive performance quality scaler for high refresh-rate displays.
 
 #### Phase 7 — Online Infrastructure & Backend
 - Supabase authentication, cloud save profiles, and remote beatmap loading.

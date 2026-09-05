@@ -3,6 +3,7 @@ import { InputManager } from './input/InputManager';
 import { GameplayEngine } from './gameplay/GameplayEngine';
 import { GameplayEventBus } from './gameplay/GameplayEventBus';
 import { VisualEngine } from './visual/VisualEngine';
+import { SongRegistry } from './content/SongRegistry';
 
 import type { LevelData, PlayerState, PadId } from './types';
 import type { Ticker } from 'pixi.js';
@@ -74,10 +75,21 @@ export class Game {
     // 1. Initialize audio (must be from user gesture)
     await this.transport.init();
 
-    // 2. Load external audio file if the level specifies one
-    const audioUrl = this.level.song.url || this.level.song.audioUrl;
-    if (audioUrl) {
-      await this.transport.loadFile(audioUrl);
+    // 2. Register song in SongRegistry and check for cached AudioBuffer
+    const songRegistry = SongRegistry.getInstance();
+    songRegistry.registerSong(this.level.song);
+
+    const songId = this.level.songId || this.level.song.id;
+    const cachedBuffer = songRegistry.getAudioBuffer(songId);
+
+    if (cachedBuffer) {
+      // Instant in-memory cache hit: skip fetch and decodeAudioData
+      this.transport.loadAudioBuffer(cachedBuffer);
+    } else {
+      const audioUrl = this.level.song.url || this.level.song.audioUrl;
+      if (audioUrl) {
+        await this.transport.loadFile(audioUrl, songId);
+      }
     }
 
     // 3. Initialize visual engine (PixiJS)

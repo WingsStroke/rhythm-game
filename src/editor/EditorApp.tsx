@@ -9,6 +9,7 @@ import { useEditorShortcuts } from './hooks/useEditorShortcuts';
 import { useEditorHistory } from './hooks/useEditorHistory';
 import { INITIAL_LEVEL } from './constants';
 import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData } from '../engine/types';
+import { LevelValidator } from '../engine/content/LevelValidator';
 import { ListVideo, Gamepad2, Zap } from 'lucide-react';
 
 type EditorTab = 'timeline' | 'preview';
@@ -237,7 +238,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   // Load external audio file into editor
   const handleAudioLoad = useCallback(
     async (file: File) => {
-      const res = await loadAudioFile(file);
+      const songId = level.songId || level.song.id;
+      const res = await loadAudioFile(file, songId);
       if (res.success) {
         const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
         setLevel((prev) => ({
@@ -252,30 +254,22 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         alert('Could not decode audio file. Make sure it is a valid MP3, WAV, or OGG.');
       }
     },
-    [loadAudioFile, setLevel]
+    [loadAudioFile, setLevel, level.songId, level.song.id]
   );
 
-  // Import existing level JSON with safety parsing
+  // Import existing level JSON with safety parsing and deep validation
   const handleJsonImport = useCallback(
     (file: File) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const parsed = JSON.parse(e.target?.result as string) as LevelData;
-          if (parsed.formatVersion && parsed.song && Array.isArray(parsed.events)) {
-            // Guarantee visual structure
-            const sanitized: LevelData = {
-              ...parsed,
-              visual: {
-                nodes: parsed.visual?.nodes || [],
-                animations: parsed.visual?.animations || [],
-                triggers: parsed.visual?.triggers || [],
-              },
-            };
-            resetHistory(sanitized);
+          const parsed = JSON.parse(e.target?.result as string);
+          const validation = LevelValidator.validate(parsed);
+          if (validation.valid && validation.sanitizedLevel) {
+            resetHistory(validation.sanitizedLevel);
             handleStop();
           } else {
-            alert('Invalid beatmap JSON format.');
+            alert('Level validation failed:\n\n• ' + validation.errors.join('\n• '));
           }
         } catch {
           alert('Failed to parse JSON file.');

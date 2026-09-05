@@ -56,12 +56,19 @@ export class AudioTransport implements Transport {
     };
   }
 
-  async loadFile(url: string): Promise<boolean> {
-    return this.audio.loadFile(url);
+  loadAudioBuffer(buffer: AudioBuffer): { success: boolean; duration: number } {
+    return this.audio.loadAudioBuffer(buffer);
   }
 
-  async loadAudio(source: string | File | ArrayBuffer): Promise<{ success: boolean; duration: number }> {
-    return this.audio.loadAudio(source);
+  async loadFile(url: string, songId?: string): Promise<boolean> {
+    return this.audio.loadFile(url, songId);
+  }
+
+  async loadAudio(
+    source: string | File | ArrayBuffer,
+    songId?: string
+  ): Promise<{ success: boolean; duration: number }> {
+    return this.audio.loadAudio(source, songId);
   }
 
   playHitsound(padId: string): void {
