@@ -35,7 +35,6 @@ import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
  *    - hudLayer (zIndex: 30): Score, combo, and floating judgement labels
  */
 
-const FALL_DISTANCE = 600;
 const NOTE_SIZE = 56;
 const PAD_HEIGHT = 90;
 
@@ -71,7 +70,6 @@ export class VisualEngine {
 
   // Strict Layer Hierarchy
   private bgLayer!: Container;
-  private virtualStage!: Container;
   private sceneLayer!: Container;
   private laneLayer!: Container;
   private noteLayer!: Container;
@@ -111,6 +109,7 @@ export class VisualEngine {
   private rgbFilter: Filter | null = null;
   private tickerCb: ((ticker: Ticker) => void) | null = null;
   private resizeHandler: (() => void) | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
   /** Emitted when player clicks/touches a pad directly */
   public onPadInput: ((padId: PadId, pressed: boolean) => void) | null = null;
@@ -148,6 +147,18 @@ export class VisualEngine {
       }
     };
     window.addEventListener('resize', this.resizeHandler);
+
+    if (typeof ResizeObserver !== 'undefined' && this.root) {
+      this.resizeObserver = new ResizeObserver(() => {
+        try {
+          this.app.resize();
+          this.updateLayout();
+        } catch {
+          // Ignored
+        }
+      });
+      this.resizeObserver.observe(this.root);
+    }
   }
 
   public syncEvents(newEvents: PadEvent[]): void {
@@ -249,14 +260,12 @@ export class VisualEngine {
     const h = this.app.screen.height;
     this.lastWidth = w;
     this.lastHeight = h;
-    this.padY = 1080 - PAD_HEIGHT - 60;
+    const viewportH = Math.min(h, this.root.clientHeight || window.innerHeight, window.innerHeight);
+    this.padY = Math.max(60, viewportH - PAD_HEIGHT - 35);
 
-    // 1. Create layers with strict zIndex hierarchy
+    // 1. Create layers with strict zIndex hierarchy directly on app.stage
     this.bgLayer = new Container();
     this.bgLayer.zIndex = 0;
-
-    this.virtualStage = new Container();
-    this.virtualStage.zIndex = 5;
 
     this.sceneLayer = new Container();
     this.sceneLayer.zIndex = 5;
@@ -276,8 +285,9 @@ export class VisualEngine {
     this.hudLayer = new Container();
     this.hudLayer.zIndex = 30;
 
-    this.virtualStage.sortableChildren = true;
-    this.virtualStage.addChild(
+    this.app.stage.sortableChildren = true;
+    this.app.stage.addChild(
+      this.bgLayer,
       this.sceneLayer,
       this.laneLayer,
       this.noteLayer,
@@ -286,14 +296,11 @@ export class VisualEngine {
       this.hudLayer
     );
 
-    this.app.stage.sortableChildren = true;
-    this.app.stage.addChild(this.bgLayer, this.virtualStage);
-
-    // Scale and center virtual 1920x1080 stage
+    // Scale and center sceneLayer to virtual 1920x1080 stage
     const sceneScale = Math.min(w / 1920, h / 1080);
-    this.virtualStage.scale.set(sceneScale);
-    this.virtualStage.x = (w - 1920 * sceneScale) / 2;
-    this.virtualStage.y = (h - 1080 * sceneScale) / 2;
+    this.sceneLayer.scale.set(sceneScale);
+    this.sceneLayer.x = (w - 1920 * sceneScale) / 2;
+    this.sceneLayer.y = (h - 1080 * sceneScale) / 2;
 
     // 2. Initialize SceneGraph, Animator, and TriggerDispatcher
     this.sceneGraph = new SceneGraph(this.sceneLayer);
@@ -426,7 +433,7 @@ export class VisualEngine {
       style: { fontFamily: 'monospace', fontSize: 34, fill: 0xffffff, fontWeight: 'bold' },
     });
     this.comboText.anchor.set(0.5);
-    this.comboText.x = 1920 / 2;
+    this.comboText.x = w / 2;
     this.comboText.y = 60;
     this.hudLayer.addChild(this.comboText);
 
@@ -527,23 +534,22 @@ export class VisualEngine {
     this.lastWidth = screenW;
     this.lastHeight = screenH;
 
-    // Scale and center virtual 1920x1080 stage
-    const scale = Math.min(screenW / 1920, screenH / 1080);
-    if (this.virtualStage) {
-      this.virtualStage.scale.set(scale);
-      this.virtualStage.x = (screenW - 1920 * scale) / 2;
-      this.virtualStage.y = (screenH - 1080 * scale) / 2;
+    // Scale and center sceneLayer to 1920x1080 reference stage
+    if (this.sceneLayer) {
+      const sceneScale = Math.min(screenW / 1920, screenH / 1080);
+      this.sceneLayer.scale.set(sceneScale);
+      this.sceneLayer.x = (screenW - 1920 * sceneScale) / 2;
+      this.sceneLayer.y = (screenH - 1080 * sceneScale) / 2;
     }
 
-    const w = 1920;
-    const h = 1080;
-    this.padY = h - PAD_HEIGHT - 60;
+    const viewportH = Math.min(screenH, this.root.clientHeight || window.innerHeight, window.innerHeight);
+    this.padY = Math.max(60, viewportH - PAD_HEIGHT - 35);
 
     const padCount = this.pads.length;
     const padWidth = 100;
     const padGap = 20;
     const totalPadWidth = padCount * padWidth + (padCount - 1) * padGap;
-    const startX = (w - totalPadWidth) / 2;
+    const startX = (screenW - totalPadWidth) / 2;
 
     this.pads.forEach((pad, i) => {
       const x = startX + i * (padWidth + padGap);
@@ -559,7 +565,7 @@ export class VisualEngine {
     });
 
     if (this.comboText) {
-      this.comboText.x = w / 2;
+      this.comboText.x = screenW / 2;
     }
 
     this.drawLanes();
@@ -853,10 +859,11 @@ export class VisualEngine {
 
     // 8. Event positions: fall from top towards pad center
     const targetY = this.padY + PAD_HEIGHT / 2;
+    const fallDistance = Math.min(600, Math.max(250, this.padY - 20));
     for (const [event, gfx] of this.noteGraphics) {
       const x = this.padXPositions.get(event.padId) ?? 0;
       const progress = 1 - (event.targetTime - audioTime) / this.leadTime;
-      const y = targetY - FALL_DISTANCE * (1 - progress);
+      const y = targetY - fallDistance * (1 - progress);
 
       gfx.x = x + 50;
       gfx.y = y;
@@ -1057,6 +1064,11 @@ export class VisualEngine {
     if (this.resizeHandler) {
       window.removeEventListener('resize', this.resizeHandler);
       this.resizeHandler = null;
+    }
+
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
     }
 
     if (this.tickerCb) {

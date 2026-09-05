@@ -4,9 +4,9 @@ import type { EditorTool } from '../Timeline';
 interface UseEditorShortcutsOptions {
   activeTab: 'timeline' | 'preview';
   isRecording?: boolean;
-  selectedEventId: string | null;
+  canDelete?: boolean;
   onSelectTool: (tool: EditorTool) => void;
-  onDeleteSelectedEvent: () => void;
+  onDeleteSelected: () => void;
   onTogglePlay: () => void;
   onToggleRecord?: () => void;
   onUndo?: () => void;
@@ -16,9 +16,9 @@ interface UseEditorShortcutsOptions {
 export function useEditorShortcuts({
   activeTab,
   isRecording,
-  selectedEventId,
+  canDelete,
   onSelectTool,
-  onDeleteSelectedEvent,
+  onDeleteSelected,
   onTogglePlay,
   onToggleRecord,
   onUndo,
@@ -60,6 +60,15 @@ export function useEditorShortcuts({
         return;
       }
 
+      // Delete / Backspace shortcut for any selected item (event, trigger, or node)
+      if (e.code === 'Delete' || e.code === 'Backspace') {
+        if (canDelete && !isRecording) {
+          e.preventDefault();
+          onDeleteSelected();
+          return;
+        }
+      }
+
       // In preview mode or while actively recording, let pad keys pass through to InputManager
       if (activeTab === 'preview' || isRecording) {
         return;
@@ -71,15 +80,10 @@ export function useEditorShortcuts({
         onSelectTool('pen');
       } else if (e.code === 'KeyE') {
         onSelectTool('eraser');
-      } else if (e.code === 'Delete' || e.code === 'Backspace') {
-        if (selectedEventId) {
-          e.preventDefault();
-          onDeleteSelectedEvent();
-        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedEventId, onTogglePlay, onToggleRecord, onSelectTool, onDeleteSelectedEvent, onUndo, onRedo, activeTab, isRecording]);
+  }, [canDelete, onTogglePlay, onToggleRecord, onSelectTool, onDeleteSelected, onUndo, onRedo, activeTab, isRecording]);
 }

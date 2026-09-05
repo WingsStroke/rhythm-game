@@ -143,11 +143,6 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
         </div>
       )}
-
-      {/* Bottom Key Prompt */}
-      <div className="w-full flex justify-center text-xs text-white/30 tracking-widest font-mono">
-        RHYTHM ENGINE · 1920x1080 PROJECTION
-      </div>
     </div>
   );
 };

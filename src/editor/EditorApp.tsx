@@ -217,9 +217,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   useEditorShortcuts({
     activeTab,
     isRecording,
-    selectedEventId,
+    canDelete: Boolean(selectedEventId || selectedTriggerId || selectedNodeId),
     onSelectTool: setActiveTool,
-    onDeleteSelectedEvent: () => {
+    onDeleteSelected: () => {
       if (selectedEventId) {
         handleRemoveEvent(selectedEventId);
       } else if (selectedTriggerId) {

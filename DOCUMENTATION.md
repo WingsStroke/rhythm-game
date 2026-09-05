@@ -216,7 +216,7 @@ Data contract for musical phrase grouping. Detection logic is planned for a futu
 
 ### src/engine/visual/VisualEngine.ts
 
-Main PixiJS rendering class. Manages all layers and coordinates all visual subsystems on every frame. Scales the `sceneLayer` to fit the viewport using a virtual 1920x1080 coordinate space. Responds to `GameplayEvent` objects from the event bus for hit feedback. Provides `onBeat` callback for beat-synchronized pulses.
+Main PixiJS rendering class. Manages all layers and coordinates visual subsystems on every frame. Scales the decorative `sceneLayer` to fit the viewport using a virtual 1920x1080 coordinate space, while rendering gameplay elements (lanes, interactive launchpad, notes, particle bursts, and judgements) directly in responsive screen space with automatic horizontal centering and adaptive vertical receptor positioning. Integrated with a `ResizeObserver` for immediate layout recalculation upon container dimension changes. Responds to `GameplayEvent` objects from the event bus for hit feedback. Provides `onBeat` callback for beat-synchronized pulses.
 
 ### src/engine/visual/SceneGraph.ts
 
@@ -246,17 +246,12 @@ Root component of the editor. Assembles all panels and manages top-level UI stat
 
 ### src/editor/Timeline.tsx
 
-The primary authoring surface. Horizontally scrollable, multi-track DAW-style timeline.
-
-Structure:
+The primary authoring surface. Multi-track DAW-style timeline with decoupled track header architecture:
+- Dedicated fixed left column (128px) displaying track headers (TIEMPO, Pad labels, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without ever overlaying or occluding timeline notes and triggers.
+- Horizontally scrollable timeline canvas for ruler, beat/bar grid lines, notes, hold spans, loops, scene triggers, and playhead starting at origin `t = 0`.
 - Sticky time ruler with seek-on-click and playhead drag with auto-scroll at viewport edges.
-- One row per pad: sticky 128px label column (visible during horizontal scroll) plus a scrollable event lane starting at t=0.
-- A TRIGGERS header and an FX LANE track for `TriggerData` authoring.
-- A continuous red playhead at `TRACK_HEADER_WIDTH + currentTime * pixelsPerSecond`.
 
 Tools: Pen (insert), Select (move/resize via drag), Eraser (delete on click).
-
-Key constant: `TRACK_HEADER_WIDTH = 128`.
 
 ### src/editor/components/EditorHeader.tsx
 
@@ -288,7 +283,7 @@ Manages engine lifecycle within the editor. Initializes and disposes AudioTransp
 
 ### src/editor/hooks/useEditorShortcuts.ts
 
-Global keyboard shortcut handler. Wires Ctrl+Z, Ctrl+Y, Space, B (pen), V (select), E (eraser).
+Global keyboard shortcut handler. Wires Ctrl+Z, Ctrl+Y, Space, R (record), B (pen), V (select), E (eraser), and Delete/Backspace (deletes whichever item is currently selected: note/event, trigger, or scene node).
 
 ---
 

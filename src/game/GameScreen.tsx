@@ -130,10 +130,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   return (
     <div className="fixed inset-0 z-20 w-full h-full bg-[#05050f] text-white overflow-hidden select-none flex items-center justify-center">
-      {/* 1920x1080 Viewport with automatic Letterbox / Pillarbox centering */}
+      {/* Responsive Game Viewport */}
       <div
         id="game-viewport"
-        className="relative w-full h-full max-w-[1920px] max-h-[1080px] aspect-video flex items-center justify-center shadow-2xl overflow-hidden"
+        className="relative w-full h-full flex items-center justify-center shadow-2xl overflow-hidden"
       >
         {/* PixiJS Game Canvas Container */}
         <div

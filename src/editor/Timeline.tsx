@@ -26,8 +26,6 @@ interface TimelineProps {
   onRemoveTrigger?: (id: string) => void;
 }
 
-const TRACK_HEADER_WIDTH = 128;
-
 /**
  * Calculates the time interval in seconds for a given grid subdivision.
  */
@@ -104,7 +102,7 @@ export function Timeline({
   useEffect(() => {
     if (!isPlaying || !containerRef.current) return;
     const container = containerRef.current;
-    const playheadX = TRACK_HEADER_WIDTH + currentTime * pixelsPerSecond;
+    const playheadX = currentTime * pixelsPerSecond;
     const targetScroll = playheadX - container.clientWidth * 0.35;
 
     if (Math.abs(container.scrollLeft - targetScroll) > 5) {
@@ -361,70 +359,325 @@ export function Timeline({
   };
 
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden select-none bg-[#09090f]">
-      <div ref={containerRef} className="flex-1 overflow-auto relative cursor-default" onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
-        <div style={{ width: TRACK_HEADER_WIDTH + widthPx, minHeight: level.pads.length * 56 + 36 + 120 + 30 }} className="relative bg-[#09090f]">
-          <div className="sticky top-0 z-40 h-8 border-b border-white/10 bg-black/90 backdrop-blur-md flex">
-            <div className="sticky left-0 w-32 h-full bg-black/95 border-r border-white/10 z-50 flex items-center px-3 gap-1.5 flex-shrink-0 shadow-md">
-              <Clock className="w-3.5 h-3.5 text-[#00e5ff]" />
-              <span className="font-mono text-[10px] font-bold text-white/70">TIEMPO</span>
+    <div className="flex-1 flex overflow-y-auto overflow-x-hidden relative select-none bg-[#09090f]">
+      {/* 1. Dedicated Left Column: Track Headers (always visible, strictly left of timeline, never overlapping) */}
+      <div className="w-32 flex-shrink-0 flex flex-col bg-[#09090f] border-r border-white/10 select-none z-20">
+        {/* TIEMPO Header */}
+        <div className="sticky top-0 z-30 h-8 border-b border-white/10 bg-black/95 flex items-center px-3 gap-1.5 shadow-md flex-shrink-0">
+          <Clock className="w-3.5 h-3.5 text-[#00e5ff]" />
+          <span className="font-mono text-[10px] font-bold text-white/70">TIEMPO</span>
+        </div>
+
+        {/* Pad Track Labels */}
+        <div className="flex flex-col gap-1.5 py-2">
+          {level.pads.map((pad) => (
+            <div
+              key={pad.id}
+              className="h-13 flex items-center px-3 bg-black/90 border-y border-white/10 shadow-sm flex-shrink-0"
+            >
+              <div
+                className="w-2.5 h-2.5 rounded-full mr-2 shadow-sm flex-shrink-0"
+                style={{ backgroundColor: pad.color }}
+              />
+              <div className="flex flex-col overflow-hidden">
+                <span className="text-xs font-mono font-semibold text-white/90 truncate">{pad.label}</span>
+                <span className="text-[10px] text-white/40 font-mono">[{pad.keyHint}]</span>
+              </div>
             </div>
-            <div ref={rulerTrackRef} className="relative flex-1 cursor-crosshair overflow-hidden" style={{ width: widthPx, minWidth: widthPx }} onPointerDown={handleRulerPointerDown} onPointerMove={handleRulerPointerMove} onPointerUp={handleRulerPointerUp}>
+          ))}
+        </div>
+
+        {/* Triggers Section Header */}
+        <div className="h-8 my-1 flex items-center px-3 bg-black/95 border-y border-violet-500/40 shadow-sm flex-shrink-0">
+          <Zap className="w-3.5 h-3.5 text-yellow-400 mr-1.5 flex-shrink-0" />
+          <span className="text-[11px] font-mono font-bold text-white/90">TRIGGERS</span>
+        </div>
+
+        {/* FX Lane Track Label */}
+        <div className="h-28 flex flex-col justify-center px-3 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />
+            <span className="text-xs font-mono font-bold text-white/90">FX LANE</span>
+          </div>
+          <span className="text-[10px] text-white/40 font-mono mt-0.5">Automation</span>
+        </div>
+      </div>
+
+      {/* 2. Scrollable Timeline Canvas: Grid, Notes, Triggers, and Playhead */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-x-auto overflow-y-hidden relative cursor-default"
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        <div
+          style={{ width: widthPx, minHeight: level.pads.length * 56 + 36 + 120 + 30 }}
+          className="relative bg-[#09090f]"
+        >
+          {/* Sticky Time Ruler */}
+          <div className="sticky top-0 z-30 h-8 border-b border-white/10 bg-black/90 backdrop-blur-md flex">
+            <div
+              ref={rulerTrackRef}
+              className="relative flex-1 cursor-crosshair overflow-hidden"
+              style={{ width: widthPx, minWidth: widthPx }}
+              onPointerDown={handleRulerPointerDown}
+              onPointerMove={handleRulerPointerMove}
+              onPointerUp={handleRulerPointerUp}
+            >
               {Array.from({ length: totalBars + 1 }).map((_, barIdx) => {
                 const barTime = barIdx * 4 * beatDuration;
-                return <div key={barIdx} className="absolute top-0 bottom-0 border-l-2 border-[#00e5ff]/40 flex flex-col justify-between pl-1 pointer-events-none" style={{ left: barTime * pixelsPerSecond }}><span className="font-mono text-[10px] font-bold text-[#00e5ff]/80">m.{barIdx + 1}</span><span className="text-[9px] text-white/30 font-mono mb-0.5">{barTime.toFixed(1)}s</span></div>;
+                return (
+                  <div
+                    key={barIdx}
+                    className="absolute top-0 bottom-0 border-l-2 border-[#00e5ff]/40 flex flex-col justify-between pl-1 pointer-events-none"
+                    style={{ left: barTime * pixelsPerSecond }}
+                  >
+                    <span className="font-mono text-[10px] font-bold text-[#00e5ff]/80">m.{barIdx + 1}</span>
+                    <span className="text-[9px] text-white/30 font-mono mb-0.5">{barTime.toFixed(1)}s</span>
+                  </div>
+                );
               })}
               {Array.from({ length: totalBeats + 1 }).map((_, beatIdx) => {
                 if (beatIdx % 4 === 0) return null;
-                return <div key={beatIdx} className="absolute bottom-0 h-3 border-l border-white/20 pointer-events-none" style={{ left: beatIdx * beatDuration * pixelsPerSecond }} />;
+                return (
+                  <div
+                    key={beatIdx}
+                    className="absolute bottom-0 h-3 border-l border-white/20 pointer-events-none"
+                    style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
+                  />
+                );
               })}
             </div>
           </div>
-          <div className="absolute top-8 bottom-0 pointer-events-none z-0" style={{ left: TRACK_HEADER_WIDTH, width: widthPx }}>
-            {Array.from({ length: totalBars + 1 }).map((_, barIdx) => <div key={`bar-${barIdx}`} className="absolute top-0 bottom-0 border-l border-white/25 pointer-events-none" style={{ left: barIdx * 4 * beatDuration * pixelsPerSecond }} />)}
-            {Array.from({ length: totalBeats + 1 }).map((_, beatIdx) => (beatIdx % 4 === 0 ? null : <div key={`beat-${beatIdx}`} className="absolute top-0 bottom-0 border-l border-white/10 pointer-events-none" style={{ left: beatIdx * beatDuration * pixelsPerSecond }} />))}
+
+          {/* Background Beat & Bar Grid Lines */}
+          <div className="absolute top-8 bottom-0 pointer-events-none z-0" style={{ left: 0, width: widthPx }}>
+            {Array.from({ length: totalBars + 1 }).map((_, barIdx) => (
+              <div
+                key={`bar-${barIdx}`}
+                className="absolute top-0 bottom-0 border-l border-white/25 pointer-events-none"
+                style={{ left: barIdx * 4 * beatDuration * pixelsPerSecond }}
+              />
+            ))}
+            {Array.from({ length: totalBeats + 1 }).map((_, beatIdx) =>
+              beatIdx % 4 === 0 ? null : (
+                <div
+                  key={`beat-${beatIdx}`}
+                  className="absolute top-0 bottom-0 border-l border-white/10 pointer-events-none"
+                  style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
+                />
+              )
+            )}
           </div>
+
+          {/* Note Track Lanes */}
           <div className="flex flex-col gap-1.5 py-2 relative z-10">
             {level.pads.map((pad) => {
               const trackEvents = level.events.filter((e) => e.padId === pad.id);
               return (
-                <div key={pad.id} className="flex h-13 bg-white/[0.03] border-y border-white/10 relative transition-colors">
-                  <div className="sticky left-0 w-32 h-full bg-black/90 border-r border-white/10 flex items-center px-3 z-30 backdrop-blur-md shadow-lg flex-shrink-0">
-                    <div className="w-2.5 h-2.5 rounded-full mr-2 shadow-sm flex-shrink-0" style={{ backgroundColor: pad.color }} />
-                    <div className="flex flex-col overflow-hidden"><span className="text-xs font-mono font-semibold text-white/90 truncate">{pad.label}</span><span className="text-[10px] text-white/40 font-mono">[{pad.keyHint}]</span></div>
-                  </div>
-                  <div className={`relative flex-1 ${activeTool === 'pen' ? 'hover:bg-white/[0.07] cursor-crosshair' : ''}`} style={{ width: widthPx, minWidth: widthPx }} onClick={(e) => handleTrackClick(e, pad.id)}>
-                    {trackEvents.map((event) => {
-                      const isSelected = event.id === selectedEventId;
-                      const x = event.targetTime * pixelsPerSecond;
-                      const width = Math.max(14, (event.duration ?? beatDuration) * pixelsPerSecond);
-                      if (event.behavior === 'tap') return <div key={event.id} data-event-item="true" className={`absolute top-1/2 -translate-y-1/2 w-4 h-8 rounded-md transition-shadow z-20 cursor-grab ${isSelected ? 'ring-2 ring-white shadow-[0_0_15px_#ffffff]' : 'hover:brightness-125'}`} style={{ left: Math.max(0, x - 8), backgroundColor: pad.color, boxShadow: `0 0 10px ${pad.color}90` }} onPointerDown={(e) => startEventMove(e, event)} />;
-                      if (event.behavior === 'hold') return <div key={event.id} data-event-item="true" className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-md border flex items-center transition-all z-20 cursor-grab ${isSelected ? 'ring-2 ring-white border-white shadow-[0_0_15px_#ffffff]' : 'border-white/30'}`} style={{ left: x, width, backgroundColor: `${pad.color}35`, borderColor: pad.color }} onPointerDown={(e) => startEventMove(e, event)}><div className="w-3.5 h-full rounded-l-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: pad.color }}><div className="w-1.5 h-1.5 rounded-full bg-white" /></div><span className="text-[9px] font-mono text-white/70 px-1 truncate flex-1 pointer-events-none">{(event.duration || 0).toFixed(2)}s</span>{activeTool === 'select' && <div data-event-item="true" className="w-3.5 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0" onPointerDown={(e) => startEventResize(e, event)}><div className="w-1 h-4 bg-white/60 rounded-full pointer-events-none" /></div>}</div>;
-                      if (event.behavior === 'loop') return <div key={event.id} data-event-item="true" className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-md border border-dashed flex items-center transition-all z-20 cursor-grab ${isSelected ? 'ring-2 ring-white border-solid shadow-[0_0_15px_#ffffff]' : 'border-white/40'}`} style={{ left: x, width, backgroundColor: `${pad.color}25`, borderColor: pad.color }} onPointerDown={(e) => startEventMove(e, event)}><div className="w-3.5 h-full rounded-l-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: pad.color }}><Repeat className="w-2.5 h-2.5 text-white" /></div><span className="text-[9px] font-mono text-white/70 px-1 truncate flex-1 pointer-events-none">Loop {(event.duration || 0).toFixed(2)}s</span>{activeTool === 'select' && <div data-event-item="true" className="w-3.5 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0" onPointerDown={(e) => startEventResize(e, event)}><div className="w-1 h-4 bg-white/60 rounded-full pointer-events-none" /></div>}</div>;
-                      if (event.behavior === 'trigger') return <div key={event.id} data-event-item="true" className={`absolute top-1/2 -translate-y-1/2 h-7 rounded-sm flex items-center gap-1 px-1.5 border z-20 cursor-grab ${isSelected ? 'ring-2 ring-white border-white shadow-[0_0_15px_#ffffff]' : 'border-yellow-400/60 bg-yellow-500/20'}`} style={{ left: x }} onPointerDown={(e) => startEventMove(e, event)}><Zap className="w-3 h-3 text-yellow-400" /><span className="text-[9px] font-mono font-bold text-yellow-300">{event.triggerId || 'trig'}</span></div>;
-                      return null;
-                    })}
-                  </div>
+                <div
+                  key={pad.id}
+                  className={`h-13 bg-white/[0.03] border-y border-white/10 relative transition-colors ${
+                    activeTool === 'pen' ? 'hover:bg-white/[0.07] cursor-crosshair' : ''
+                  }`}
+                  style={{ width: widthPx, minWidth: widthPx }}
+                  onClick={(e) => handleTrackClick(e, pad.id)}
+                >
+                  {trackEvents.map((event) => {
+                    const isSelected = event.id === selectedEventId;
+                    const x = event.targetTime * pixelsPerSecond;
+                    const width = Math.max(14, (event.duration ?? beatDuration) * pixelsPerSecond);
+
+                    if (event.behavior === 'tap') {
+                      return (
+                        <div
+                          key={event.id}
+                          data-event-item="true"
+                          className={`absolute top-1/2 -translate-y-1/2 w-4 h-8 rounded-md transition-shadow z-20 cursor-grab ${
+                            isSelected ? 'ring-2 ring-white shadow-[0_0_15px_#ffffff]' : 'hover:brightness-125'
+                          }`}
+                          style={{
+                            left: Math.max(0, x - 8),
+                            backgroundColor: pad.color,
+                            boxShadow: `0 0 10px ${pad.color}90`,
+                          }}
+                          onPointerDown={(e) => startEventMove(e, event)}
+                        />
+                      );
+                    }
+                    if (event.behavior === 'hold') {
+                      return (
+                        <div
+                          key={event.id}
+                          data-event-item="true"
+                          className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-md border flex items-center transition-all z-20 cursor-grab ${
+                            isSelected ? 'ring-2 ring-white border-white shadow-[0_0_15px_#ffffff]' : 'border-white/30'
+                          }`}
+                          style={{
+                            left: x,
+                            width,
+                            backgroundColor: `${pad.color}35`,
+                            borderColor: pad.color,
+                          }}
+                          onPointerDown={(e) => startEventMove(e, event)}
+                        >
+                          <div
+                            className="w-3.5 h-full rounded-l-md flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: pad.color }}
+                          >
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          </div>
+                          <span className="text-[9px] font-mono text-white/70 px-1 truncate flex-1 pointer-events-none">
+                            {(event.duration || 0).toFixed(2)}s
+                          </span>
+                          {activeTool === 'select' && (
+                            <div
+                              data-event-item="true"
+                              className="w-3.5 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                              onPointerDown={(e) => startEventResize(e, event)}
+                            >
+                              <div className="w-1 h-4 bg-white/60 rounded-full pointer-events-none" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (event.behavior === 'loop') {
+                      return (
+                        <div
+                          key={event.id}
+                          data-event-item="true"
+                          className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-md border border-dashed flex items-center transition-all z-20 cursor-grab ${
+                            isSelected ? 'ring-2 ring-white border-solid shadow-[0_0_15px_#ffffff]' : 'border-white/40'
+                          }`}
+                          style={{
+                            left: x,
+                            width,
+                            backgroundColor: `${pad.color}25`,
+                            borderColor: pad.color,
+                          }}
+                          onPointerDown={(e) => startEventMove(e, event)}
+                        >
+                          <div
+                            className="w-3.5 h-full rounded-l-md flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: pad.color }}
+                          >
+                            <Repeat className="w-2.5 h-2.5 text-white" />
+                          </div>
+                          <span className="text-[9px] font-mono text-white/70 px-1 truncate flex-1 pointer-events-none">
+                            Loop {(event.duration || 0).toFixed(2)}s
+                          </span>
+                          {activeTool === 'select' && (
+                            <div
+                              data-event-item="true"
+                              className="w-3.5 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                              onPointerDown={(e) => startEventResize(e, event)}
+                            >
+                              <div className="w-1 h-4 bg-white/60 rounded-full pointer-events-none" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (event.behavior === 'trigger') {
+                      return (
+                        <div
+                          key={event.id}
+                          data-event-item="true"
+                          className={`absolute top-1/2 -translate-y-1/2 h-7 rounded-sm flex items-center gap-1 px-1.5 border z-20 cursor-grab ${
+                            isSelected
+                              ? 'ring-2 ring-white border-white shadow-[0_0_15px_#ffffff]'
+                              : 'border-yellow-400/60 bg-yellow-500/20'
+                          }`}
+                          style={{ left: x }}
+                          onPointerDown={(e) => startEventMove(e, event)}
+                        >
+                          <Zap className="w-3 h-3 text-yellow-400" />
+                          <span className="text-[9px] font-mono font-bold text-yellow-300">
+                            {event.triggerId || 'trig'}
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
                 </div>
               );
             })}
           </div>
-          <div className="flex h-8 border-y border-violet-500/30 bg-black/80 my-1 relative z-20 shadow-md">
-            <div className="sticky left-0 w-32 h-full bg-black/95 border-r border-violet-500/40 flex items-center px-3 z-30 backdrop-blur-md flex-shrink-0"><Zap className="w-3.5 h-3.5 text-yellow-400 mr-1.5 flex-shrink-0" /><span className="text-[11px] font-mono font-bold text-white/90">TRIGGERS</span></div>
-            <div className="flex items-center gap-3 pl-4 flex-1"><span className="text-[10px] font-mono font-bold uppercase tracking-wider text-violet-300">SCENE TRIGGERS & FX AUTOMATION</span><span className="text-[9px] font-mono text-white/60 bg-white/10 px-2 py-0.5 rounded border border-white/10">{triggers.length} disparadores</span></div>
+
+          {/* Triggers Section Title Row */}
+          <div className="h-8 border-y border-violet-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-violet-300">
+              SCENE TRIGGERS & FX AUTOMATION
+            </span>
+            <span className="text-[9px] font-mono text-white/60 bg-white/10 px-2 py-0.5 rounded border border-white/10">
+              {triggers.length} disparadores
+            </span>
           </div>
-          <div className="flex h-28 bg-violet-950/[0.07] border-b border-violet-500/20 relative z-10 transition-colors">
-            <div className="sticky left-0 w-32 h-full bg-black/90 border-r border-white/10 flex flex-col justify-center px-3 z-30 backdrop-blur-md shadow-lg flex-shrink-0"><div className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" /><span className="text-xs font-mono font-bold text-white/90">FX LANE</span></div><span className="text-[10px] text-white/40 font-mono mt-0.5">Automation</span></div>
-            <div className={`relative flex-1 ${activeTool === 'pen' ? 'hover:bg-violet-950/[0.14] cursor-crosshair' : ''}`} style={{ width: widthPx, minWidth: widthPx }} onClick={handleTriggerTrackClick}>
-              {triggers.map((trigger) => {
-                const x = trigger.time * pixelsPerSecond;
-                const width = Math.max(28, (trigger.duration || 0) * pixelsPerSecond);
-                const color = getTriggerColor(trigger.action);
-                return <div key={trigger.id} data-trigger-item="true" className={`absolute top-1/2 -translate-y-1/2 h-14 rounded-md flex items-center z-20 cursor-grab ${selectedTriggerId === trigger.id ? 'ring-2 ring-white shadow-[0_0_16px_rgba(255,255,255,0.8)]' : ''}`} style={{ left: x, width, backgroundColor: `${color}25`, border: `2px solid ${color}` }} onPointerDown={(e) => startTriggerMove(e, trigger)}><div className="w-5 h-5 rounded flex items-center justify-center ml-1.5 flex-shrink-0" style={{ backgroundColor: color }}><Zap className="w-2.5 h-2.5 -rotate-45 text-black" /></div><div className="flex flex-col px-2 overflow-hidden flex-1"><span className="text-[10px] font-mono font-bold uppercase truncate text-white">{trigger.action}</span><span className="text-[9px] font-mono text-white/60 truncate">{trigger.targetId}</span></div>{activeTool === 'select' && <div data-trigger-item="true" className="w-3.5 h-full hover:bg-white/40 rounded-r-sm cursor-ew-resize flex items-center justify-center flex-shrink-0" onPointerDown={(e) => startTriggerResize(e, trigger)}><div className="w-1 h-5 bg-white/60 rounded-full" /></div>}</div>;
-              })}
-            </div>
+
+          {/* FX Lane Track */}
+          <div
+            className={`h-28 bg-violet-950/[0.07] border-b border-violet-500/20 relative z-10 transition-colors ${
+              activeTool === 'pen' ? 'hover:bg-violet-950/[0.14] cursor-crosshair' : ''
+            }`}
+            style={{ width: widthPx, minWidth: widthPx }}
+            onClick={handleTriggerTrackClick}
+          >
+            {triggers.map((trigger) => {
+              const x = trigger.time * pixelsPerSecond;
+              const width = Math.max(28, (trigger.duration || 0) * pixelsPerSecond);
+              const color = getTriggerColor(trigger.action);
+              return (
+                <div
+                  key={trigger.id}
+                  data-trigger-item="true"
+                  className={`absolute top-1/2 -translate-y-1/2 h-14 rounded-md flex items-center z-20 cursor-grab ${
+                    selectedTriggerId === trigger.id
+                      ? 'ring-2 ring-white shadow-[0_0_16px_rgba(255,255,255,0.8)]'
+                      : ''
+                  }`}
+                  style={{
+                    left: x,
+                    width,
+                    backgroundColor: `${color}25`,
+                    border: `2px solid ${color}`,
+                  }}
+                  onPointerDown={(e) => startTriggerMove(e, trigger)}
+                >
+                  <div
+                    className="w-5 h-5 rounded flex items-center justify-center ml-1.5 flex-shrink-0"
+                    style={{ backgroundColor: color }}
+                  >
+                    <Zap className="w-2.5 h-2.5 -rotate-45 text-black" />
+                  </div>
+                  <div className="flex flex-col px-2 overflow-hidden flex-1">
+                    <span className="text-[10px] font-mono font-bold uppercase truncate text-white">
+                      {trigger.action}
+                    </span>
+                    <span className="text-[9px] font-mono text-white/60 truncate">{trigger.targetId}</span>
+                  </div>
+                  {activeTool === 'select' && (
+                    <div
+                      data-trigger-item="true"
+                      className="w-3.5 h-full hover:bg-white/40 rounded-r-sm cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                      onPointerDown={(e) => startTriggerResize(e, trigger)}
+                    >
+                      <div className="w-1 h-5 bg-white/60 rounded-full" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <div className="absolute top-0 bottom-0 w-px bg-red-500 z-40 pointer-events-none" style={{ left: TRACK_HEADER_WIDTH + currentTime * pixelsPerSecond }}><div className="w-3.5 h-3.5 bg-red-500 rotate-45 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_8px_#ff0000]" /></div>
+
+          {/* Playhead */}
+          <div
+            className="absolute top-0 bottom-0 w-px bg-red-500 z-40 pointer-events-none"
+            style={{ left: currentTime * pixelsPerSecond }}
+          >
+            <div className="w-3.5 h-3.5 bg-red-500 rotate-45 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_8px_#ff0000]" />
+          </div>
         </div>
       </div>
     </div>
