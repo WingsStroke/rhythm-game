@@ -6,6 +6,7 @@ interface PauseModalProps {
   onRestart: () => void;
   onExit: () => void;
   songTitle?: string;
+  exitLabel?: string;
 }
 
 export const PauseModal: React.FC<PauseModalProps> = ({
@@ -13,6 +14,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onRestart,
   onExit,
   songTitle,
+  exitLabel = 'MENU',
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -60,7 +62,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
             className="w-full py-3.5 px-6 rounded-2xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-200 hover:text-white font-bold flex items-center justify-center gap-3 active:scale-95 transition-all cursor-pointer mt-2"
           >
             <LogOut className="w-5 h-5" />
-            <span>EXIT TO MENU</span>
+            <span>EXIT TO {exitLabel}</span>
           </button>
         </div>
 

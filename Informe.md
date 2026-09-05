@@ -36,6 +36,38 @@ una canción aumenta su intensidad → aumenta la energía de las frecuencias gr
 
 Esta filosofía conduce hacia un sistema donde la música puede controlar visualmente el nivel y donde el diseñador tiene capacidad para decidir qué señales provocan qué efectos.
 
+## 2.1. Filosofía de diseño de interfaces y UI
+
+A partir de la consolidación del prototipo y en ruta hacia las versiones de producción, todas las interfaces visuales, menús y herramientas de autoría deben regirse estrictamente bajo cuatro principios de diseño:
+
+### 1. Optimización de UI y ergonomía del espacio
+* **Cero espacio desperdiciado:** Las interfaces deben eliminar vacíos muertos o áreas infrautilizadas. Tanto el lienzo de la línea de tiempo (*timeline*) como los paneles de inspección y exploradores de nodos deben expandirse para aprovechar eficientemente el espacio visual disponible en pantalla.
+* **Ergonomía visual:** Las pistas de edición, pads interactivos, notas, controles de arrastre (*handles*) e indicadores deben conservar proporciones amplias y cómodas, garantizando que interactuar, arrastrar, recortar o inspeccionar resulte preciso y libre de fatiga o frustración.
+* **Jerarquía visual clara:** Los datos esenciales (tiempo de reproducción, división de cuadrícula, BPM, rol de pads, herramientas activas) deben identificarse con un solo golpe de vista, facilitando la lectura sin recargar la atención del usuario.
+
+### 2. Diseño totalmente responsivo y adaptación multiventana
+* **Adaptación universal:** La aplicación debe funcionar de manera armónica en cualquier factor de forma: modo ventana en escritorio, pantalla completa (F11), portátiles (1366×768 / 1440×900), resolución estándar 1080p, 1440p, 4K y monitores ultraanchos.
+* **Proporciones elásticas:** Se deben evitar alturas y desplazamientos fijos o rígidos que provoquen miniaturización, márgenes excesivos o solapamiento de elementos. Los contenedores emplean distribuciones flexibles (`flex-1`, `min-h`, cotas porcentuales y `ResizeObserver`) para repartir el espacio de manera proporcional y fluida.
+* **Independencia del lienzo y preservación de escala:** Los nodos decorativos del escenario escalan dentro de una referencia lógica fija de 1920×1080, mientras que los carriles de juego, el launchpad interactivo, las notas en caída y el HUD se adaptan en tiempo real a los límites físicos reales de la pantalla.
+
+### 3. Lógica de diseño contextual y no abrumadora
+* **Enfoque en el flujo creativo:** El área central de trabajo debe priorizar la tarea esencial (jugar o componer pistas rítmicas). Las herramientas secundarias, configuraciones avanzadas de disparadores (*triggers*) y jerarquías complejas deben estar al alcance sin generar ruido visual ni saturación cognitiva.
+* **Presentación bajo demanda:** La información se presenta de forma contextual (por ejemplo, al seleccionar una nota, disparador o nodo de escena, se revelan sus propiedades en el inspector lateral, en lugar de saturar la pantalla permanentemente con parámetros inactivos).
+* **Memoria muscular predecible:** Atajos de teclado intuitivos y estándar (Espacio para reproducir/pausar, Supr/Retroceso para eliminar cualquier elemento seleccionado, Ctrl+Z / Ctrl+Y para historial, V / B / E para herramientas) permiten componer con rapidez y naturalidad.
+
+### 4. Interactividad táctil y riqueza en menús
+* **Interfaz viva y reactiva:** Cada elemento interactivo —botones, pestañas, cabeceras de pista, controles deslizantes e indicadores— debe proporcionar retroalimentación táctil instantánea.
+* **Riqueza de estados:** Definición pulida y consistente para los estados de interacción (`hover`, `active`, `focus` y deshabilitado) mediante microanimaciones sutiles, acentos lumínicos de neón, transiciones CSS suaves y sombras de elevación.
+* **Coherencia estética:** La interfaz refleja la estética ciberpunk y *synthwave* de neón del videojuego, produciendo una impresión visual atractiva y moderna desde el primer instante.
+
+## 2.2. Estándar de idioma y localización del proyecto
+
+Para erradicar discrepancias lingüísticas en la experiencia del usuario y en las herramientas de creación:
+
+* **Frontend del usuario (100% inglés nativo):** Todos los textos de la interfaz expuestos al usuario —HUD, menús, modales, nombres de pistas, títulos de paneles, botones, etiquetas de estado, mensajes de error y atajos— deben expresarse nativamente en inglés. Esto responde a los estándares internacionales de la industria de software de audio (DAW) y videojuegos de ritmo globales.
+* **Documentación técnica (`DOCUMENTATION.md`, `README.md`, guías técnicas):** Redactada y mantenida en inglés técnico estándar.
+* **Contexto de equipo, comunicación y hojas de ruta (`Informe.md`, discusiones, commits):** Mantenidos en español para preservar la agilidad, cohesión y claridad de nuestro equipo de trabajo.
+
 ## 3. Prioridades fundamentales
 
 Cuando exista un conflicto entre características del proyecto, las prioridades serán las siguientes:
@@ -1013,7 +1045,7 @@ Estas funcionalidades son parte de la visión futura, pero no forman parte del n
 
 El prototipo actual ya constituye una base significativa y no debe considerarse simplemente una maqueta visual.
 
-El repositorio utiliza Vite, TypeScript, React, PixiJS y Supabase, y mantiene una separación explícita entre engine y UI.
+El repositorio utiliza actualmente en su runtime cliente: Vite, TypeScript, React y PixiJS, manteniendo una separación explícita entre el engine y la interfaz de usuario. La dependencia `@supabase/supabase-js` se encuentra declarada en `package.json` en previsión de la infraestructura de persistencia y backend remoto para la Fase 7 (Infraestructura Online y Backend), por lo que en el estado actual del prototipo no existen llamadas ni código activo de Supabase en `src/`.
 
 El núcleo `Game` coordina audio, input, gameplay y visualización.
 

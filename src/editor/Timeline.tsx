@@ -372,10 +372,10 @@ export function Timeline({
         }}
       >
         <div className="min-h-full flex flex-col">
-          {/* TIEMPO Header */}
+          {/* TIME Header */}
           <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/95 flex items-center px-3.5 gap-2 shadow-md flex-shrink-0">
             <Clock className="w-4 h-4 text-[#00e5ff]" />
-            <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIEMPO</span>
+            <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIME</span>
           </div>
 
           {/* Pad Track Labels (flex-1 to distribute vertical space generously, min-h-[68px] for responsive windowed mode) */}

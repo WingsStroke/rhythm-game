@@ -28,7 +28,7 @@ The primary event authoring surface. A horizontally scrollable, multi-track time
 
 Layout:
 - Sticky time ruler at the top with seek-on-click and drag-to-scrub with auto-scroll.
-- Dedicated decoupled left column (`w-36` / 144px) for track headers (TIEMPO, pad labels, TRIGGERS, FX LANE) synchronized vertically with the canvas and scroll-forwarded via wheel.
+- Dedicated decoupled left column (`w-36` / 144px) for track headers (TIME, pad labels, TRIGGERS, FX LANE) synchronized vertically with the canvas and scroll-forwarded via wheel.
 - Adaptive track heights (`flex-1 min-h-[68px]`) expanding on full-screen displays and compressing in windowed mode, with smooth vertical scrolling when content exceeds viewport height.
 - An FX LANE track (`h-32`) for `TriggerData` authoring.
 - A continuous red playhead line from ruler to FX lane.
@@ -113,6 +113,8 @@ Global `keydown` handler. Wires:
 - `Ctrl+Z`: undo.
 - `Ctrl+Y` / `Ctrl+Shift+Z`: redo.
 - `Space`: play/pause toggle.
+- `R`: toggle recording mode.
+- `Delete` / `Backspace`: delete selected event, trigger, or scene node.
 - `B`: switch to pen tool.
 - `V`: switch to select tool.
 - `E`: switch to eraser tool.

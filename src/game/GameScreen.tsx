@@ -160,6 +160,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             onRestart={handleRestart}
             onExit={handleExit}
             songTitle={level.song.title}
+            exitLabel={exitLabel}
           />
         )}
 
