@@ -27,6 +27,24 @@ interface EditorPropertiesPanelProps {
   onRemoveTrigger: (id: string) => void;
 }
 
+/**
+ * Normalizes any color input into a valid 7-character lowercase hex string (#rrggbb)
+ * for safe consumption by HTML5 <input type="color">.
+ */
+function toValidHexColor(val: unknown, fallback = '#00e5ff'): string {
+  if (typeof val !== 'string') return fallback;
+  const str = val.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(str)) return str.toLowerCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(str)) {
+    return `#${str[1]}${str[1]}${str[2]}${str[2]}${str[3]}${str[3]}`.toLowerCase();
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(str)) return `#${str}`.toLowerCase();
+  if (/^[0-9a-fA-F]{3}$/.test(str)) {
+    return `#${str[0]}${str[0]}${str[1]}${str[1]}${str[2]}${str[2]}`.toLowerCase();
+  }
+  return fallback;
+}
+
 export function EditorPropertiesPanel({
   selectedEvent,
   selectedNode,
@@ -433,7 +451,7 @@ export function EditorPropertiesPanel({
                   <div className="flex items-center gap-2 mt-1">
                     <input
                       type="color"
-                      value={(selectedTrigger.properties.color as string) || '#ff007f'}
+                      value={toValidHexColor(selectedTrigger.properties.color, '#ff007f')}
                       onChange={(e) =>
                         onUpdateTrigger({
                           ...selectedTrigger,
@@ -444,7 +462,8 @@ export function EditorPropertiesPanel({
                     />
                     <input
                       type="text"
-                      value={(selectedTrigger.properties.color as string) || '#ff007f'}
+                      value={(selectedTrigger.properties.color as string) ?? ''}
+                      placeholder="#ff007f"
                       onChange={(e) =>
                         onUpdateTrigger({
                           ...selectedTrigger,
@@ -739,7 +758,7 @@ export function EditorPropertiesPanel({
                 <div className="flex items-center gap-2 mt-1">
                   <input
                     type="color"
-                    value={(selectedNode.properties?.color as string) || '#00e5ff'}
+                    value={toValidHexColor(selectedNode.properties?.color, '#00e5ff')}
                     onChange={(e) =>
                       onUpdateNode({
                         properties: { ...selectedNode.properties, color: e.target.value },
@@ -749,7 +768,8 @@ export function EditorPropertiesPanel({
                   />
                   <input
                     type="text"
-                    value={(selectedNode.properties?.color as string) || '#00e5ff'}
+                    value={(selectedNode.properties?.color as string) ?? ''}
+                    placeholder="#00e5ff"
                     onChange={(e) =>
                       onUpdateNode({
                         properties: { ...selectedNode.properties, color: e.target.value },

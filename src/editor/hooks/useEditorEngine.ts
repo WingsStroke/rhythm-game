@@ -256,11 +256,15 @@ export function useEditorEngine({
   // Sync visual nodes and triggers in real-time when level.visual changes
   useEffect(() => {
     if (visualRef.current && level.visual) {
-      if (level.visual.nodes) {
-        visualRef.current.syncVisualNodes(level.visual.nodes);
-      }
-      if (level.visual.triggers) {
-        visualRef.current.syncVisualTriggers(level.visual.triggers);
+      try {
+        if (level.visual.nodes) {
+          visualRef.current.syncVisualNodes(level.visual.nodes);
+        }
+        if (level.visual.triggers) {
+          visualRef.current.syncVisualTriggers(level.visual.triggers);
+        }
+      } catch (err) {
+        console.warn('[useEditorEngine] Non-fatal error syncing visual components:', err);
       }
     }
   }, [level.visual]);

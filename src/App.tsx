@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { createPrototypeLevel, SONG_URL } from '@/game/createPrototypeLevel';
 import type { LevelData } from '@/engine/types';
 import { EditorApp } from '@/editor/EditorApp';
+import { ErrorBoundary } from '@/editor/components/ErrorBoundary';
 import { GameScreen } from '@/game/GameScreen';
 import { Play, Upload, Edit3 } from 'lucide-react';
 
@@ -95,11 +96,13 @@ export default function App() {
       )}
 
       {screen === 'editor' && (
-        <EditorApp
-          onExit={() => setScreen('start')}
-          onPlaytest={handlePlaytestFromEditor}
-          initialLevel={editorLevel || undefined}
-        />
+        <ErrorBoundary onExit={() => setScreen('start')}>
+          <EditorApp
+            onExit={() => setScreen('start')}
+            onPlaytest={handlePlaytestFromEditor}
+            initialLevel={editorLevel || undefined}
+          />
+        </ErrorBoundary>
       )}
 
       {screen === 'playing' && activeLevel && (

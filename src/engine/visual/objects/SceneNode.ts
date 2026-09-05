@@ -2,6 +2,26 @@ import { Container, Graphics, Sprite, Texture, Color } from 'pixi.js';
 import type { SceneNodeData, ModulatableProperty } from '../../types';
 
 /**
+ * Safely parses any color representation (hex string, rgb, named color, or number)
+ * into a PixiJS numeric color without ever throwing an exception.
+ */
+export function safeParseColor(input: unknown, defaultColor = 0xffffff): number {
+  if (input === null || input === undefined || input === '') {
+    return defaultColor;
+  }
+  if (typeof input === 'number' && Number.isFinite(input)) {
+    return input;
+  }
+  try {
+    const str = String(input).trim();
+    const formatted = /^[0-9a-fA-F]{6}$|^[0-9a-fA-F]{3}$/.test(str) ? `#${str}` : str;
+    return new Color(formatted).toNumber();
+  } catch {
+    return defaultColor;
+  }
+}
+
+/**
  * SceneNode wraps a PixiJS Container or display object.
  * It provides a unified way to apply data-driven properties.
  */
@@ -138,7 +158,7 @@ export class SceneNode {
     switch (data.type) {
       case 'rectangle': {
         const g = new Graphics();
-        const color = props.color ? new Color(props.color as string).toNumber() : 0xffffff;
+        const color = safeParseColor(props.color, 0x00e5ff);
         const width = (props.width as number) || 100;
         const height = (props.height as number) || 100;
         g.rect(0, 0, width, height);
@@ -150,7 +170,7 @@ export class SceneNode {
       }
       case 'circle': {
         const g = new Graphics();
-        const color = props.color ? new Color(props.color as string).toNumber() : 0xffffff;
+        const color = safeParseColor(props.color, 0xff007f);
         const radius = (props.radius as number) || 50;
         g.circle(0, 0, radius);
         g.fill({ color });
@@ -163,7 +183,7 @@ export class SceneNode {
         if (props.width) s.width = props.width as number;
         if (props.height) s.height = props.height as number;
         s.anchor.set(0.5);
-        if (props.color) s.tint = new Color(props.color as string).toNumber();
+        if (props.color) s.tint = safeParseColor(props.color, 0xffffff);
         return s;
       }
       default:
