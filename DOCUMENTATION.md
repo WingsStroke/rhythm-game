@@ -273,8 +273,8 @@ Root component of the editor. Assembles all panels and manages top-level UI stat
 ### src/editor/Timeline.tsx
 
 The primary authoring surface. Multi-track DAW-style timeline engineered under the UI optimization and responsive design principles:
-- **Decoupled Track Header Architecture**: Dedicated fixed left column (144px / `w-36`) displaying track headers (TIEMPO, Pad labels with role & key indicators, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without ever overlaying or occluding timeline notes and triggers.
-- **Vertical Space Optimization**: Eliminates dead vertical voids by using an elastic flex distribution (`flex-1` with `min-h-[96px]` per pad track). On standard 1080p/1440p displays, pad tracks expand smoothly to 110px–165px, providing generous ergonomics for interacting with notes (`h-14` / 56px height, high-contrast handles, neon indicators) and triggers (`h-18` automation blocks).
+- **Decoupled Track Header Architecture & Synchronized Vertical Scrolling**: Dedicated left column (144px / `w-36`) displaying track headers (TIEMPO, Pad labels with role & key indicators, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without ever overlaying notes. In windowed mode or on compact screens, its vertical scroll (`scrollTop`) is synchronized in real-time with the tracks canvas, with mouse wheel forwarding (`onWheel`) for intuitive dual-column navigation.
+- **Adaptive Vertical Sizing & Windowed Responsiveness**: Uses an elastic flex distribution (`flex-1` with `min-h-[68px]` per pad track). On tall/full-screen displays, tracks expand smoothly to 110px–165px to fill empty vertical space; in windowed mode (non-fullscreen/reduced height), tracks compress adaptively down to 68px. If the total height exceeds the viewport, smooth vertical scrolling activates without ever clipping the Triggers section or FX Lane.
 - **Horizontally Scrollable Canvas**: Scrollable tracks container for ruler, beat/bar grid lines, notes (tap, hold, loop, trigger), scene triggers, and playhead starting at origin `t = 0`.
 - **Sticky Time Ruler**: Quantized ruler with seek-on-click, playhead drag, and edge auto-scrolling.
 
@@ -282,15 +282,15 @@ Tools: Pen (insert), Select (move/resize via drag), Eraser (delete on click).
 
 ### src/editor/components/EditorHeader.tsx
 
-Top navigation bar: tab switching, transport controls, audio file loading, recording toggle, hitsound toggle.
+Top navigation bar: tab switching, transport controls, audio file loading, recording toggle, hitsound toggle. Features overflow-safe horizontal scrolling for narrow window layouts.
 
 ### src/editor/components/EditorToolbar.tsx
 
-Tool palette: Select / Pen / Eraser, grid subdivision selector, zoom control.
+Tool palette: Select / Pen / Eraser, grid subdivision selector, zoom control. Features horizontal overflow protection for compact viewports.
 
 ### src/editor/components/EditorSidebarLeft.tsx
 
-Scene management sidebar: object type buttons (Rectangle, Circle, Line, Container), BPM display.
+Scene management and metadata sidebar: Song & Pads config (title, BPM, duration, pad roles, shortcuts) and Scene Outliner. Fully responsive with dedicated internal vertical scrolling (`overflow-y-auto custom-scrollbar`) preventing clipping in windowed mode.
 
 ### src/editor/components/SceneOutliner.tsx
 
@@ -298,7 +298,7 @@ Tree view of scene nodes. Displays name and numeric ID badge (golden if assigned
 
 ### src/editor/components/EditorPropertiesPanel.tsx
 
-Context-sensitive property inspector for selected PadEvent, TriggerData, or SceneNode. Edits: name, numeric target ID, transform properties, trigger action, easing curve, duration, color, blend mode, visibility.
+Context-sensitive property inspector for selected PadEvent, TriggerData, or SceneNode. Strictly constrained to viewport height with internal vertical scrolling (`h-full min-h-0 overflow-y-auto custom-scrollbar`), guaranteeing that all form fields (Position, Scale, Rotation, Opacity, Dimensions, Color, Blend Mode, and Delete button) remain completely accessible in windowed mode.
 
 ### src/editor/hooks/useEditorHistory.ts
 

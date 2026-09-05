@@ -25,7 +25,7 @@ export function EditorToolbar({
   onChangePixelsPerSecond,
 }: EditorToolbarProps) {
   return (
-    <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-6 shrink-0 select-none">
+    <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-4 gap-2 shrink-0 select-none overflow-x-auto overflow-y-hidden">
       {/* Tool Mode Buttons */}
       <div className="flex items-center gap-1.5">
         <button

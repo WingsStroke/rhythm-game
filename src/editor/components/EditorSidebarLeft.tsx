@@ -23,7 +23,7 @@ export function EditorSidebarLeft({
   const [activeTab, setActiveTab] = useState<'config' | 'scene'>('config');
 
   return (
-    <aside className="w-64 border-r border-white/10 bg-black/20 flex flex-col shrink-0 select-none overflow-hidden">
+    <aside className="w-64 border-r border-white/10 bg-black/20 flex flex-col shrink-0 select-none overflow-hidden h-full min-h-0">
       {/* Tab Switcher: Config vs Scene */}
       <div className="flex border-b border-white/10 bg-black/40 text-xs font-mono">
         <button
@@ -52,7 +52,7 @@ export function EditorSidebarLeft({
 
       {/* Tab Contents */}
       {activeTab === 'config' ? (
-        <div className="flex-1 p-4 overflow-y-auto flex flex-col justify-between">
+        <div className="flex-1 min-h-0 p-4 overflow-y-auto custom-scrollbar flex flex-col justify-between">
           <div>
             <h2 className="text-xs font-bold text-white/50 uppercase tracking-widest mb-3 flex items-center gap-2">
               <Settings2 className="w-3.5 h-3.5" /> Song Config
@@ -130,7 +130,7 @@ export function EditorSidebarLeft({
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           <SceneOutliner
             nodes={level.visual?.nodes || []}
             selectedNodeId={selectedNodeId}

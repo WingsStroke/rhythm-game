@@ -304,7 +304,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     ) || null;
 
   return (
-    <div className="relative z-10 min-h-screen w-full flex flex-col bg-[#0b0b12] text-white select-none">
+    <div className="relative z-10 h-full max-h-screen w-full flex flex-col bg-[#0b0b12] text-white select-none overflow-hidden">
       {/* Top Header & Transport / Audio / Import / Export / History Controls */}
       <EditorHeader
         bpm={level.timing.bpm}
@@ -350,7 +350,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       />
 
       {/* Main Workspace Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Left Sidebar: Song Metadata, Pads & SceneOutliner */}
         <EditorSidebarLeft
           level={level}
@@ -362,7 +362,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         />
 
         {/* Central Workspace: Tab Switcher & Active View */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* View Tab Bar */}
           <div className="flex shrink-0 border-b border-white/10 bg-black/40">
             <button
@@ -395,7 +395,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           </div>
 
           {/* Active View Container */}
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 min-h-0 overflow-hidden relative">
             {/* Timeline View */}
             <div className={`absolute inset-0 ${activeTab === 'timeline' ? 'flex flex-col' : 'hidden'}`}>
               <Timeline

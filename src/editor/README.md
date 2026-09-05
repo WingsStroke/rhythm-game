@@ -24,27 +24,14 @@ Delegates engine lifecycle to `useEditorEngine` and level state to `useEditorHis
 
 ### Timeline.tsx
 
-The primary event authoring surface. A horizontally scrollable, multi-track timeline in DAW style.
+The primary event authoring surface. A horizontally scrollable, multi-track timeline in DAW style engineered for responsive behavior:
 
 Layout:
 - Sticky time ruler at the top with seek-on-click and drag-to-scrub with auto-scroll.
-- One row per pad: sticky 128px label column (always visible during horizontal scroll) plus a scrollable event lane.
-- A TRIGGERS section header row.
-- An FX LANE track for `TriggerData` authoring.
-- A continuous red playhead line at `TRACK_HEADER_WIDTH + currentTime * pixelsPerSecond`.
-
-Tools:
-- Pen: click on a lane to insert an event at the snapped time.
-- Select: drag events or their resize handles to move or change duration.
-- Eraser: click an event to delete it immediately.
-
-Exports `getSnapInterval(bpm, subdivision)` and `snapTimeToGrid(rawTime, bpm, subdivision)` for use in engine hooks.
-
-Constants:
-
-| Constant | Value | Purpose |
-|---|---|---|
-| `TRACK_HEADER_WIDTH` | 128 | Sticky label column width in pixels |
+- Dedicated decoupled left column (`w-36` / 144px) for track headers (TIEMPO, pad labels, TRIGGERS, FX LANE) synchronized vertically with the canvas and scroll-forwarded via wheel.
+- Adaptive track heights (`flex-1 min-h-[68px]`) expanding on full-screen displays and compressing in windowed mode, with smooth vertical scrolling when content exceeds viewport height.
+- An FX LANE track (`h-32`) for `TriggerData` authoring.
+- A continuous red playhead line from ruler to FX lane.
 
 ### constants.ts
 
@@ -76,10 +63,9 @@ Tool palette row. Contains:
 
 ### EditorSidebarLeft.tsx
 
-Left sidebar for scene management. Contains:
-- Add object buttons (Rectangle, Circle, Line, Container).
-- BPM display.
-- Zoom controls (mirror of toolbar).
+Left sidebar for song configuration and scene management. Features dedicated internal vertical scrolling (`overflow-y-auto custom-scrollbar`) for compact windows:
+- Song & Pads config tab: Title, BPM, duration, pad labels & roles, keyboard shortcuts.
+- Scene Outliner tab.
 
 ### SceneOutliner.tsx
 
@@ -91,11 +77,11 @@ Clicking a node selects it and populates the properties panel. Supports delete.
 
 ### EditorPropertiesPanel.tsx
 
-Context-sensitive inspector. Renders a different form depending on what is selected:
+Context-sensitive inspector strictly constrained to viewport height with internal vertical scrolling (`h-full min-h-0 overflow-y-auto custom-scrollbar`):
 
 - **PadEvent selected**: targetTime, padId, behavior, duration, triggerId.
 - **TriggerData selected**: time, action type, targetId (numeric or string), easing, duration, properties (transform/color/pulse values).
-- **SceneNode selected**: name, numeric ID (trigger group), type-specific properties (x, y, scaleX, scaleY, rotation, opacity, color, width, height, radius), blend mode, visibility.
+- **SceneNode selected**: name, numeric ID (trigger group), type-specific properties (x, y, scaleX, scaleY, rotation, opacity, color, width, height, radius), blend mode, visibility, and delete node button. Fully reachable in windowed mode.
 
 ---
 

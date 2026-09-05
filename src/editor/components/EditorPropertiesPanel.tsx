@@ -42,7 +42,7 @@ export function EditorPropertiesPanel({
   onRemoveTrigger,
 }: EditorPropertiesPanelProps) {
   return (
-    <aside className="w-72 border-l border-white/10 bg-black/20 p-4 shrink-0 flex flex-col overflow-y-auto select-none">
+    <aside className="w-72 border-l border-white/10 bg-black/20 p-4 shrink-0 flex flex-col h-full min-h-0 overflow-y-auto select-none custom-scrollbar">
       {/* 1. PAD EVENT PROPERTIES */}
       {selectedEvent ? (
         <div className="flex flex-col gap-4 text-xs">

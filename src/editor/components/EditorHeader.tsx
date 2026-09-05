@@ -59,7 +59,7 @@ export function EditorHeader({
   onExit,
 }: EditorHeaderProps) {
   return (
-    <header className="h-14 border-b border-white/10 flex items-center justify-between px-6 bg-black/50 shrink-0 select-none">
+    <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 gap-3 bg-black/50 shrink-0 select-none overflow-x-auto overflow-y-hidden">
       {/* Brand & Time Badges */}
       <div className="flex items-center gap-4">
         <Activity className="w-5 h-5 text-[#00e5ff]" />
