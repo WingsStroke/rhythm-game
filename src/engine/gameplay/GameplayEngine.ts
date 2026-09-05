@@ -7,7 +7,6 @@ import type {
   Judgement,
   TimingWindows,
   PadInputEvent,
-  GameplayEvent,
 } from '../types';
 import type { GameplayEventBus } from './GameplayEventBus';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Square, Circle, Folder, Trash2, Plus, Layers } from 'lucide-react';
+import { Square, Circle, Folder, Trash2, Layers } from 'lucide-react';
 import type { SceneNodeData } from '../../engine/types';
 
 interface SceneOutlinerProps {

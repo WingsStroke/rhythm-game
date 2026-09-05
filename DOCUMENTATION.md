@@ -1,4 +1,4 @@
-﻿# Rhythm Game - Technical Documentation
+# Rhythm Game - Technical Documentation
 
 **Last updated:** 2026-09-05
 **Version:** Prototype 2 (Phase 2 completed)
@@ -34,6 +34,29 @@ The designer configures what signals cause what effects. The engine executes the
     Gameplay > Synchronization > Legibility > Visual Effects
 
 Visual spectacle must never compromise playability. Frame rate targets: 60 FPS minimum, higher where hardware allows.
+
+---
+
+## 1.1. Technology Stack
+
+### Active
+
+| Technology | Role |
+|---|---|
+| TypeScript | Primary language |
+| React | UI layer (menus, editor, HUD) |
+| PixiJS v8 | GPU-accelerated 2D rendering |
+| Web Audio API | Audio playback, synthesis, FFT analysis |
+| Vite | Build system |
+| Tailwind CSS | Editor styling |
+
+### Planned (Not yet integrated)
+
+| Technology | Intended Role |
+|---|---|
+| Supabase | User accounts, authentication, leaderboards, multiplayer coordination, online events |
+
+`@supabase/supabase-js` is declared in `package.json` in anticipation of backend features. No Supabase client calls exist in the current codebase. The backend architecture has not been designed; it will be addressed as a dedicated project phase.
 
 ---
 

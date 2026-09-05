@@ -3,8 +3,8 @@ import { InputManager } from './input/InputManager';
 import { GameplayEngine } from './gameplay/GameplayEngine';
 import { GameplayEventBus } from './gameplay/GameplayEventBus';
 import { VisualEngine } from './visual/VisualEngine';
-import { BeatmapGenerator } from './beatmap/BeatmapGenerator';
-import type { LevelData, PlayerState, Judgement, PadEvent, PadId } from './types';
+
+import type { LevelData, PlayerState, PadId } from './types';
 import type { Ticker } from 'pixi.js';
 
 /**
@@ -63,6 +63,7 @@ export class Game {
     this.setupGameplayCallbacks();
 
     // 5. Set up the update loop on PixiJS ticker
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     this.visual.setUpdateCallback((_ticker: Ticker) => this.frameUpdate());
 
     // 6. Start gameplay and transport

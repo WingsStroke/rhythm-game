@@ -67,6 +67,12 @@ export function useEditorEngine({
   const gridSubdivisionRef = useRef(gridSubdivision);
   gridSubdivisionRef.current = gridSubdivision;
 
+  // Ref kept in sync with currentTime so the rAF loop always reads the latest
+  // value without being listed as a dependency (which would recreate the loop
+  // every frame during playback).
+  const currentTimeRef = useRef(0);
+  currentTimeRef.current = currentTime;
+
   const onRecordEventRef = useRef(onRecordEvent);
   onRecordEventRef.current = onRecordEvent;
 
@@ -205,6 +211,9 @@ export function useEditorEngine({
         }
       });
     }
+    // All mutable values are accessed via refs; activeTab is the only
+    // structural dependency that must reinitialize the engine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   // Attach input listener in preview mode OR when recording is active in timeline mode
@@ -217,6 +226,9 @@ export function useEditorEngine({
     } else {
       inputRef.current?.detach();
     }
+    // isPlaying and currentTime are read at call time; listing them would
+    // re-run this effect during playback, re-attaching input unnecessarily.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isRecording]);
 
   // Cleanup on unmount
@@ -269,18 +281,21 @@ export function useEditorEngine({
   // Main animation loop
   useEffect(() => {
     const loop = () => {
-      let t = currentTime;
-      if (isPlaying && transportRef.current) {
+      // Read from ref to avoid stale closure on currentTime while keeping
+      // the effect stable (no currentTime in the dependency array).
+      let t = currentTimeRef.current;
+      if (isPlayingRef.current && transportRef.current) {
         t = transportRef.current.getTime();
         setCurrentTime(t);
+        currentTimeRef.current = t;
       }
       if (activeTab === 'preview') {
-        if (isPlaying && gameplayRef.current) {
+        if (isPlayingRef.current && gameplayRef.current) {
           gameplayRef.current.update();
         }
         if (visualRef.current) {
           const bands: AudioBands =
-            isPlaying && transportRef.current
+            isPlayingRef.current && transportRef.current
               ? transportRef.current.getAudioBands()
               : {
                   bass: 0,
@@ -297,7 +312,9 @@ export function useEditorEngine({
     };
     animFrameRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [isPlaying, activeTab]);
+    // activeTab is the only structural dependency; isPlaying and currentTime
+    // are accessed via refs to prevent loop re-creation on every state update.
+  }, [activeTab]);
 
   const togglePlay = useCallback(async () => {
     if (isPlaying) {

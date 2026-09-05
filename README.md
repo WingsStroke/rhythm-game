@@ -16,6 +16,8 @@ The repository contains both the game runtime and a fully integrated level edito
 
 ## Technology Stack
 
+### Current (Active)
+
 | Technology | Role |
 |---|---|
 | TypeScript | Primary language for engine and editor |
@@ -24,6 +26,14 @@ The repository contains both the game runtime and a fully integrated level edito
 | Web Audio API | Audio playback, synthesis, and FFT analysis |
 | Vite | Development server and production bundler |
 | Tailwind CSS | Editor styling |
+
+### Planned (Not yet integrated)
+
+| Technology | Intended Role |
+|---|---|
+| Supabase | Backend infrastructure: user accounts, authentication, leaderboards, online events, and multiplayer coordination |
+
+Supabase is declared as a dependency in `package.json` in anticipation of future backend features. No Supabase client calls exist in the current codebase. The specific backend architecture (tables, auth flow, real-time channels) has not been designed yet and will be addressed in a dedicated phase.
 
 ## Requirements
 
@@ -91,3 +101,4 @@ Per-module documentation is located in each subdirectory under src/.
 ## License
 
 Private repository. All rights reserved.
+

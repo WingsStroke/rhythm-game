@@ -1,4 +1,4 @@
-import type { LevelData, PadEvent, PadConfig, PadId } from '../types';
+import type { PadEvent, PadConfig, PadId } from '../types';
 
 /**
  * BeatmapGenerator — generates a playable beatmap procedurally.

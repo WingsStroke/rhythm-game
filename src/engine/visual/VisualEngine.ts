@@ -113,6 +113,7 @@ export class VisualEngine {
   /** Emitted when a SceneNode is clicked */
   public onNodeSelect: ((nodeId: string) => void) | null = null;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   constructor(root: HTMLElement, level: LevelData, _audio?: AudioEngine | null) {
     this.root = root;
     this.level = level;
@@ -679,6 +680,7 @@ export class VisualEngine {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onBeat(_beatIndex: number): void {
     this.beatPulse = 1.0;
   }
@@ -821,7 +823,7 @@ export class VisualEngine {
       else bandValue = channels.ambientBrightness;
 
       let idleGlow = 0.12 + bandValue * 0.28;
-      let pressGlow = pv.pressAnim * 0.55;
+      const pressGlow = pv.pressAnim * 0.55;
       let fillAlpha = 0.25 + bandValue * 0.18 + pv.pressAnim * 0.45;
       let strokeColor = pv.baseColor;
       let strokeWidth = 2 + pv.pressAnim * 2.5;

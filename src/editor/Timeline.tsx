@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { LevelData, PadId, PadEvent, PadBehavior, TriggerData, TriggerActionType } from '../engine/types';
-import { Zap, Repeat, Sparkles, Layers, Activity, Clock } from 'lucide-react';
+import { Zap, Repeat, Clock } from 'lucide-react';
 
 export type EditorTool = 'select' | 'pen' | 'eraser';
 export type GridSubdivision = '1/1' | '1/2' | '1/4' | '1/8' | '1/16' | 'free';
@@ -191,7 +191,8 @@ export function Timeline({
   const handleRulerPointerUp = (e: React.PointerEvent) => {
     isDraggingPlayhead.current = false;
     stopAutoScroller();
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    // releasePointerCapture may throw if the element was already removed from the DOM; safe to ignore.
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* intentional no-op */ }
   };
 
   const handleTrackClick = (e: React.MouseEvent, padId: PadId) => {
@@ -344,7 +345,8 @@ export function Timeline({
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (dragState) {
-      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+      // releasePointerCapture may throw if the pointer was already released; safe to ignore.
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* intentional no-op */ }
       setDragState(null);
     }
   };
