@@ -105,27 +105,31 @@ Cuestiones logicas del gameplay y del motor que han quedado en segundo plano y r
 
 Herramientas avanzadas del editor necesarias para acelerar y facilitar la creacion de beatmaps complejos:
 
-- [ ] **[P1] Visualizacion de la Forma de Onda de Audio (Audio Waveform Display)**
+- [ ] **[P0] Visualizacion de la Forma de Onda de Audio (Audio Waveform Display)**
   - Dibujar la grafica de la onda de audio directamente de fondo en la linea de tiempo.
   - Permite al creador alinear visualmente los golpes de bateria y transientes acusticos con el snapping de la rejilla.
+
+- [ ] [P0] Añadir el selector de Playback Speed
+  - Mostrar un botón para seleccionar la velocidad de reproducción de la música y del gameplay.
+  - Permite al creador ajustar notas, efectos y triggers de forma perfecta, sincronizándolas con la música.
 
 - [ ] **[P1] Seleccion Multiple y Marquesina en Timeline**
   - Poder arrastrar un cuadro de seleccion para seleccionar decenas de notas y triggers a la vez.
   - Soporte para mover bloques enteros de notas hacia adelante o atras en el tiempo.
 
-- [ ] **[P1] Copiar, Cortar y Pegar Bloques de Notas (Ctrl+C, Ctrl+X, Ctrl+V)**
+- [ ] **[P2] Copiar, Cortar y Pegar Bloques de Notas (Ctrl+C, Ctrl+X, Ctrl+V)**
   - Copiar compases completos y pegarlos en la posicion actual del cabezal de reproduccion con un clic.
 
-- [ ] **[P2] Zoom Horizontal y Vertical en Timeline**
+- [ ] **[P3] Zoom Horizontal y Vertical en Timeline**
   - Atajos `Ctrl + Rueda del raton` o slider visual para acercar compases en pasajes rapidos (1/16, 1/32) o alejar para ver la cancion completa.
 
-- [ ] **[P2] Guardado Automatico en localStorage (Auto-Save Recovery)**
+- [ ] **[P4] Guardado Automatico en localStorage (Auto-Save Recovery)**
   - Guardar el estado del nivel cada 30 segundos en el almacenamiento local para que, si el usuario cierra el navegador por error, no pierda su trabajo.
 
-- [ ] **[P2] Duplicacion Rapida con Arrastre (Alt + Drag / Ctrl+D)**
+- [ ] **[P5] Duplicacion Rapida con Arrastre (Alt + Drag / Ctrl+D)**
   - Clonar una nota o trigger seleccionado simplemente manteniendolo presionado mientras se arrastra.
 
-- [ ] **[P3] Pistas de Automatizacion de BPM y Cambios de Compas**
+- [ ] **[P6] Pistas de Automatizacion de BPM y Cambios de Compas**
   - Soporte para canciones con cambios de tempo (tempo ramps) o firmas de compas variables (3/4, 6/8).
 
 ---
