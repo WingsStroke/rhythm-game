@@ -1,7 +1,7 @@
 # Rhythm Game - Technical Documentation
 
 **Last updated:** 2026-09-05
-**Version:** Prototype 2 (Phase 2 completed)
+**Version:** Phase 4 completed (Player & Content Runtime)
 **Repository:** rhythm-game
 
 ---
@@ -41,22 +41,22 @@ Visual spectacle must never compromise playability. Frame rate targets: 60 FPS m
 
 From prototype maturation through production runtime, all visual interfaces, menus, and authoring tools must adhere to four design principles:
 
-### 1. Optimización de UI (UI Optimization & Space Ergonomics)
+### 1. UI Optimization & Space Ergonomics
 - **Zero Wasted Space**: Interfaces must eliminate dead voids or underutilized areas. Workspaces (such as the timeline authoring surface, outliners, and inspectors) must expand to utilize the available screen real estate efficiently.
 - **Visual Ergonomics**: Authoring tracks, interactive pads, notes, handles, and indicators must maintain generous, accessible proportions so clicking, dragging, scrubbing, and inspecting feel comfortable and precise.
 - **Visual Hierarchy**: Critical information (playback time, snap division, bpm, pad roles, active tools) must be legible at a glance without eye strain.
 
-### 2. Diseño Totalmente Responsivo (Full Multi-Viewport Responsiveness)
+### 2. Full Multi-Viewport Responsiveness
 - **Universal Adaptation**: The application must function and look balanced across all viewport formats: standard desktop windowed mode, full-screen F11, laptops (1366x768 / 1440x900), standard 1080p, 1440p, 4K, and ultrawide monitors.
 - **Elastic Proportions**: Avoid brittle, hardcoded heights and offsets that cause miniaturization, excessive margins, or element overlap. Containers must use elastic layouts (`flex-1`, `min-h`, percentage bounds, and `ResizeObserver`) to distribute space proportionally.
 - **Independent Canvas Preservation**: Decorative background scene nodes scale within a virtual 1920x1080 coordinate reference, while gameplay lanes, launchpads, falling notes, and HUD adapt in real time to the true physical screen bounds.
 
-### 3. Lógica de Diseño No Abrumadora (Contextual, Non-Overwhelming Logic)
+### 3. Contextual, Non-Overwhelming Design Logic
 - **Focus on the Creative Flow**: The central canvas must prioritize the primary task (playing or composing rhythm tracks). Secondary tools, advanced trigger properties, and node hierarchies must be accessible without visual noise or cognitive clutter.
 - **Contextual Presentation**: Information is presented on demand (e.g., selecting a note, trigger, or node opens its targeted properties in the contextual inspector, rather than permanently crowding the viewport with inactive parameters).
 - **Predictable Muscle Memory**: Standard, intuitive keybindings (Space for play/pause, DEL/Backspace for deleting any selected element, Ctrl+Z/Ctrl+Y for history, V/B/E for tools) allow creators to author quickly without second-guessing controls.
 
-### 4. Interactividad en Menús (Tactile Micro-Interactions & Rich Feedback)
+### 4. Tactile Menu Interactivity & Rich Feedback
 - **Living Interface**: Every interactive element—buttons, tabs, track headers, handles, toggles, and modal options—must provide immediate, tactile feedback.
 - **Multi-State Richness**: Explicit and polished styling for `hover`, `active`, `focus`, and `disabled` states using subtle micro-animations, neon accent illumination, smooth CSS transitions, and elevation shadows.
 - **Aesthetic Consistency**: The UI reflects the high-energy, neon-infused cyberpunk and synth aesthetic of the rhythm game, creating an engaging first impression.
@@ -70,6 +70,22 @@ To eliminate linguistic discrepancy across the game experience and authoring sui
 - **Frontend User Interface (100% Native English)**: All user-facing text, HUD elements, modals, editor panels, track headers, tooltips, buttons, status indicators, shortcuts hints, and error boundaries must natively be in English. This adheres to industry DAW conventions and global rhythm game standards.
 - **Internal Development & Context (Spanish)**: Team discussions, conversational context, project roadmaps, agent planning/tasks, and version control commits are maintained in Spanish.
 - **Technical Documentation (English)**: The official project documentation (`DOCUMENTATION.md`, `README.md`, and module-level technical guides) is written and maintained in English.
+
+---
+
+## 1.4. Universal Project Roadmap & Phase Taxonomy
+
+The project follows a single, normalized phase progression across all documentation, commits, and codebase:
+
+- **Phase 0 — Concept & Architecture**: Foundational design, timing contracts, Web Audio & PixiJS viability. *(Completed)*
+- **Phase 1 — Core Gameplay Engine**: Pad input, precision timing windows, score, combo, procedural synthesis. *(Completed)*
+- **Phase 2 — Visual Engine & Reactivity**: SceneGraph hierarchy, primitives, FFT AudioMapping, bloom & GLSL RGB shaders, particles. *(Completed)*
+- **Phase 3 — Level Editor**: DAW-style multi-track timeline, tools (V/B/E), snapping (1/1 to 1/16, free), outliner, inspector, undo/redo. *(Completed)*
+- **Phase 4 — Player & Content Runtime**: Full-screen standalone 1920×1080 player, Playtest roundtrip, results screen, pause system, HUD. *(Completed)*
+- **Phase 5 — Content Pipeline & Asset Management**: Active SongRegistry with AudioBuffer caching, multi-difficulty linking, level packaging. *(Next Target)*
+- **Phase 6 — Engine Optimization & Polish**: Intensive pooling, GPU/CPU profiling, guaranteed 60+ FPS stability, adaptive quality.
+- **Phase 7 — Online Infrastructure & Backend**: User accounts, cloud saves, leaderboards, remote level repository (Supabase).
+- **Phase 8 — Multiplayer & Community**: Real-time duel / co-op multiplayer, Mashup mode, public level browser.
 
 ---
 
@@ -357,9 +373,10 @@ SceneNodeData fields:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `uid` | string | auto-generated | Immutable internal key for React and scene graph |
-| `name` | string | `type-N` | Human-readable name with counter (e.g. `rect-1`) |
-| `id` | number or null | null | Numeric trigger group ID. Null means ungrouped. |
+| `uid` | string | required / auto-generated | Immutable internal identity for React, SceneGraph indexing, and parent-child linking |
+| `name` | string | `type-N` | Human-readable name for outliner and inspector (e.g. `rect-1`) |
+| `targetId` | number or null | null | Numeric trigger group ID for automated visual FX triggers. Null means ungrouped. |
+| `id` | number, string, or null | null | Backward-compatibility alias for `targetId` / legacy string IDs |
 | `type` | string | required | `rectangle`, `circle`, `line`, `container`, `group`, `sprite` |
 | `transform` | object | - | x, y, rotation, scaleX, scaleY, opacity, pivotX, pivotY |
 | `properties` | object | - | Type-specific values (color, width, height, radius, etc.) |
@@ -375,30 +392,43 @@ SceneNodeData fields:
 - Pause system: immediate freeze of AudioTransport and PixiJS ticker via Escape key with full modal controls (Resume, Restart, Exit).
 - Real-time Performance HUD (`GameHUD`): dynamic combo multiplier (1x, 2x, 4x, 8x), live percentage accuracy (`Accuracy %`), and top song progress bar with remaining time.
 - Results screen (`ResultsModal`): automatic deployment on track completion with rank badges (SS, S, A, B, C, D), detailed hit breakdown (Perfect, Good, Miss), and score stats.
-- Complete Editor → Player circle: "PROBAR NIVEL" (Playtest) action in editor header with seamless roundtrip return.
+- Complete Editor → Player circle: "PLAYTEST" action in editor header with seamless roundtrip return.
 - Level serialization and deserialization: JSON export and import in both Editor and Player.
 - Declarative Audio Modulation Channels (`AudioMapping`): FFT frequency bands (`bass`, `mids`, `treble`, `ambient`) driving `SceneNode` transforms (`scale`, `opacity`, `rotation`, `x`, `y`) in real time.
 - Semantic pad reactivity: pad audio channels resolved by musical role (`PadRole`) or explicit `audioChannel` in `PadConfig`, eliminating hardcoded array indices.
 - Data-driven visual settings (`LevelVisualSettings`): background reactivity, grid pulse, bloom intensity and GLSL RGB aberration shader controlled by level configuration.
-- Separation of contracts: `SongData` metadata separated from `LevelData`, with `SongRegistry` preventing duplicate audio buffer allocations.
+- Separation of contracts: `LevelData` references separated `SongData` definitions for audio metadata.
 - Procedural music synthesizer and external audio file playback with runtime fallback.
 - Four pad behaviors: tap, hold, loop, trigger.
 - Full level editor with timeline, scene outliner, and properties panel.
 - DAW-style timeline with sticky track headers, tools, grid snapping (1/1 through 1/16 and free), auto-scroll on playhead drag.
 - Undo/redo history (Ctrl+Z / Ctrl+Y, 50-entry stack, drag-safe).
 - Live recording mode: captures pad presses as timed events during playback.
-- Scene graph with parent-child hierarchy and numeric trigger grouping.
+- Scene graph with parent-child hierarchy, immutable `uid` node indexing, and numeric `targetId` trigger grouping.
 - TriggerDispatcher: time-sorted execution, seek-safe cumulative replay.
 - Animator: eased property transitions for scene nodes.
 - ParticlePool: pooled particle bursts on hit events.
 
 ### Planned (not yet implemented)
 
-- Full keyframe animation curve editor in the timeline.
-- Additional shader and post-processing effects (custom GLSL distortion, noise).
-- Performance phrase detection and chained rewards.
-- Online song/beatmap repository integration (Supabase backend).
-- Touch and gamepad input sources.
+#### Phase 5 — Content Pipeline & Asset Management (Next)
+- Active `SongRegistry` integration with `AudioEngine` and `AudioTransport`.
+- In-memory decoded `AudioBuffer` caching to prevent duplicate allocations across difficulty levels.
+- Multi-difficulty level linking (e.g. Easy, Normal, Hard sharing song assets).
+- Beatmap and level packaging, validation, and metadata integrity checks.
+
+#### Phase 6 — Engine Optimization & Polish
+- Particle and display object pooling optimization.
+- GPU shader profiling and mobile responsive performance tuning.
+
+#### Phase 7 — Online Infrastructure & Backend
+- Supabase authentication, cloud save profiles, and remote beatmap loading.
+- Global score leaderboards and online event systems.
+
+#### Phase 8 — Multiplayer & Community Features
+- Real-time duel and co-op multiplayer.
+- Mashup mode with dual independent Launchpads.
+- Public level sharing and community browser.
 
 ---
 

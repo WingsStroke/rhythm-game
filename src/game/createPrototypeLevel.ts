@@ -62,6 +62,7 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
         {
           uid: 'test_rect',
           name: 'rect-1',
+          targetId: null,
           id: null,
           type: 'rectangle',
           transform: {

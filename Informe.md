@@ -936,116 +936,60 @@ PlayerInput
 
 Esto permitiría mantener el mismo núcleo de gameplay y ampliar la experiencia hacia varios participantes.
 
-## 40. Roadmap
+## 40. Roadmap y Taxonomía Unificada de Fases
 
-El proyecto debe evolucionar por etapas.
+El proyecto evoluciona por fases estandarizadas, coordinadas directamente con la documentación técnica oficial (`DOCUMENTATION.md`):
 
-### Etapa 1 — Prototipo jugable
+### Fase 0 — Concepto y Arquitectura Base *(Completada)*
+* Diseño fundamental y contratos de tiempo
+* Viabilidad de Web Audio API y renderizado PixiJS
+* Desacoplamiento de subsistemas mediante buses de eventos
 
-Objetivo: demostrar que el concepto funciona.
+### Fase 1 — Core Gameplay Engine *(Completada)*
+* Detección precisa de pulsación y ventanas de tiempo (Perfect, Good, Miss)
+* Sistema de puntuación, multiplicador dinámico y racha de combo
+* Sintetizador procedural y fallback automático de audio
+* 4 pads semánticos y comportamientos (tap, hold, loop, trigger)
 
-Incluye:
+### Fase 2 — Visual Engine y Reactividad *(Completada)*
+* Grafo de escena jerárquico (`SceneGraph`) con primitivas geométricas
+* Reactividad por bandas de frecuencia FFT (`AudioMapping`: bass, mids, treble, ambient)
+* Sistema de animación interpolada (`Animator`) y disparadores temporizados (`TriggerDispatcher`)
+* Shaders GLSL (aberración RGB, bloom post-processing) y sistema de partículas
 
-* TypeScript
-* Vite
-* PixiJS
-* Web Audio
-* 4 pads
-* notas
-* sincronización
-* hit detection
-* combo
-* score
-* audio reactivo
-* partículas
-* glow
-* efectos básicos
+### Fase 3 — Editor Interno *(Completada)*
+* Línea de tiempo multi-pista estilo DAW con snapping musical (1/1 a 1/16 y free)
+* Herramientas interactivas (V: Selección, B: Lápiz/Dibujo, E: Borrador)
+* Scene Outliner, inspector contextual de propiedades y atajos de teclado
+* Pila de historial Undo/Redo (Ctrl+Z / Ctrl+Y) y grabación en vivo
 
-Esta es la etapa que representa principalmente el prototipo actual.
+### Fase 4 — Player Standalone y Content Runtime *(Completada)*
+* Reproductor independiente a resolución lógica fija 1920×1080 con letterboxing automático
+* Flujo de prueba continuo Editor ↔ Juego real (`Playtest`)
+* Sistema de pausa inmediata vía tecla Escape con modales completos
+* HUD de rendimiento en tiempo real (barra de progreso, multiplicador animado, precisión %)
+* Pantalla de resultados con calificaciones (SS a D) y desglose de juicios
 
-### Etapa 2 — Visual Engine
+### Fase 5 — Content Pipeline y Gestión de Assets *(Siguiente Fase)*
+* Integración activa de `SongRegistry` con `AudioEngine` y `AudioTransport`
+* Caching de buffers de audio decodificados en memoria (`AudioBuffer`) para evitar duplicaciones
+* Vinculación de múltiples dificultades (Easy, Normal, Hard) compartiendo una misma canción
+* Empaquetado, validación de esquemas y preloading de niveles
 
-Objetivo: pasar de efectos integrados directamente en la escena a un sistema visual reutilizable.
+### Fase 6 — Optimización y Pulido
+* Object pooling intensivo para display objects y partículas
+* Profiling de rendimiento en GPU/CPU y calidad adaptativa
+* Garantía de estabilidad continua a 60+ FPS y pruebas de respuesta táctil
 
-Incluye:
+### Fase 7 — Infraestructura Online y Backend
+* Cuentas de usuario y perfiles de progreso (Supabase)
+* Guardado en la nube y repositorio de niveles remotos
+* Tablas globales de clasificación (leaderboards) y eventos online
 
-* objetos
-* grupos
-* animaciones
-* triggers
-* partículas
-* shaders
-* glow
-* bloom
-* RGB
-* audio modulation
-* postprocessing
-
-### Etapa 3 — Editor interno
-
-Objetivo: permitir producir contenido real sin editar manualmente el código.
-
-Incluye:
-
-* timeline
-* preview
-* snapping
-* notas
-* timing
-* eventos
-* objetos
-* grupos
-* triggers
-* exportación
-
-### Etapa 4 — Content Pipeline
-
-Objetivo: formalizar canciones y niveles.
-
-Incluye:
-
-* metadatos
-* dificultades
-* licencias
-* organización de contenido
-* validación
-
-### Etapa 5 — Optimización
-
-Objetivo: garantizar estabilidad y rendimiento.
-
-Incluye:
-
-* profiling
-* optimización GPU
-* optimización CPU
-* pooling
-* shaders
-* partículas
-* calidad adaptativa
-* pruebas móviles
-
-### Etapa 6 — Infraestructura online
-
-Incluye:
-
-* cuentas
-* progreso
-* almacenamiento
-* niveles remotos
-* rankings
-
-### Etapa 7 — Editor público
-
-Permitir que otros usuarios creen contenido.
-
-### Etapa 8 — Multiplayer simple
-
-Dos jugadores, una canción, partes diferentes.
-
-### Etapa 9 — Mashup multiplayer
-
-Una pista final Mashup, dos jugadores y dos Launchpads independientes.
+### Fase 8 — Multiplayer y Comunidad
+* Duelo en tiempo real y cooperativo
+* Modo Mashup multiplayer con dos Launchpads independientes
+* Catálogo comunitario y navegador público de niveles
 
 ## 41. Qué no debe construirse todavía
 

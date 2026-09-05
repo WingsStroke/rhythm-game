@@ -28,7 +28,10 @@ export const INITIAL_LEVEL: LevelData = {
   visual: {
     nodes: [
       {
-        id: 'test_rect',
+        uid: 'test_rect',
+        name: 'rect-1',
+        targetId: null,
+        id: null,
         type: 'rectangle',
         transform: { x: 500, y: 300 },
         properties: { width: 200, height: 100, color: '#00e5ff' },

@@ -1,9 +1,11 @@
 import type { SongData } from '../types';
 
 /**
- * SongRegistry manages registered songs and audio resources.
- * Ensures that multiple levels (e.g. Easy, Medium, Hard) sharing
- * the same song track reuse the same metadata and audio source.
+ * SongRegistry — Centralized registry for SongData assets.
+ *
+ * Prepared as the foundational data model for Phase 5 (Content Pipeline).
+ * In Phase 5, this registry will be actively integrated with AudioEngine to manage
+ * multi-difficulty level sharing (Easy, Normal, Hard) and decoded AudioBuffer memory caching.
  */
 export class SongRegistry {
   private static instance: SongRegistry | null = null;

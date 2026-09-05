@@ -35,7 +35,8 @@ export function SceneOutliner({
     const newRect: SceneNodeData = {
       uid,
       name: `rect-${counter}`,
-      id: null, // Por defecto null (sin ID)
+      targetId: null,
+      id: null,
       type: 'rectangle',
       visible: true,
       transform: {
@@ -53,7 +54,7 @@ export function SceneOutliner({
       },
     };
     onAddNode(newRect);
-    onSelectNode(newRect.uid!);
+    onSelectNode(newRect.uid);
   };
 
   const handleAddCircle = () => {
@@ -62,7 +63,8 @@ export function SceneOutliner({
     const newCircle: SceneNodeData = {
       uid,
       name: `circle-${counter}`,
-      id: null, // Por defecto null (sin ID)
+      targetId: null,
+      id: null,
       type: 'circle',
       visible: true,
       transform: {
@@ -79,7 +81,7 @@ export function SceneOutliner({
       },
     };
     onAddNode(newCircle);
-    onSelectNode(newCircle.uid!);
+    onSelectNode(newCircle.uid);
   };
 
   const handleAddGroup = () => {
@@ -88,7 +90,8 @@ export function SceneOutliner({
     const newGroup: SceneNodeData = {
       uid,
       name: `group-${counter}`,
-      id: null, // Por defecto null (sin ID)
+      targetId: null,
+      id: null,
       type: 'group',
       visible: true,
       transform: {
@@ -102,7 +105,7 @@ export function SceneOutliner({
       properties: {},
     };
     onAddNode(newGroup);
-    onSelectNode(newGroup.uid!);
+    onSelectNode(newGroup.uid);
   };
 
   const getNodeIcon = (type: string) => {
@@ -164,10 +167,16 @@ export function SceneOutliner({
           </div>
         ) : (
           nodes.map((node) => {
-            const nodeKey = node.uid || (typeof node.id === 'string' ? node.id : node.name || 'node');
-            const isSelected = selectedNodeId === nodeKey || (node.uid && selectedNodeId === node.uid);
+            const nodeKey = node.uid;
+            const isSelected = selectedNodeId === nodeKey;
             const color = (node.properties?.color as string) || '#ffffff';
-            const displayName = node.name || (typeof node.id === 'string' ? node.id : nodeKey);
+            const displayName = node.name || nodeKey;
+            const targetId =
+              node.targetId !== undefined
+                ? node.targetId
+                : typeof node.id === 'number'
+                  ? node.id
+                  : null;
 
             return (
               <div
@@ -182,9 +191,9 @@ export function SceneOutliner({
                 <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0 pr-2">
                   {getNodeIcon(node.type)}
                   <span className="font-mono font-medium truncate text-white/90">{displayName}</span>
-                  {node.id !== null && node.id !== undefined && node.id !== '' ? (
+                  {targetId !== null && targetId !== undefined ? (
                     <span className="px-1.5 py-0.5 rounded bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 font-mono text-[9px] font-bold shrink-0">
-                      ID: {node.id}
+                      ID: {targetId}
                     </span>
                   ) : (
                     <span className="px-1 py-0.5 rounded bg-white/5 text-white/30 font-mono text-[9px] shrink-0">

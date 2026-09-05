@@ -96,10 +96,10 @@ src/
 - The level editor reuses the same engine modules used at runtime, ensuring editor preview fidelity.
 
 ### UI/UX Design & Interface Standards
-- **Optimización de UI**: Full utilization of the screen real estate with zero dead voids. Authoring tracks, interactive pads, notes, handles, and indicators maintain spacious, ergonomic proportions.
-- **Diseño totalmente responsivo**: Fluid multi-viewport adaptability across windowed mode, F11 full-screen, laptops, standard 1080p, and high-DPI/ultrawide displays without element clipping or miniaturization.
-- **Lógica de diseño no abrumadora**: Clean, hierarchical interfaces where complex parameters are presented contextually on demand in dedicated inspectors rather than crowding the central workspace.
-- **Interactividad en menús**: Tactile micro-interactions with rich, responsive states (`hover`, `active`, `focus`, keyboard navigability) and immediate visual feedback.
+- **UI Optimization & Space Ergonomics**: Full utilization of the screen real estate with zero dead voids. Authoring tracks, interactive pads, notes, handles, and indicators maintain spacious, ergonomic proportions.
+- **Full Multi-Viewport Responsiveness**: Fluid multi-viewport adaptability across windowed mode, F11 full-screen, laptops, standard 1080p, and high-DPI/ultrawide displays without element clipping or miniaturization.
+- **Contextual, Non-Overwhelming Design Logic**: Clean, hierarchical interfaces where complex parameters are presented contextually on demand in dedicated inspectors rather than crowding the central workspace.
+- **Tactile Menu Interactivity & Micro-Interactions**: Tactile micro-interactions with rich, responsive states (`hover`, `active`, `focus`, keyboard navigability) and immediate visual feedback.
 
 ## Documentation
 

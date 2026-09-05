@@ -26,10 +26,11 @@ export function safeParseColor(input: unknown, defaultColor = 0xffffff): number 
  * It provides a unified way to apply data-driven properties.
  */
 export class SceneNode {
-  public id: string;
-  public uid: string;
+  public readonly uid: string;
   public name: string;
   public targetId: number | null;
+  /** Alias for uid ensuring full backward compatibility with callers referencing node.id */
+  public id: string;
   public data: SceneNodeData;
   public container: Container;
   public displayObject?: Container;
@@ -39,12 +40,17 @@ export class SceneNode {
       data.uid ||
       (typeof data.id === 'string' ? data.id : undefined) ||
       data.name ||
-      `node_${Math.floor(1000 + Math.random() * 9000)}`;
-    this.id = uniqueKey;
+      `node_${Date.now().toString(36)}_${Math.floor(1000 + Math.random() * 9000)}`;
     this.uid = uniqueKey;
+    this.id = uniqueKey;
     this.name = data.name || (typeof data.id === 'string' ? data.id : 'node-1');
-    this.targetId = typeof data.id === 'number' ? data.id : null;
-    this.data = { ...data, uid: this.uid, name: this.name, id: this.targetId };
+    this.targetId =
+      data.targetId !== undefined
+        ? data.targetId
+        : typeof data.id === 'number'
+          ? data.id
+          : null;
+    this.data = { ...data, uid: this.uid, name: this.name, targetId: this.targetId, id: this.targetId };
     this.container = new Container();
 
     if (data.type !== 'group') {
@@ -62,8 +68,13 @@ export class SceneNode {
 
   public updateData(newData: SceneNodeData) {
     this.name = newData.name || this.name;
-    this.targetId = typeof newData.id === 'number' ? newData.id : null;
-    this.data = { ...newData, uid: this.uid, name: this.name, id: this.targetId };
+    this.targetId =
+      newData.targetId !== undefined
+        ? newData.targetId
+        : typeof newData.id === 'number'
+          ? newData.id
+          : null;
+    this.data = { ...newData, uid: this.uid, name: this.name, targetId: this.targetId, id: this.targetId };
     
     // Recreate visual representation
     if (this.displayObject) {

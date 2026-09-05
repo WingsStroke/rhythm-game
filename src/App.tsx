@@ -151,7 +151,7 @@ function StartScreen({
       <div className="relative z-10 flex flex-col items-center gap-8 text-center max-w-xl">
         <div className="flex flex-col gap-2">
           <span className="text-xs uppercase tracking-widest text-[#00e5ff] font-semibold">
-            STAGE 4 — STANDALONE PLAYER & CONTENT PIPELINE
+            PHASE 4 — PLAYER & CONTENT RUNTIME
           </span>
           <h1 className="text-6xl md:text-8xl font-black tracking-tight drop-shadow-2xl">
             <span className="text-[#ff2d6f]">NEON</span>{' '}

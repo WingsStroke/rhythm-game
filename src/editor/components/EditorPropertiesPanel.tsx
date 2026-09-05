@@ -328,15 +328,18 @@ export function EditorPropertiesPanel({
                 {Array.from(
                   new Set(
                     nodes
-                      .filter((n) => n.id !== null && n.id !== undefined && n.id !== '')
-                      .map((n) => Number(n.id))
+                      .map((n) => (n.targetId !== undefined ? n.targetId : (typeof n.id === 'number' ? n.id : null)))
+                      .filter((id): id is number => id !== null && id !== undefined)
                   )
                 )
                   .sort((a, b) => a - b)
                   .map((assignedId) => {
                     const matchedNames = nodes
-                      .filter((n) => Number(n.id) === assignedId)
-                      .map((n) => n.name || n.uid || n.id)
+                      .filter((n) => {
+                        const tid = n.targetId !== undefined ? n.targetId : (typeof n.id === 'number' ? n.id : null);
+                        return tid === assignedId;
+                      })
+                      .map((n) => n.name || n.uid)
                       .join(', ');
                     return (
                       <option key={assignedId} value={String(assignedId)}>
@@ -577,7 +580,7 @@ export function EditorPropertiesPanel({
             <span className="font-semibold">Object Name</span>
             <input
               type="text"
-              value={selectedNode.name || (typeof selectedNode.id === 'string' ? selectedNode.id : '')}
+              value={selectedNode.name || selectedNode.uid}
               onChange={(e) => onUpdateNode({ name: e.target.value })}
               placeholder="e.g. rect-1"
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
@@ -589,17 +592,22 @@ export function EditorPropertiesPanel({
             <div className="flex justify-between items-center">
               <span className="font-semibold">Object ID (Trigger ID)</span>
               <span className="text-[10px] text-white/40 font-mono">
-                {selectedNode.id === null || selectedNode.id === undefined || selectedNode.id === ''
-                  ? 'null (No ID)'
-                  : `ID: ${selectedNode.id}`}
+                {(() => {
+                  const tid = selectedNode.targetId !== undefined ? selectedNode.targetId : (typeof selectedNode.id === 'number' ? selectedNode.id : null);
+                  return tid === null || tid === undefined ? 'null (No ID)' : `ID: ${tid}`;
+                })()}
               </span>
             </div>
             <input
               type="number"
-              value={selectedNode.id !== null && selectedNode.id !== undefined ? selectedNode.id : ''}
+              value={(() => {
+                const tid = selectedNode.targetId !== undefined ? selectedNode.targetId : (typeof selectedNode.id === 'number' ? selectedNode.id : null);
+                return tid !== null && tid !== undefined ? tid : '';
+              })()}
               onChange={(e) => {
                 const val = e.target.value.trim();
-                onUpdateNode({ id: val === '' ? null : Number(val) });
+                const numVal = val === '' ? null : Number(val);
+                onUpdateNode({ targetId: numVal, id: numVal });
               }}
               placeholder="null (No ID assigned)"
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none placeholder:text-white/30"
@@ -804,12 +812,7 @@ export function EditorPropertiesPanel({
           {/* Delete Node Button */}
           {onRemoveNode && (
             <button
-              onClick={() =>
-                onRemoveNode(
-                  selectedNode.uid ||
-                    (typeof selectedNode.id === 'string' ? selectedNode.id : selectedNode.name || 'node')
-                )
-              }
+              onClick={() => onRemoveNode(selectedNode.uid)}
               className="mt-2 px-3 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded border border-red-500/40 flex items-center justify-center gap-2 transition-colors font-semibold"
             >
               <Trash2 className="w-3.5 h-3.5" /> Delete Node

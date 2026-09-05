@@ -75,7 +75,7 @@ export interface PadConfig {
   audioChannel?: ModulationChannel;
 }
 
-/** Song metadata (Sección 11 Informe.md). */
+/** Song metadata and track asset definition. */
 export interface SongData {
   id: string;
   title: string;
@@ -188,12 +188,14 @@ export interface SceneNodeTransform {
 }
 
 export interface SceneNodeData {
-  /** Clave interna única para React y grafo de escena (e.g. "node_1234"). */
-  uid?: string;
-  /** Nombre del objeto con formato "nombre-objeto + {contador}" (ej. "rect-1", "circle-1"). */
+  /** Immutable internal unique key for React and SceneGraph (e.g. "node_1234"). */
+  uid: string;
+  /** Human-readable object name (e.g. "rect-1", "circle-1"). */
   name?: string;
-  /** ID numérico de disparo/agrupación para Triggers (null por defecto). */
-  id: number | string | null;
+  /** Numeric trigger grouping ID (null for ungrouped nodes). */
+  targetId?: number | null;
+  /** Backward-compatibility alias for targetId / legacy node identification. */
+  id?: number | string | null;
   type: string; // 'rectangle' | 'circle' | 'line' | 'container' | 'sprite' | 'group'
   parentId?: string;
   group?: string | number;
@@ -217,7 +219,7 @@ export interface TriggerData {
   time: number;
   /** Type of action to execute. */
   action: TriggerActionType;
-  /** Target SceneNode ID numérico, 'all' o identificador de objeto. */
+  /** Target SceneNode numeric targetId, 'all', or node identifier. */
   targetId: number | string;
   /** Easing curve for transition. */
   easing?: EasingType;
@@ -249,7 +251,7 @@ export interface AnimationData {
   keyframes: Keyframe[];
 }
 
-// ---- Audio Modulation Channels (Etapa 2 Roadmap) ----
+// ---- Audio Modulation Channels (Phase 2) ----
 
 export type ModulatableProperty =
   | 'scale'
@@ -262,7 +264,7 @@ export type ModulatableProperty =
 
 export interface AudioMapping {
   id: string;
-  /** Target SceneNode ID numérico, 'all' o identificador de objeto. */
+  /** Target SceneNode numeric targetId, 'all', or node identifier. */
   targetId: number | string;
   channel: ModulationChannel;
   property: ModulatableProperty;
