@@ -6,14 +6,25 @@ import { EditorSidebarLeft } from './components/EditorSidebarLeft';
 import { EditorPropertiesPanel } from './components/EditorPropertiesPanel';
 import { useEditorEngine } from './hooks/useEditorEngine';
 import { useEditorShortcuts } from './hooks/useEditorShortcuts';
+import { useEditorHistory } from './hooks/useEditorHistory';
 import { INITIAL_LEVEL } from './constants';
-import type { LevelData, PadEvent, PadBehavior, SceneNodeData } from '../engine/types';
-import { ListVideo, Gamepad2 } from 'lucide-react';
+import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData } from '../engine/types';
+import { ListVideo, Gamepad2, Zap } from 'lucide-react';
 
 type EditorTab = 'timeline' | 'preview';
 
 export function EditorApp({ onExit }: { onExit: () => void }) {
-  const [level, setLevel] = useState<LevelData>(INITIAL_LEVEL);
+  // History-managed level state (Undo / Redo stack)
+  const {
+    level,
+    setLevel,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    resetHistory,
+  } = useEditorHistory(INITIAL_LEVEL);
+
   const [activeTab, setActiveTab] = useState<EditorTab>('timeline');
 
   // Authoring tools state
@@ -22,19 +33,43 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
   const [gridSubdivision, setGridSubdivision] = useState<GridSubdivision>('1/4');
   const [pixelsPerSecond, setPixelsPerSecond] = useState<number>(120);
 
-  // Selection state
+  // Mutually exclusive selection state
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // Event mutations
+  const selectEvent = useCallback((id: string | null) => {
+    setSelectedEventId(id);
+    if (id) {
+      setSelectedTriggerId(null);
+      setSelectedNodeId(null);
+    }
+  }, []);
+
+  const selectTrigger = useCallback((id: string | null) => {
+    setSelectedTriggerId(id);
+    if (id) {
+      setSelectedEventId(null);
+      setSelectedNodeId(null);
+    }
+  }, []);
+
+  const selectNode = useCallback((id: string | null) => {
+    setSelectedNodeId(id);
+    if (id) {
+      setSelectedEventId(null);
+      setSelectedTriggerId(null);
+    }
+  }, []);
+
+  // 1. PadEvent mutations
   const handleAddEvent = useCallback((newEvent: PadEvent) => {
     setLevel((prev) => {
       const newEvents = [...prev.events, newEvent].sort((a, b) => a.targetTime - b.targetTime);
       return { ...prev, events: newEvents };
     });
-    setSelectedEventId(newEvent.id);
-    setSelectedNodeId(null);
-  }, []);
+    selectEvent(newEvent.id);
+  }, [setLevel, selectEvent]);
 
   const handleUpdateEvent = useCallback((updatedEvent: PadEvent) => {
     setLevel((prev) => {
@@ -43,7 +78,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         .sort((a, b) => a.targetTime - b.targetTime);
       return { ...prev, events: newEvents };
     });
-  }, []);
+  }, [setLevel]);
 
   const handleRemoveEvent = useCallback((id: string) => {
     setLevel((prev) => ({
@@ -51,9 +86,100 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
       events: prev.events.filter((e) => e.id !== id),
     }));
     setSelectedEventId((prevId) => (prevId === id ? null : prevId));
-  }, []);
+  }, [setLevel]);
 
-  // Modular Engine hook (AudioTransport, VisualEngine, GameplayEngine, InputManager, EventBus, Recording)
+  // 2. TriggerData mutations
+  const handleAddTrigger = useCallback((newTrigger: TriggerData) => {
+    setLevel((prev) => {
+      const currentTriggers = prev.visual?.triggers || [];
+      const newTriggers = [...currentTriggers, newTrigger].sort((a, b) => a.time - b.time);
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          triggers: newTriggers,
+        },
+      };
+    });
+    selectTrigger(newTrigger.id);
+  }, [setLevel, selectTrigger]);
+
+  const handleUpdateTrigger = useCallback((updatedTrigger: TriggerData) => {
+    setLevel((prev) => {
+      const currentTriggers = prev.visual?.triggers || [];
+      const newTriggers = currentTriggers
+        .map((t) => (t.id === updatedTrigger.id ? updatedTrigger : t))
+        .sort((a, b) => a.time - b.time);
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          triggers: newTriggers,
+        },
+      };
+    });
+  }, [setLevel]);
+
+  const handleRemoveTrigger = useCallback((id: string) => {
+    setLevel((prev) => ({
+      ...prev,
+      visual: {
+        ...prev.visual,
+        triggers: (prev.visual?.triggers || []).filter((t) => t.id !== id),
+      },
+    }));
+    setSelectedTriggerId((prevId) => (prevId === id ? null : prevId));
+  }, [setLevel]);
+
+  // 3. SceneNode mutations
+  const handleAddNode = useCallback((newNode: SceneNodeData) => {
+    setLevel((prev) => {
+      const currentNodes = prev.visual?.nodes || [];
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          nodes: [...currentNodes, newNode],
+        },
+      };
+    });
+    selectNode(newNode.id);
+  }, [setLevel, selectNode]);
+
+  const handleUpdateNode = useCallback((updates: Partial<SceneNodeData>) => {
+    if (!selectedNodeId) return;
+    setLevel((prev) => {
+      const currentNodes = prev.visual?.nodes || [];
+      const idx = currentNodes.findIndex((n) => n.id === selectedNodeId);
+      if (idx === -1) return prev;
+      const updated = { ...currentNodes[idx], ...updates } as SceneNodeData;
+      const newNodes = [...currentNodes];
+      newNodes[idx] = updated;
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          nodes: newNodes,
+        },
+      };
+    });
+  }, [selectedNodeId, setLevel]);
+
+  const handleRemoveNode = useCallback((id: string) => {
+    setLevel((prev) => ({
+      ...prev,
+      visual: {
+        ...prev.visual,
+        nodes: (prev.visual?.nodes || []).filter((n) => n.id !== id),
+        triggers: (prev.visual?.triggers || []).map((t) =>
+          t.targetId === id ? { ...t, targetId: 'all' } : t
+        ),
+      },
+    }));
+    setSelectedNodeId((prevId) => (prevId === id ? null : prevId));
+  }, [setLevel]);
+
+  // Modular Engine hook
   const {
     canvasContainerRef,
     isPlaying,
@@ -66,48 +192,35 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     handleStop,
     handleSeek,
     loadAudioFile,
-    updateSceneNode,
     dispose,
   } = useEditorEngine({
     level,
     activeTab,
     creationBehavior,
     gridSubdivision,
-    onSelectNode: (id) => {
-      setSelectedNodeId(id);
-      setSelectedEventId(null);
-    },
+    onSelectNode: (id) => selectNode(id),
     onRecordEvent: handleAddEvent,
   });
 
-  const handleUpdateNode = useCallback(
-    (updates: Partial<SceneNodeData>) => {
-      const selectedNode = level.visual.nodes.find((n) => n.id === selectedNodeId);
-      if (!selectedNode) return;
-      const newNode = { ...selectedNode, ...updates } as SceneNodeData;
-      setLevel((prev) => {
-        const idx = prev.visual.nodes.findIndex((n) => n.id === newNode.id);
-        if (idx === -1) return prev;
-        const newNodes = [...prev.visual.nodes];
-        newNodes[idx] = newNode;
-        return { ...prev, visual: { ...prev.visual, nodes: newNodes } };
-      });
-      updateSceneNode(newNode);
-    },
-    [level.visual.nodes, selectedNodeId, updateSceneNode]
-  );
-
-  // Keyboard shortcuts hook (V, B, E, Del, Space, R)
+  // Keyboard shortcuts hook with Undo/Redo & Delete handling
   useEditorShortcuts({
     activeTab,
     isRecording,
     selectedEventId,
     onSelectTool: setActiveTool,
     onDeleteSelectedEvent: () => {
-      if (selectedEventId) handleRemoveEvent(selectedEventId);
+      if (selectedEventId) {
+        handleRemoveEvent(selectedEventId);
+      } else if (selectedTriggerId) {
+        handleRemoveTrigger(selectedTriggerId);
+      } else if (selectedNodeId) {
+        handleRemoveNode(selectedNodeId);
+      }
     },
     onTogglePlay: togglePlay,
     onToggleRecord: toggleRecord,
+    onUndo: undo,
+    onRedo: redo,
   });
 
   // Load external audio file into editor
@@ -128,10 +241,10 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         alert('Could not decode audio file. Make sure it is a valid MP3, WAV, or OGG.');
       }
     },
-    [loadAudioFile]
+    [loadAudioFile, setLevel]
   );
 
-  // Import existing level JSON
+  // Import existing level JSON with safety parsing
   const handleJsonImport = useCallback(
     (file: File) => {
       const reader = new FileReader();
@@ -139,7 +252,16 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         try {
           const parsed = JSON.parse(e.target?.result as string) as LevelData;
           if (parsed.formatVersion && parsed.song && Array.isArray(parsed.events)) {
-            setLevel(parsed);
+            // Guarantee visual structure
+            const sanitized: LevelData = {
+              ...parsed,
+              visual: {
+                nodes: parsed.visual?.nodes || [],
+                animations: parsed.visual?.animations || [],
+                triggers: parsed.visual?.triggers || [],
+              },
+            };
+            resetHistory(sanitized);
             handleStop();
           } else {
             alert('Invalid beatmap JSON format.');
@@ -150,7 +272,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
       };
       reader.readAsText(file);
     },
-    [handleStop]
+    [handleStop, resetHistory]
   );
 
   // Export level data to downloadable JSON
@@ -162,18 +284,24 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     dlAnchorElem.click();
   }, [level]);
 
+  // Selected item lookup
   const selectedEvent = level.events.find((e) => e.id === selectedEventId) || null;
-  const selectedNode = level.visual.nodes.find((n) => n.id === selectedNodeId) || null;
+  const selectedTrigger = (level.visual?.triggers || []).find((t) => t.id === selectedTriggerId) || null;
+  const selectedNode = (level.visual?.nodes || []).find((n) => n.id === selectedNodeId) || null;
 
   return (
     <div className="relative z-10 min-h-screen w-full flex flex-col bg-[#0b0b12] text-white select-none">
-      {/* Top Header & Transport / Audio / Import / Export Controls */}
+      {/* Top Header & Transport / Audio / Import / Export / History Controls */}
       <EditorHeader
         bpm={level.timing.bpm}
         currentTime={currentTime}
         isPlaying={isPlaying}
         isRecording={isRecording}
         enableHitsounds={enableHitsounds}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
         onTogglePlay={togglePlay}
         onToggleRecord={toggleRecord}
         onToggleHitsounds={toggleHitsounds}
@@ -201,8 +329,15 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
 
       {/* Main Workspace Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Song Metadata & Pads */}
-        <EditorSidebarLeft level={level} onChangeLevel={setLevel} />
+        {/* Left Sidebar: Song Metadata, Pads & SceneOutliner */}
+        <EditorSidebarLeft
+          level={level}
+          onChangeLevel={setLevel}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={selectNode}
+          onAddNode={handleAddNode}
+          onRemoveNode={handleRemoveNode}
+        />
 
         {/* Central Workspace: Tab Switcher & Active View */}
         <main className="flex-1 flex flex-col overflow-hidden">
@@ -228,8 +363,12 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
             >
               <Gamepad2 className="w-3.5 h-3.5" /> Live Preview
             </button>
-            <div className="ml-auto px-4 flex items-center text-xs text-white/40 font-mono">
-              {level.events.length} events
+            <div className="ml-auto px-4 flex items-center gap-3 text-xs text-white/40 font-mono">
+              <span>{level.events.length} notas</span>
+              <span className="text-white/20">|</span>
+              <span className="text-yellow-400/80 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> {(level.visual?.triggers || []).length} triggers
+              </span>
             </div>
           </div>
 
@@ -246,14 +385,16 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
                 gridSubdivision={gridSubdivision}
                 pixelsPerSecond={pixelsPerSecond}
                 selectedEventId={selectedEventId}
-                onSelectEvent={(evt) => {
-                  setSelectedEventId(evt?.id || null);
-                  if (evt) setSelectedNodeId(null);
-                }}
+                selectedTriggerId={selectedTriggerId}
+                onSelectEvent={(evt) => selectEvent(evt?.id || null)}
+                onSelectTrigger={(trig) => selectTrigger(trig?.id || null)}
                 onSeek={handleSeek}
                 onAddEvent={handleAddEvent}
                 onUpdateEvent={handleUpdateEvent}
                 onRemoveEvent={handleRemoveEvent}
+                onAddTrigger={handleAddTrigger}
+                onUpdateTrigger={handleUpdateTrigger}
+                onRemoveTrigger={handleRemoveTrigger}
               />
             </div>
 
@@ -265,15 +406,20 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
           </div>
         </main>
 
-        {/* Right Sidebar: Contextual Properties Panel */}
+        {/* Right Sidebar: Contextual Properties Panel (Events, Triggers, Nodes) */}
         <EditorPropertiesPanel
           selectedEvent={selectedEvent}
+          selectedTrigger={selectedTrigger}
           selectedNode={selectedNode}
+          nodes={level.visual?.nodes || []}
           pads={level.pads}
           activeTab={activeTab}
           onUpdateEvent={handleUpdateEvent}
           onRemoveEvent={handleRemoveEvent}
+          onUpdateTrigger={handleUpdateTrigger}
+          onRemoveTrigger={handleRemoveTrigger}
           onUpdateNode={handleUpdateNode}
+          onRemoveNode={handleRemoveNode}
         />
       </div>
     </div>

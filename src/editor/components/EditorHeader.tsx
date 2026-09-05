@@ -12,6 +12,8 @@ import {
   Music,
   Volume2,
   VolumeX,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import { formatTime } from '../utils';
 
@@ -21,6 +23,10 @@ interface EditorHeaderProps {
   isPlaying: boolean;
   isRecording: boolean;
   enableHitsounds: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
   onTogglePlay: () => void;
   onToggleRecord: () => void;
   onToggleHitsounds: () => void;
@@ -37,6 +43,10 @@ export function EditorHeader({
   isPlaying,
   isRecording,
   enableHitsounds,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
   onTogglePlay,
   onToggleRecord,
   onToggleHitsounds,
@@ -60,8 +70,35 @@ export function EditorHeader({
         </div>
       </div>
 
-      {/* Transport & Recording Controls */}
+      {/* Transport & Recording & History Controls */}
       <div className="flex items-center gap-2">
+        {/* Undo / Redo Buttons */}
+        <div className="flex items-center gap-1 mr-1 border-r border-white/10 pr-2">
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Deshacer cambio (Ctrl+Z)"
+            className={`p-1.5 rounded transition-colors text-xs font-bold flex items-center border border-white/10 ${
+              canUndo
+                ? 'bg-white/10 text-white/90 hover:bg-white/20 hover:text-white cursor-pointer'
+                : 'bg-white/5 text-white/20 border-white/5 cursor-not-allowed opacity-30'
+            }`}
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Rehacer cambio (Ctrl+Y)"
+            className={`p-1.5 rounded transition-colors text-xs font-bold flex items-center border border-white/10 ${
+              canRedo
+                ? 'bg-white/10 text-white/90 hover:bg-white/20 hover:text-white cursor-pointer'
+                : 'bg-white/5 text-white/20 border-white/5 cursor-not-allowed opacity-30'
+            }`}
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
         {/* REC Button */}
         <button
           onClick={onToggleRecord}

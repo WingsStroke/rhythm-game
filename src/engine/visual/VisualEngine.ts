@@ -8,6 +8,7 @@ import type {
   AudioBands,
   Judgement,
   SceneNodeData,
+  TriggerData,
   EffectType,
 } from '../types';
 import type { AudioEngine } from '../audio/AudioEngine';
@@ -153,6 +154,16 @@ export class VisualEngine {
     if (level.visual?.triggers) {
       this.triggerDispatcher.setTriggers(level.visual.triggers);
     }
+  }
+
+  public syncVisualNodes(nodes: SceneNodeData[]): void {
+    this.level.visual.nodes = nodes;
+    this.sceneGraph.buildFromData(this.level);
+  }
+
+  public syncVisualTriggers(triggers: TriggerData[]): void {
+    this.level.visual.triggers = triggers;
+    this.triggerDispatcher.setTriggers(triggers);
   }
 
   /**

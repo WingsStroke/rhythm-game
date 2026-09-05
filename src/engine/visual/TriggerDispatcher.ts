@@ -45,7 +45,8 @@ export class TriggerDispatcher {
   }
 
   /**
-   * Re-aligns the trigger pointer after seeking in the timeline.
+   * Re-aligns the trigger pointer after seeking in the timeline,
+   * evaluating cumulative state of past triggers for deterministic preview.
    */
   public seek(targetTime: number): void {
     this.animator.clearTransitions();
@@ -61,6 +62,34 @@ export class TriggerDispatcher {
         high = mid;
       }
     }
+
+    // Apply cumulative end states of triggers preceding targetTime
+    for (let i = 0; i < low; i++) {
+      const trigger = this.triggers[i];
+      const targetNodes = this.resolveTargets(trigger.targetId);
+
+      if (trigger.action === 'transform') {
+        for (const node of targetNodes) {
+          for (const [prop, val] of Object.entries(trigger.properties)) {
+            const targetVal = Number(val);
+            if (!Number.isNaN(targetVal)) {
+              this.animator.applyPropertyToNode(node, prop, targetVal);
+            }
+          }
+        }
+      } else if (trigger.action === 'color' || trigger.action === 'appearance') {
+        for (const node of targetNodes) {
+          if (trigger.properties.opacity !== undefined) {
+            const op = Number(trigger.properties.opacity);
+            if (!Number.isNaN(op)) node.container.alpha = op;
+          }
+          if (trigger.properties.visible !== undefined) {
+            node.container.visible = Boolean(trigger.properties.visible);
+          }
+        }
+      }
+    }
+
     this.nextTriggerIndex = low;
   }
 
@@ -106,6 +135,7 @@ export class TriggerDispatcher {
         break;
       }
 
+      case 'color':
       case 'appearance': {
         for (const node of targetNodes) {
           if (trigger.properties.opacity !== undefined) {
@@ -137,6 +167,11 @@ export class TriggerDispatcher {
               trigger.properties.blendMode;
           }
         }
+        break;
+      }
+
+      case 'pulse': {
+        this.onEffect?.('reactivePulse', trigger.targetId, trigger.properties);
         break;
       }
 

@@ -9,6 +9,8 @@ interface UseEditorShortcutsOptions {
   onDeleteSelectedEvent: () => void;
   onTogglePlay: () => void;
   onToggleRecord?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export function useEditorShortcuts({
@@ -19,6 +21,8 @@ export function useEditorShortcuts({
   onDeleteSelectedEvent,
   onTogglePlay,
   onToggleRecord,
+  onUndo,
+  onRedo,
 }: UseEditorShortcutsOptions) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -27,6 +31,18 @@ export function useEditorShortcuts({
         e.target instanceof HTMLTextAreaElement ||
         e.target instanceof HTMLSelectElement
       ) {
+        return;
+      }
+
+      // Undo / Redo keyboard shortcuts
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && !e.shiftKey) {
+        e.preventDefault();
+        onUndo?.();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.code === 'KeyZ' && e.shiftKey))) {
+        e.preventDefault();
+        onRedo?.();
         return;
       }
 
@@ -65,5 +81,5 @@ export function useEditorShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedEventId, onTogglePlay, onToggleRecord, onSelectTool, onDeleteSelectedEvent, activeTab, isRecording]);
+  }, [selectedEventId, onTogglePlay, onToggleRecord, onSelectTool, onDeleteSelectedEvent, onUndo, onRedo, activeTab, isRecording]);
 }

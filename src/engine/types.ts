@@ -195,7 +195,7 @@ export interface VisualGroupData extends SceneNodeData {
   childrenIds?: string[];
 }
 
-export type TriggerActionType = 'transform' | 'appearance' | 'effect';
+export type TriggerActionType = 'transform' | 'color' | 'pulse' | 'effect' | 'appearance';
 export type EffectType = 'reactivePulse' | 'particleBurst';
 
 export interface TriggerData {
