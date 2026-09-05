@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Timeline, type EditorTool, type GridSubdivision } from './Timeline';
 import { AudioTransport } from '../engine/time/AudioTransport';
 import { VisualEngine } from '../engine/visual/VisualEngine';
+import { InputManager } from '../engine/input/InputManager';
+import { GameplayEngine } from '../engine/gameplay/GameplayEngine';
+import { GameplayEventBus } from '../engine/gameplay/GameplayEventBus';
 import type { LevelData, PadEvent, PadId, PadBehavior, AudioBands } from '../engine/types';
 import { BeatmapGenerator } from '../engine/beatmap/BeatmapGenerator';
 import {
@@ -95,38 +98,121 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
 
   const transportRef = useRef<AudioTransport | null>(null);
   const visualRef = useRef<VisualEngine | null>(null);
+  const gameplayRef = useRef<GameplayEngine | null>(null);
+  const inputRef = useRef<InputManager | null>(null);
+  const eventBusRef = useRef<GameplayEventBus | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number>(0);
 
-  // Initialize Visual Engine when preview tab is first shown
+  // Initialize Visual Engine, Gameplay Engine and Input Manager when preview tab is first shown
   useEffect(() => {
     if (activeTab !== 'preview' || !canvasContainerRef.current) return;
-    if (visualRef.current) return;
 
-    const ve = new VisualEngine(canvasContainerRef.current, level, transportRef.current?.audioEngine ?? null);
-    ve.onNodeSelect = (id) => {
-      setSelectedNodeId(id);
-      setSelectedEventId(null);
-    };
-    ve.init().then(() => {
-      visualRef.current = ve;
-    });
+    if (!visualRef.current) {
+      const eventBus = new GameplayEventBus();
+      eventBusRef.current = eventBus;
+
+      const gameplay = new GameplayEngine(
+        level,
+        () => transportRef.current?.getTime() ?? 0,
+        eventBus
+      );
+      gameplayRef.current = gameplay;
+
+      const input = new InputManager(() => transportRef.current?.getTime() ?? 0);
+      inputRef.current = input;
+
+      const map: Record<string, PadId> = {};
+      for (const pad of level.pads) {
+        if (pad.keyHint) {
+          map[`Key${pad.keyHint.toUpperCase()}`] = pad.id;
+        }
+      }
+      input.setKeyMap(map);
+      input.setHandler((event) => gameplayRef.current?.handleInput(event));
+
+      const ve = new VisualEngine(canvasContainerRef.current, level, transportRef.current?.audioEngine ?? null);
+      ve.onNodeSelect = (id) => {
+        setSelectedNodeId(id);
+        setSelectedEventId(null);
+      };
+
+      input.onPadPress = (padId) => ve.pressPad(padId);
+      input.onPadRelease = (padId) => ve.releasePad(padId);
+
+      ve.onPadInput = (padId, pressed) => {
+        if (pressed) {
+          inputRef.current?.pressPad(padId);
+        } else {
+          inputRef.current?.releasePad(padId);
+        }
+      };
+
+      ve.attachEventBus(eventBus);
+
+      ve.init().then(() => {
+        visualRef.current = ve;
+        if (activeTab === 'preview') {
+          input.attach();
+        }
+        if (isPlaying) {
+          gameplay.start(currentTime);
+        }
+      });
+    } else {
+      inputRef.current?.attach();
+      if (isPlaying) {
+        gameplayRef.current?.start(currentTime);
+      }
+    }
   }, [activeTab]);
 
-  // Cleanup Visual Engine on unmount
+  // Tab switching effect to attach/detach input listeners
+  useEffect(() => {
+    if (activeTab === 'preview') {
+      inputRef.current?.attach();
+      if (isPlaying) {
+        gameplayRef.current?.start(currentTime);
+      }
+    } else {
+      inputRef.current?.detach();
+    }
+  }, [activeTab]);
+
+  // Cleanup Visual Engine, Gameplay Engine and Input Manager on unmount
   useEffect(() => {
     return () => {
+      inputRef.current?.detach();
       visualRef.current?.dispose();
       visualRef.current = null;
+      gameplayRef.current?.reset();
+      gameplayRef.current = null;
+      eventBusRef.current = null;
     };
   }, []);
 
-  // Sync events to VisualEngine in real-time when level.events changes
+  // Sync events to VisualEngine and GameplayEngine in real-time when level.events changes
   useEffect(() => {
     if (visualRef.current) {
       visualRef.current.syncEvents(level.events);
     }
-  }, [level.events, activeTab]);
+    if (gameplayRef.current) {
+      gameplayRef.current.setEvents(level.events);
+    }
+  }, [level.events]);
+
+  // Sync keyMap when level.pads changes
+  useEffect(() => {
+    if (inputRef.current) {
+      const map: Record<string, PadId> = {};
+      for (const pad of level.pads) {
+        if (pad.keyHint) {
+          map[`Key${pad.keyHint.toUpperCase()}`] = pad.id;
+        }
+      }
+      inputRef.current.setKeyMap(map);
+    }
+  }, [level.pads]);
 
   // Main animation loop
   useEffect(() => {
@@ -136,19 +222,24 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         t = transportRef.current.getTime();
         setCurrentTime(t);
       }
-      if (visualRef.current && activeTab === 'preview') {
-        const bands: AudioBands =
-          isPlaying && transportRef.current
-            ? transportRef.current.getAudioBands()
-            : {
-                bass: 0,
-                mids: 0,
-                treble: 0,
-                amplitude: 0,
-                freqData: new Uint8Array(0),
-                waveData: new Uint8Array(0),
-              };
-        visualRef.current.update(t, bands);
+      if (activeTab === 'preview') {
+        if (isPlaying && gameplayRef.current) {
+          gameplayRef.current.update();
+        }
+        if (visualRef.current) {
+          const bands: AudioBands =
+            isPlaying && transportRef.current
+              ? transportRef.current.getAudioBands()
+              : {
+                  bass: 0,
+                  mids: 0,
+                  treble: 0,
+                  amplitude: 0,
+                  freqData: new Uint8Array(0),
+                  waveData: new Uint8Array(0),
+                };
+          visualRef.current.update(t, bands);
+        }
       }
       animFrameRef.current = requestAnimationFrame(loop);
     };
@@ -168,16 +259,26 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
           await transportRef.current.loadFile(level.song.url);
         }
       }
+      transportRef.current.onBeat((beatIndex: number) => {
+        if (visualRef.current && activeTab === 'preview') {
+          visualRef.current.onBeat(beatIndex);
+        }
+      });
       await transportRef.current.play(level.timing.bpm, currentTime);
       setIsPlaying(true);
+      if (activeTab === 'preview') {
+        gameplayRef.current?.start(currentTime);
+      }
     }
-  }, [isPlaying, currentTime, level.song.url, level.timing.bpm]);
+  }, [isPlaying, currentTime, level.song.url, level.timing.bpm, activeTab]);
 
   const handleStop = () => {
     transportRef.current?.stop();
     setIsPlaying(false);
     setCurrentTime(0);
     visualRef.current?.seek(0);
+    gameplayRef.current?.reset();
+    gameplayRef.current?.start(0);
   };
 
   const handleExport = () => {
@@ -228,6 +329,15 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         return;
       }
 
+      // In preview mode, allow Space to toggle play/pause, but don't intercept other keys (e.g. pad inputs)
+      if (activeTab === 'preview') {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          togglePlay();
+        }
+        return;
+      }
+
       if (e.code === 'KeyV') {
         setActiveTool('select');
       } else if (e.code === 'KeyB') {
@@ -247,7 +357,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedEventId, togglePlay]);
+  }, [selectedEventId, togglePlay, activeTab]);
 
   const formatTime = (t: number) => {
     const m = Math.floor(t / 60);
@@ -556,6 +666,11 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
                   setCurrentTime(t);
                   transportRef.current?.seek(t);
                   visualRef.current?.seek(t);
+                  if (isPlaying) {
+                    gameplayRef.current?.start(t);
+                  } else {
+                    gameplayRef.current?.reset();
+                  }
                 }}
                 onAddEvent={handleAddEvent}
                 onUpdateEvent={handleUpdateEvent}
@@ -571,14 +686,14 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
           </div>
         </main>
 
-        {/* Right Sidebar: Contextual Inspector */}
+        {/* Right Sidebar: Contextual Properties Panel */}
         <aside className="w-64 border-l border-white/10 bg-black/20 p-4 shrink-0 flex flex-col overflow-y-auto">
-          {/* EVENT INSPECTOR */}
+          {/* PAD EVENT PROPERTIES */}
           {selectedEvent ? (
             <div className="flex flex-col gap-4 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <span className="font-bold uppercase tracking-wider text-[#00e5ff] flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5" /> Event Inspector
+                  <Activity className="w-3.5 h-3.5" /> Properties
                 </span>
                 <span className="px-1.5 py-0.5 rounded bg-white/10 font-mono uppercase text-[10px] text-white/60">
                   {selectedEvent.behavior}
@@ -715,11 +830,11 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
               </button>
             </div>
           ) : selectedNode ? (
-            /* SCENE NODE INSPECTOR */
+            /* SCENE NODE PROPERTIES */
             <div className="flex flex-col gap-4 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <span className="font-bold uppercase tracking-wider text-[#00ff9d] flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5" /> Node Inspector
+                  <Layers className="w-3.5 h-3.5" /> Properties
                 </span>
                 <span className="font-mono text-[#00e5ff]">{selectedNode.id}</span>
               </div>
@@ -807,8 +922,8 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
               <MousePointerClick className="w-8 h-8 mb-2 text-white/60" />
               <div className="text-xs italic leading-relaxed text-white/80">
                 {activeTab === 'timeline'
-                  ? 'Click any note in the Timeline to inspect its attributes.'
-                  : 'Click a scene node in Live Preview to inspect its transform.'}
+                  ? 'Click any note in the Timeline to inspect and edit its properties.'
+                  : 'Click a scene node in Live Preview to inspect and edit its properties.'}
               </div>
             </div>
           )}

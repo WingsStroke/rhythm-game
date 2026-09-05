@@ -76,9 +76,19 @@ export class GameplayEngine {
     }
   }
 
-  start(): void {
+  setEvents(events: PadEvent[]): void {
+    this.events = [...events].sort((a, b) => a.targetTime - b.targetTime);
+    this.start();
+  }
+
+  start(startTime?: number): void {
     this.reset();
-    this.pending = [...this.events];
+    const time = startTime ?? this.getTime();
+    if (time > 0.05) {
+      this.pending = this.events.filter((e) => e.targetTime >= time - this.windows.miss);
+    } else {
+      this.pending = [...this.events];
+    }
   }
 
   get state(): PlayerState {

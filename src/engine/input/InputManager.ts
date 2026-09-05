@@ -71,6 +71,13 @@ export class InputManager {
 
   private handleKeyDown = (e: KeyboardEvent): void => {
     if (e.repeat) return;
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      e.target instanceof HTMLSelectElement
+    ) {
+      return;
+    }
     const pad = this.keyToPad.get(e.code);
     if (pad) {
       e.preventDefault();
@@ -79,6 +86,13 @@ export class InputManager {
   };
 
   private handleKeyUp = (e: KeyboardEvent): void => {
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      e.target instanceof HTMLSelectElement
+    ) {
+      return;
+    }
     const pad = this.keyToPad.get(e.code);
     if (pad) {
       e.preventDefault();

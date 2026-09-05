@@ -133,6 +133,7 @@ export function Timeline({
   const handleTrackClick = (e: React.MouseEvent, padId: PadId) => {
     if (!containerRef.current) return;
     if (dragState) return; // Ignore clicks resulting from a drag gesture
+    if ((e.target as HTMLElement).closest('[data-event-item]')) return;
 
     const rect = containerRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left + containerRef.current.scrollLeft;
@@ -365,6 +366,7 @@ export function Timeline({
                       return (
                         <div
                           key={event.id}
+                          data-event-item="true"
                           className={`absolute top-1/2 -translate-y-1/2 w-4 h-9 rounded-md transition-shadow z-20 cursor-grab active:cursor-grabbing ${
                             isSelected
                               ? 'ring-2 ring-white shadow-[0_0_15px_#ffffff]'
@@ -376,8 +378,16 @@ export function Timeline({
                             boxShadow: `0 0 10px ${pad.color}90`,
                           }}
                           onPointerDown={(e) => startEventMove(e, event)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (activeTool === 'eraser') {
+                              onRemoveEvent(event.id);
+                            } else {
+                              onSelectEvent(event);
+                            }
+                          }}
                         >
-                          <div className="w-full h-full border border-white/40 rounded-md" />
+                          <div className="w-full h-full border border-white/40 rounded-md pointer-events-none" />
                         </div>
                       );
                     }
@@ -387,6 +397,7 @@ export function Timeline({
                       return (
                         <div
                           key={event.id}
+                          data-event-item="true"
                           className={`absolute top-1/2 -translate-y-1/2 h-9 rounded-md flex items-center z-20 transition-all cursor-grab active:cursor-grabbing ${
                             isSelected
                               ? 'ring-2 ring-white shadow-[0_0_15px_#ffffff]'
@@ -400,24 +411,34 @@ export function Timeline({
                             boxShadow: `0 0 12px ${pad.color}50`,
                           }}
                           onPointerDown={(e) => startEventMove(e, event)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (activeTool === 'eraser') {
+                              onRemoveEvent(event.id);
+                            } else {
+                              onSelectEvent(event);
+                            }
+                          }}
                         >
                           {/* Hit Head */}
                           <div
-                            className="w-3.5 h-full rounded-l-sm flex-shrink-0"
+                            className="w-3.5 h-full rounded-l-sm flex-shrink-0 pointer-events-none"
                             style={{ backgroundColor: pad.color }}
                           />
 
                           {/* Center label */}
-                          <span className="text-[10px] font-mono text-white/80 px-2 font-bold select-none truncate flex-1">
+                          <span className="text-[10px] font-mono text-white/80 px-2 font-bold select-none truncate flex-1 pointer-events-none">
                             HOLD ({(event.duration || 0.5).toFixed(2)}s)
                           </span>
 
                           {/* Right Resize Handle */}
                           <div
+                            data-event-item="true"
                             className="w-3 h-full hover:bg-white/40 rounded-r-sm cursor-ew-resize flex items-center justify-center flex-shrink-0"
                             onPointerDown={(e) => startEventResize(e, event)}
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="w-1 h-4 bg-white/60 rounded-full" />
+                            <div className="w-1 h-4 bg-white/60 rounded-full pointer-events-none" />
                           </div>
                         </div>
                       );
@@ -428,6 +449,7 @@ export function Timeline({
                       return (
                         <div
                           key={event.id}
+                          data-event-item="true"
                           className={`absolute top-1/2 -translate-y-1/2 h-9 rounded-md flex items-center z-20 transition-all cursor-grab active:cursor-grabbing ${
                             isSelected
                               ? 'ring-2 ring-white shadow-[0_0_15px_#ffffff]'
@@ -441,8 +463,16 @@ export function Timeline({
                             boxShadow: `0 0 12px ${pad.color}40`,
                           }}
                           onPointerDown={(e) => startEventMove(e, event)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (activeTool === 'eraser') {
+                              onRemoveEvent(event.id);
+                            } else {
+                              onSelectEvent(event);
+                            }
+                          }}
                         >
-                          <div className="flex items-center gap-1 px-2 select-none truncate flex-1">
+                          <div className="flex items-center gap-1 px-2 select-none truncate flex-1 pointer-events-none">
                             <Repeat className="w-3 h-3 text-white/90 shrink-0" />
                             <span className="text-[10px] font-mono text-white/90 font-bold truncate">
                               LOOP ({(event.duration || 1).toFixed(2)}s)
@@ -451,10 +481,12 @@ export function Timeline({
 
                           {/* Right Resize Handle */}
                           <div
+                            data-event-item="true"
                             className="w-3 h-full hover:bg-white/40 rounded-r-sm cursor-ew-resize flex items-center justify-center flex-shrink-0"
                             onPointerDown={(e) => startEventResize(e, event)}
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="w-1 h-4 bg-white/60 rounded-full" />
+                            <div className="w-1 h-4 bg-white/60 rounded-full pointer-events-none" />
                           </div>
                         </div>
                       );
@@ -465,13 +497,22 @@ export function Timeline({
                       return (
                         <div
                           key={event.id}
+                          data-event-item="true"
                           className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center z-20 cursor-grab active:cursor-grabbing"
                           style={{ left: x - 14 }}
                           onPointerDown={(e) => startEventMove(e, event)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (activeTool === 'eraser') {
+                              onRemoveEvent(event.id);
+                            } else {
+                              onSelectEvent(event);
+                            }
+                          }}
                         >
                           {/* Rotated Diamond */}
                           <div
-                            className={`w-7 h-7 rotate-45 flex items-center justify-center rounded-sm transition-all ${
+                            className={`w-7 h-7 rotate-45 flex items-center justify-center rounded-sm transition-all pointer-events-none ${
                               isSelected
                                 ? 'ring-2 ring-white shadow-[0_0_18px_#ffea00]'
                                 : 'hover:scale-110'
@@ -485,7 +526,7 @@ export function Timeline({
                           </div>
 
                           {/* Trigger ID Badge */}
-                          <span className="text-[9px] font-mono text-yellow-400/90 font-bold bg-black/80 px-1 rounded mt-1 truncate max-w-[60px] border border-yellow-400/30">
+                          <span className="text-[9px] font-mono text-yellow-400/90 font-bold bg-black/80 px-1 rounded mt-1 truncate max-w-[60px] border border-yellow-400/30 pointer-events-none">
                             {event.triggerId || 'trig'}
                           </span>
                         </div>
