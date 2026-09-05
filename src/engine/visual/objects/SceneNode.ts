@@ -59,8 +59,12 @@ export class SceneNode {
     if (transform.scaleY !== undefined) this.container.scale.y = transform.scaleY;
     if (transform.rotation !== undefined) this.container.rotation = transform.rotation;
     if (transform.opacity !== undefined) this.container.alpha = transform.opacity;
-    
-    // In the future, we can also apply visual properties (color, etc.) here
+    if (transform.pivotX !== undefined) this.container.pivot.x = transform.pivotX;
+    if (transform.pivotY !== undefined) this.container.pivot.y = transform.pivotY;
+    if (data.visible !== undefined) this.container.visible = data.visible;
+    if (data.blendMode) {
+      (this.container as any).blendMode = data.blendMode;
+    }
   }
 
   private createDisplayObject(data: SceneNodeData): Container {

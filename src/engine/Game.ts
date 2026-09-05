@@ -1,6 +1,7 @@
 import { AudioEngine } from './audio/AudioEngine';
 import { InputManager } from './input/InputManager';
 import { GameplayEngine } from './gameplay/GameplayEngine';
+import { GameplayEventBus } from './gameplay/GameplayEventBus';
 import { VisualEngine } from './visual/VisualEngine';
 import { BeatmapGenerator } from './beatmap/BeatmapGenerator';
 import type { LevelData, PlayerState, Judgement, Note, PadId } from './types';
@@ -20,6 +21,7 @@ export class Game {
   private audio: AudioEngine;
   private input: InputManager;
   private gameplay: GameplayEngine;
+  private eventBus: GameplayEventBus;
   private visual: VisualEngine;
   private level: LevelData;
   private container: HTMLElement;
@@ -37,9 +39,10 @@ export class Game {
   constructor(container: HTMLElement, level: LevelData) {
     this.container = container;
     this.level = level;
+    this.eventBus = new GameplayEventBus();
     this.audio = new AudioEngine();
     this.input = new InputManager(() => this.audio.getTime());
-    this.gameplay = new GameplayEngine(level, () => this.audio.getTime());
+    this.gameplay = new GameplayEngine(level, () => this.audio.getTime(), this.eventBus);
     this.visual = new VisualEngine(container, level, this.audio);
   }
 
@@ -93,11 +96,8 @@ export class Game {
   }
 
   private setupGameplayCallbacks(): void {
-    this.gameplay.onJudgement = (note: Note, judgement: Judgement, _offset: number) => {
-      this.visual.showJudgement(note, judgement);
-    };
+    this.visual.attachEventBus(this.eventBus);
     this.gameplay.onScoreChange = (state: PlayerState) => {
-      this.visual.updateScore(state.score, state.combo);
       this.onScoreUpdate?.(state);
     };
   }

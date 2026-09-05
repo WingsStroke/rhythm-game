@@ -1,4 +1,5 @@
-import type { LevelData, Note, PadId, PlayerState, Judgement, TimingWindows, PadInputEvent } from '../types';
+import type { LevelData, Note, PadId, PlayerState, Judgement, TimingWindows, PadInputEvent, GameplayEvent } from '../types';
+import type { GameplayEventBus } from './GameplayEventBus';
 
 /**
  * GameplayEngine — pure gameplay logic, no rendering.
@@ -9,8 +10,7 @@ import type { LevelData, Note, PadId, PlayerState, Judgement, TimingWindows, Pad
  *  - Assign judgements (perfect / good / miss) based on timing windows.
  *  - Maintain score, combo, and player state.
  *
- * This module is renderer-agnostic. It emits judgement callbacks that
- * the VisualEngine can consume to trigger effects (particles, flash, etc).
+ * Emits decoupled gameplay events via GameplayEventBus and callbacks.
  */
 export class GameplayEngine {
   private notes: Note[];
@@ -18,15 +18,17 @@ export class GameplayEngine {
   private playerState: PlayerState;
   private pending: Note[] = [];
   private getTime: () => number;
+  public eventBus?: GameplayEventBus;
 
   public onJudgement: ((note: Note, judgement: Judgement, offset: number) => void) | null = null;
   public onComboBreak: (() => void) | null = null;
   public onScoreChange: ((state: PlayerState) => void) | null = null;
 
-  constructor(level: LevelData, getTime: () => number) {
+  constructor(level: LevelData, getTime: () => number, eventBus?: GameplayEventBus) {
     this.notes = [...level.notes].sort((a, b) => a.time - b.time);
     this.windows = level.timing.windows;
     this.getTime = getTime;
+    this.eventBus = eventBus;
     this.playerState = {
       score: 0,
       combo: 0,
@@ -118,19 +120,54 @@ export class GameplayEngine {
 
   private judge(note: Note, judgement: Judgement, offset: number): void {
     const s = this.playerState;
+    const eventTime = this.getTime();
 
     if (judgement === 'perfect') {
       s.score += 300;
       s.combo++;
       s.perfectCount++;
+      this.eventBus?.emit({
+        type: 'HIT_PERFECT',
+        padId: note.pad,
+        time: eventTime,
+        note,
+        score: s.score,
+        combo: s.combo,
+      });
     } else if (judgement === 'good') {
       s.score += 100;
       s.combo++;
       s.goodCount++;
+      this.eventBus?.emit({
+        type: 'HIT_GOOD',
+        padId: note.pad,
+        time: eventTime,
+        note,
+        score: s.score,
+        combo: s.combo,
+      });
     } else {
-      if (s.combo > 0) this.onComboBreak?.();
+      if (s.combo > 0) {
+        this.onComboBreak?.();
+        this.eventBus?.emit({
+          type: 'COMBO_BREAK',
+          padId: note.pad,
+          time: eventTime,
+          note,
+          score: s.score,
+          combo: 0,
+        });
+      }
       s.combo = 0;
       s.missCount++;
+      this.eventBus?.emit({
+        type: 'HIT_MISS',
+        padId: note.pad,
+        time: eventTime,
+        note,
+        score: s.score,
+        combo: 0,
+      });
     }
 
     if (s.combo > s.maxCombo) s.maxCombo = s.combo;

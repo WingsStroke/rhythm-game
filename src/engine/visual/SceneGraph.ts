@@ -56,6 +56,20 @@ export class SceneGraph {
     return this.nodes.get(id);
   }
 
+  public getNodesByGroup(group: string | number): SceneNode[] {
+    const result: SceneNode[] = [];
+    for (const node of this.nodes.values()) {
+      if (node.data.group === group) {
+        result.push(node);
+      }
+    }
+    return result;
+  }
+
+  public getAllNodes(): SceneNode[] {
+    return Array.from(this.nodes.values());
+  }
+
   public addNode(nodeData: SceneNodeData) {
     const node = new SceneNode(nodeData);
     node.container.on('pointerdown', (e) => {

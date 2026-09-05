@@ -94,11 +94,13 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         setCurrentTime(t);
       }
       if (visualRef.current && activeTab === 'preview') {
-        const mockBands: AudioBands = {
-          bass: 0, mids: 0, treble: 0, amplitude: 0,
-          freqData: new Uint8Array(0), waveData: new Uint8Array(0),
-        };
-        visualRef.current.update(t, mockBands);
+        const bands: AudioBands = (isPlaying && audioRef.current)
+          ? audioRef.current.getAudioBands()
+          : {
+              bass: 0, mids: 0, treble: 0, amplitude: 0,
+              freqData: new Uint8Array(0), waveData: new Uint8Array(0),
+            };
+        visualRef.current.update(t, bands);
       }
       animFrameRef.current = requestAnimationFrame(loop);
     };
@@ -127,6 +129,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     audioRef.current?.stop();
     setIsPlaying(false);
     setCurrentTime(0);
+    visualRef.current?.seek(0);
   };
 
   const handleExport = () => {
@@ -292,7 +295,10 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
               <Timeline
                 level={level}
                 currentTime={currentTime}
-                onSeek={(t) => setCurrentTime(t)}
+                onSeek={(t) => {
+                  setCurrentTime(t);
+                  visualRef.current?.seek(t);
+                }}
                 onAddNote={addNote}
                 onRemoveNote={removeNote}
               />
@@ -344,19 +350,19 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
                 {selectedNode.properties?.width !== undefined && (
                   <label className="flex flex-col text-xs text-white/60">
                     Width
-                    <input type="number" value={selectedNode.properties.width} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, width: Number(e.target.value) } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white focus:border-[#00e5ff] outline-none" />
+                    <input type="number" value={(selectedNode.properties.width as number) ?? 0} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, width: Number(e.target.value) } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white focus:border-[#00e5ff] outline-none" />
                   </label>
                 )}
                 {selectedNode.properties?.height !== undefined && (
                   <label className="flex flex-col text-xs text-white/60">
                     Height
-                    <input type="number" value={selectedNode.properties.height} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, height: Number(e.target.value) } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white focus:border-[#00e5ff] outline-none" />
+                    <input type="number" value={(selectedNode.properties.height as number) ?? 0} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, height: Number(e.target.value) } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white focus:border-[#00e5ff] outline-none" />
                   </label>
                 )}
                 {selectedNode.properties?.color !== undefined && (
                   <label className="flex flex-col text-xs text-white/60">
                     Color
-                    <input type="text" value={selectedNode.properties.color} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, color: e.target.value } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00e5ff] outline-none" />
+                    <input type="text" value={(selectedNode.properties.color as string) ?? ''} onChange={e => updateSelectedNode({ properties: { ...selectedNode.properties, color: e.target.value } })} className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00e5ff] outline-none" />
                   </label>
                 )}
               </div>

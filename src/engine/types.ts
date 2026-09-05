@@ -105,29 +105,62 @@ export interface LevelData {
 
 // ---- Data-Driven Visual Engine Types ----
 
+export type BlendModeType = 'normal' | 'add' | 'multiply' | 'screen';
+
+export interface SceneNodeTransform {
+  x?: number;
+  y?: number;
+  rotation?: number;
+  scaleX?: number;
+  scaleY?: number;
+  opacity?: number;
+  pivotX?: number;
+  pivotY?: number;
+}
+
 export interface SceneNodeData {
   id: string;
-  type: string;
+  type: string; // 'rectangle' | 'circle' | 'line' | 'container' | 'sprite' | 'group'
   parentId?: string;
-  transform?: {
-    x?: number;
-    y?: number;
-    rotation?: number;
-    scaleX?: number;
-    scaleY?: number;
-    opacity?: number;
-  };
+  group?: string | number;
+  blendMode?: BlendModeType;
+  visible?: boolean;
+  transform?: SceneNodeTransform;
   properties?: Record<string, unknown>;
 }
 
-export interface TriggerData {
-  // Placeholder for future trigger system
-  id: string;
-  type: string;
-  [key: string]: unknown;
+export interface VisualGroupData extends SceneNodeData {
+  type: 'group' | 'container';
+  childrenIds?: string[];
 }
 
-export type EasingType = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
+export type TriggerActionType = 'transform' | 'appearance' | 'effect';
+export type EffectType = 'reactivePulse' | 'particleBurst';
+
+export interface TriggerData {
+  id: string;
+  /** Exact time in seconds from the audio clock. */
+  time: number;
+  /** Type of action to execute. */
+  action: TriggerActionType;
+  /** Target SceneNode ID or group identifier. */
+  targetId: string;
+  /** Easing curve for transition. */
+  easing?: EasingType;
+  /** Duration of transition in seconds. */
+  duration: number;
+  /** Key-value pairs of target properties (e.g. { x: 500, opacity: 0.8 }). */
+  properties: Record<string, number | string | boolean>;
+}
+
+export type EasingType =
+  | 'linear'
+  | 'easeIn'
+  | 'easeOut'
+  | 'easeInOut'
+  | 'easeInQuad'
+  | 'easeOutQuad'
+  | 'easeInOutQuad';
 
 export interface Keyframe {
   time: number; // in seconds
@@ -140,6 +173,18 @@ export interface AnimationData {
   targetId: string; // ID of the VisualObject or SceneGroup
   property: 'x' | 'y' | 'scaleX' | 'scaleY' | 'rotation' | 'alpha';
   keyframes: Keyframe[];
+}
+
+/** Gameplay judgement event emitted by GameplayEngine. */
+export type GameplayEventType = 'HIT_PERFECT' | 'HIT_GOOD' | 'HIT_MISS' | 'COMBO_BREAK';
+
+export interface GameplayEvent {
+  type: GameplayEventType;
+  padId: PadId;
+  time: number;
+  note?: Note;
+  score?: number;
+  combo?: number;
 }
 
 /** Audio frequency band data for visual reactivity. */
@@ -158,3 +203,4 @@ export interface AudioBands {
 export interface JudgementCallback {
   (note: Note, judgement: Judgement, offset: number): void;
 }
+
