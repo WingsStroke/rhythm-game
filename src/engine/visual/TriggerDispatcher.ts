@@ -13,7 +13,7 @@ export class TriggerDispatcher {
   public onTrigger?: (trigger: TriggerData) => void;
   public onEffect?: (
     effectType: EffectType,
-    targetId: string,
+    targetId: string | number,
     properties: Record<string, unknown>
   ) => void;
 
@@ -186,18 +186,26 @@ export class TriggerDispatcher {
   }
 
   /**
-   * Resolves targetId to one or more SceneNodes (by direct ID, group, or all).
+   * Resolves targetId to one or more SceneNodes (by target numerical ID, direct ID/name, group, or all).
    */
-  private resolveTargets(targetId: string): SceneNode[] {
+  private resolveTargets(targetId: string | number): SceneNode[] {
     if (targetId === 'all') {
       return this.sceneGraph.getAllNodes();
     }
 
-    const singleNode = this.sceneGraph.getNode(targetId);
+    // 1. Resolve all nodes sharing this numerical targetId
+    const matchedByTargetId = this.sceneGraph.getNodesByTargetId(targetId);
+    if (matchedByTargetId.length > 0) {
+      return matchedByTargetId;
+    }
+
+    // 2. Fallback: single node by uid/name/id string
+    const singleNode = this.sceneGraph.getNode(String(targetId));
     if (singleNode) {
       return [singleNode];
     }
 
+    // 3. Fallback: group property
     const groupNodes = this.sceneGraph.getNodesByGroup(targetId);
     if (groupNodes.length > 0) {
       return groupNodes;

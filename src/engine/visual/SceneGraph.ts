@@ -35,14 +35,17 @@ export class SceneGraph {
 
     // 2. Build hierarchy
     for (const nodeData of nodesData) {
-      const node = this.nodes.get(nodeData.id);
+      const key =
+        nodeData.uid ||
+        (typeof nodeData.id === 'string' ? nodeData.id : nodeData.name || '');
+      const node = this.getNode(key);
       if (node) {
         if (nodeData.parentId) {
-          const parent = this.nodes.get(nodeData.parentId);
+          const parent = this.getNode(nodeData.parentId);
           if (parent) {
             parent.container.addChild(node.container);
           } else {
-            console.warn(`Parent node ${nodeData.parentId} not found for node ${nodeData.id}`);
+            console.warn(`Parent node ${nodeData.parentId} not found for node ${key}`);
             this.root.addChild(node.container);
           }
         } else {
@@ -53,7 +56,27 @@ export class SceneGraph {
   }
 
   public getNode(id: string): SceneNode | undefined {
-    return this.nodes.get(id);
+    if (this.nodes.has(id)) return this.nodes.get(id);
+    for (const node of this.nodes.values()) {
+      if (node.uid === id || node.name === id || (node.targetId !== null && String(node.targetId) === id)) {
+        return node;
+      }
+    }
+    return undefined;
+  }
+
+  public getNodesByTargetId(targetId: number | string): SceneNode[] {
+    const num = typeof targetId === 'number' ? targetId : Number(targetId);
+    const isNum = !Number.isNaN(num);
+    const result: SceneNode[] = [];
+    for (const node of this.nodes.values()) {
+      if (isNum && node.targetId !== null && node.targetId === num) {
+        result.push(node);
+      } else if (node.targetId !== null && String(node.targetId) === String(targetId)) {
+        result.push(node);
+      }
+    }
+    return result;
   }
 
   public getNodesByGroup(group: string | number): SceneNode[] {

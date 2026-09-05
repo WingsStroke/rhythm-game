@@ -286,27 +286,67 @@ export function EditorPropertiesPanel({
             </label>
           )}
 
-          {/* Target Node Selection */}
-          <label className="flex flex-col gap-1 text-white/70">
-            Target Node / Group
-            <select
-              value={selectedTrigger.targetId}
-              onChange={(e) =>
-                onUpdateTrigger({
-                  ...selectedTrigger,
-                  targetId: e.target.value,
-                })
-              }
-              className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#ffea00] font-mono cursor-pointer"
-            >
-              <option value="all">[All Nodes]</option>
-              {nodes.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.id} ({node.type})
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Target ID / Node Selection */}
+          <div className="flex flex-col gap-1 text-white/70">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold">Target ID (Objetos a Afectar)</span>
+              <span className="text-[10px] text-white/40 font-mono">
+                {selectedTrigger.targetId === 'all' ? 'all' : `ID: ${selectedTrigger.targetId}`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedTrigger.targetId === 'all' ? 'all' : String(selectedTrigger.targetId)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  onUpdateTrigger({
+                    ...selectedTrigger,
+                    targetId: val === 'all' ? 'all' : Number(val),
+                  });
+                }}
+                className="flex-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#ffea00] font-mono cursor-pointer text-xs"
+              >
+                <option value="all">[Todos los objetos escénicos]</option>
+                {Array.from(
+                  new Set(
+                    nodes
+                      .filter((n) => n.id !== null && n.id !== undefined && n.id !== '')
+                      .map((n) => Number(n.id))
+                  )
+                )
+                  .sort((a, b) => a - b)
+                  .map((assignedId) => {
+                    const matchedNames = nodes
+                      .filter((n) => Number(n.id) === assignedId)
+                      .map((n) => n.name || n.uid || n.id)
+                      .join(', ');
+                    return (
+                      <option key={assignedId} value={String(assignedId)}>
+                        ID {assignedId} ({matchedNames})
+                      </option>
+                    );
+                  })}
+              </select>
+
+              <input
+                type="number"
+                placeholder="ID #"
+                title="Escribe un ID numérico directamente"
+                value={typeof selectedTrigger.targetId === 'number' ? selectedTrigger.targetId : ''}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  onUpdateTrigger({
+                    ...selectedTrigger,
+                    targetId: val === '' ? 'all' : Number(val),
+                  });
+                }}
+                className="w-16 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono text-center outline-none focus:border-[#ffea00] text-xs placeholder:text-white/30"
+              />
+            </div>
+            <span className="text-[10px] text-white/40">
+              Afecta a todos los objetos que tengan este número de ID asignado.
+            </span>
+          </div>
 
           {/* Action Selector */}
           <label className="flex flex-col gap-1 text-white/70">
@@ -513,15 +553,41 @@ export function EditorPropertiesPanel({
             <span className="font-mono text-[#00e5ff] text-[10px]">{selectedNode.type}</span>
           </div>
 
-          {/* ID */}
+          {/* 1. Nombre */}
           <label className="flex flex-col gap-1 text-white/70">
-            Nombre / ID
+            <span className="font-semibold">Nombre del Objeto</span>
             <input
               type="text"
-              value={selectedNode.id}
-              onChange={(e) => onUpdateNode({ id: e.target.value })}
+              value={selectedNode.name || (typeof selectedNode.id === 'string' ? selectedNode.id : '')}
+              onChange={(e) => onUpdateNode({ name: e.target.value })}
+              placeholder="ej. rect-1"
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
             />
+          </label>
+
+          {/* 2. ID Numérico de Agrupación */}
+          <label className="flex flex-col gap-1 text-white/70">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold">ID de Objeto (Trigger ID)</span>
+              <span className="text-[10px] text-white/40 font-mono">
+                {selectedNode.id === null || selectedNode.id === undefined || selectedNode.id === ''
+                  ? 'null (Sin ID)'
+                  : `ID: ${selectedNode.id}`}
+              </span>
+            </div>
+            <input
+              type="number"
+              value={selectedNode.id !== null && selectedNode.id !== undefined ? selectedNode.id : ''}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                onUpdateNode({ id: val === '' ? null : Number(val) });
+              }}
+              placeholder="null (Sin ID asignado)"
+              className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none placeholder:text-white/30"
+            />
+            <span className="text-[10px] text-white/40">
+              Varios objetos pueden compartir el mismo ID para ser controlados por un mismo Trigger.
+            </span>
           </label>
 
           {/* Transform */}
@@ -718,7 +784,12 @@ export function EditorPropertiesPanel({
           {/* Delete Node Button */}
           {onRemoveNode && (
             <button
-              onClick={() => onRemoveNode(selectedNode.id)}
+              onClick={() =>
+                onRemoveNode(
+                  selectedNode.uid ||
+                    (typeof selectedNode.id === 'string' ? selectedNode.id : selectedNode.name || 'node')
+                )
+              }
               className="mt-2 px-3 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded border border-red-500/40 flex items-center justify-center gap-2 transition-colors font-semibold"
             >
               <Trash2 className="w-3.5 h-3.5" /> Eliminar Nodo

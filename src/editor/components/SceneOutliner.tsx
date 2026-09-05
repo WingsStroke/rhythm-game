@@ -17,10 +17,25 @@ export function SceneOutliner({
   onAddNode,
   onRemoveNode,
 }: SceneOutlinerProps) {
+  const getNextCounter = (prefix: string) => {
+    let max = 0;
+    for (const node of nodes) {
+      const name = node.name || (typeof node.id === 'string' ? node.id : '');
+      if (name.startsWith(`${prefix}-`)) {
+        const num = parseInt(name.replace(`${prefix}-`, ''), 10);
+        if (!Number.isNaN(num) && num > max) max = num;
+      }
+    }
+    return max + 1;
+  };
+
   const handleAddRectangle = () => {
-    const id = `rect_${Math.floor(1000 + Math.random() * 9000)}`;
+    const counter = getNextCounter('rect');
+    const uid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`;
     const newRect: SceneNodeData = {
-      id,
+      uid,
+      name: `rect-${counter}`,
+      id: null, // Por defecto null (sin ID)
       type: 'rectangle',
       visible: true,
       transform: {
@@ -38,13 +53,16 @@ export function SceneOutliner({
       },
     };
     onAddNode(newRect);
-    onSelectNode(newRect.id);
+    onSelectNode(newRect.uid!);
   };
 
   const handleAddCircle = () => {
-    const id = `circle_${Math.floor(1000 + Math.random() * 9000)}`;
+    const counter = getNextCounter('circle');
+    const uid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`;
     const newCircle: SceneNodeData = {
-      id,
+      uid,
+      name: `circle-${counter}`,
+      id: null, // Por defecto null (sin ID)
       type: 'circle',
       visible: true,
       transform: {
@@ -61,13 +79,16 @@ export function SceneOutliner({
       },
     };
     onAddNode(newCircle);
-    onSelectNode(newCircle.id);
+    onSelectNode(newCircle.uid!);
   };
 
   const handleAddGroup = () => {
-    const id = `group_${Math.floor(1000 + Math.random() * 9000)}`;
+    const counter = getNextCounter('group');
+    const uid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`;
     const newGroup: SceneNodeData = {
-      id,
+      uid,
+      name: `group-${counter}`,
+      id: null, // Por defecto null (sin ID)
       type: 'group',
       visible: true,
       transform: {
@@ -81,7 +102,7 @@ export function SceneOutliner({
       properties: {},
     };
     onAddNode(newGroup);
-    onSelectNode(newGroup.id);
+    onSelectNode(newGroup.uid!);
   };
 
   const getNodeIcon = (type: string) => {
@@ -143,25 +164,36 @@ export function SceneOutliner({
           </div>
         ) : (
           nodes.map((node) => {
-            const isSelected = selectedNodeId === node.id;
+            const nodeKey = node.uid || (typeof node.id === 'string' ? node.id : node.name || 'node');
+            const isSelected = selectedNodeId === nodeKey || (node.uid && selectedNodeId === node.uid);
             const color = (node.properties?.color as string) || '#ffffff';
+            const displayName = node.name || (typeof node.id === 'string' ? node.id : nodeKey);
 
             return (
               <div
-                key={node.id}
-                onClick={() => onSelectNode(isSelected ? null : node.id)}
+                key={nodeKey}
+                onClick={() => onSelectNode(isSelected ? null : nodeKey)}
                 className={`group px-2.5 py-1.5 rounded flex items-center justify-between transition-colors cursor-pointer border ${
                   isSelected
                     ? 'bg-[#00e5ff]/20 text-white border-[#00e5ff]/60 shadow-[0_0_10px_rgba(0,229,255,0.2)]'
                     : 'bg-white/[0.03] text-white/70 hover:bg-white/[0.07] hover:text-white border-white/5'
                 }`}
               >
-                <div className="flex items-center gap-2 overflow-hidden">
+                <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0 pr-2">
                   {getNodeIcon(node.type)}
-                  <span className="font-mono font-medium truncate">{node.id}</span>
+                  <span className="font-mono font-medium truncate text-white/90">{displayName}</span>
+                  {node.id !== null && node.id !== undefined && node.id !== '' ? (
+                    <span className="px-1.5 py-0.5 rounded bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 font-mono text-[9px] font-bold shrink-0">
+                      ID: {node.id}
+                    </span>
+                  ) : (
+                    <span className="px-1 py-0.5 rounded bg-white/5 text-white/30 font-mono text-[9px] shrink-0">
+                      null
+                    </span>
+                  )}
                   {node.type !== 'group' && (
                     <div
-                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      className="w-2 h-2 rounded-full flex-shrink-0 ml-auto"
                       style={{ backgroundColor: color }}
                       title={`Color: ${color}`}
                     />
@@ -171,7 +203,7 @@ export function SceneOutliner({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onRemoveNode(node.id);
+                    onRemoveNode(nodeKey);
                   }}
                   title="Eliminar nodo"
                   className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"

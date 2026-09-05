@@ -7,13 +7,24 @@ import type { SceneNodeData } from '../../types';
  */
 export class SceneNode {
   public id: string;
+  public uid: string;
+  public name: string;
+  public targetId: number | null;
   public data: SceneNodeData;
   public container: Container;
   public displayObject?: Container;
 
   constructor(data: SceneNodeData) {
-    this.id = data.id;
-    this.data = data;
+    const uniqueKey =
+      data.uid ||
+      (typeof data.id === 'string' ? data.id : undefined) ||
+      data.name ||
+      `node_${Math.floor(1000 + Math.random() * 9000)}`;
+    this.id = uniqueKey;
+    this.uid = uniqueKey;
+    this.name = data.name || (typeof data.id === 'string' ? data.id : 'node-1');
+    this.targetId = typeof data.id === 'number' ? data.id : null;
+    this.data = { ...data, uid: this.uid, name: this.name, id: this.targetId };
     this.container = new Container();
 
     if (data.type !== 'group') {
@@ -30,7 +41,9 @@ export class SceneNode {
   }
 
   public updateData(newData: SceneNodeData) {
-    this.data = newData;
+    this.name = newData.name || this.name;
+    this.targetId = typeof newData.id === 'number' ? newData.id : null;
+    this.data = { ...newData, uid: this.uid, name: this.name, id: this.targetId };
     
     // Recreate visual representation
     if (this.displayObject) {

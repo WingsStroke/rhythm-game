@@ -59,11 +59,13 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
     visual: {
       nodes: [
         {
-          id: 'test_rect',
+          uid: 'test_rect',
+          name: 'rect-1',
+          id: null,
           type: 'rectangle',
           transform: {
-            x: 500,
-            y: 300,
+            x: 960,
+            y: 540,
           },
           properties: {
             width: 200,
@@ -78,9 +80,9 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
           targetId: 'test_rect',
           property: 'x',
           keyframes: [
-            { time: 0, value: 500, easing: 'easeInOut' },
-            { time: 2, value: 900, easing: 'easeInOut' },
-            { time: 4, value: 500, easing: 'easeInOut' },
+            { time: 0, value: 960, easing: 'easeInOut' },
+            { time: 2, value: 1160, easing: 'easeInOut' },
+            { time: 4, value: 960, easing: 'easeInOut' },
           ],
         },
       ],

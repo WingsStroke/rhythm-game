@@ -113,12 +113,12 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full bg-[#05050f] text-white overflow-hidden relative select-none">
+    <div className="fixed inset-0 w-full h-full bg-[#05050f] text-white overflow-hidden select-none">
       {/* PixiJS Game Canvas Container — Always mounted in the DOM to eliminate ref race conditions */}
       <div
         ref={containerRef}
         id="pixi-canvas-container"
-        className={`absolute inset-0 z-0 transition-opacity duration-300 ${
+        className={`absolute inset-0 z-0 w-full h-full transition-opacity duration-300 ${
           screen === 'playing' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       />
@@ -179,7 +179,7 @@ function StartScreen({
   loading: boolean;
 }) {
   return (
-    <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
+    <div className="relative z-10 w-full h-full overflow-y-auto flex flex-col items-center justify-center px-6 py-8">
       {/* Background glow ambiance */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#ff2d6f] rounded-full blur-[130px] opacity-25 animate-pulse" />
@@ -305,7 +305,7 @@ function PlayingScreen({
   }, [onQuit]);
 
   return (
-    <div className="relative z-10 w-full h-screen pointer-events-none">
+    <div className="relative z-10 w-full h-full pointer-events-none">
       {/* Top Left: Audio Source & FPS Monitor */}
       <div className="absolute top-4 left-4 z-50 flex items-center gap-3 pointer-events-auto">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/10">
@@ -403,7 +403,7 @@ function ResultsScreen({
       : 'C';
 
   return (
-    <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
+    <div className="relative z-10 w-full h-full overflow-y-auto flex flex-col items-center justify-center px-6 py-8">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-[#ff2d6f] rounded-full blur-[130px] opacity-20" />
         <div className="absolute bottom-1/3 right-1/3 w-96 h-96 bg-[#00e5ff] rounded-full blur-[130px] opacity-20" />

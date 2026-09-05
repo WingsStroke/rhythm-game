@@ -111,10 +111,71 @@ export function Timeline({
     }
   }, [currentTime, isPlaying, pixelsPerSecond]);
 
+  // Ruler playhead scrubbing & edge auto-scrolling
+  const scrubPointerX = useRef<number | null>(null);
+  const autoScrollRaf = useRef<number | null>(null);
+
+  const startAutoScroller = useCallback(() => {
+    if (autoScrollRaf.current !== null) return;
+
+    const tick = () => {
+      if (!isDraggingPlayhead.current || !containerRef.current || scrubPointerX.current === null) {
+        autoScrollRaf.current = null;
+        return;
+      }
+
+      const container = containerRef.current;
+      const rect = container.getBoundingClientRect();
+      const x = scrubPointerX.current;
+      const edgeThreshold = 60;
+
+      let scrollDelta = 0;
+      if (x > rect.right - edgeThreshold) {
+        const factor = Math.min(1, (x - (rect.right - edgeThreshold)) / 80);
+        scrollDelta = 6 + factor * 24;
+      } else if (x < rect.left + edgeThreshold) {
+        const factor = Math.min(1, ((rect.left + edgeThreshold) - x) / 80);
+        scrollDelta = -(6 + factor * 24);
+      }
+
+      if (scrollDelta !== 0) {
+        const prevScroll = container.scrollLeft;
+        container.scrollLeft = Math.max(0, container.scrollLeft + scrollDelta);
+        if (container.scrollLeft !== prevScroll && onSeek) {
+          const clickX = x - rect.left + container.scrollLeft;
+          const rawTime = Math.max(0, clickX / pixelsPerSecond);
+          const time = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
+          onSeek(time);
+        }
+      }
+
+      autoScrollRaf.current = requestAnimationFrame(tick);
+    };
+
+    autoScrollRaf.current = requestAnimationFrame(tick);
+  }, [onSeek, pixelsPerSecond, level.timing.bpm, gridSubdivision]);
+
+  const stopAutoScroller = useCallback(() => {
+    if (autoScrollRaf.current !== null) {
+      cancelAnimationFrame(autoScrollRaf.current);
+      autoScrollRaf.current = null;
+    }
+    scrubPointerX.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (autoScrollRaf.current !== null) {
+        cancelAnimationFrame(autoScrollRaf.current);
+      }
+    };
+  }, []);
+
   // Handle seeking / scrubbing on the ruler
   const handleRulerPointerDown = (e: React.PointerEvent) => {
     if (!containerRef.current || !onSeek) return;
     isDraggingPlayhead.current = true;
+    scrubPointerX.current = e.clientX;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
     const rect = containerRef.current.getBoundingClientRect();
@@ -122,10 +183,12 @@ export function Timeline({
     const rawTime = Math.max(0, clickX / pixelsPerSecond);
     const time = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
     onSeek(time);
+    startAutoScroller();
   };
 
   const handleRulerPointerMove = (e: React.PointerEvent) => {
     if (!isDraggingPlayhead.current || !containerRef.current || !onSeek) return;
+    scrubPointerX.current = e.clientX;
     const rect = containerRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left + containerRef.current.scrollLeft;
     const rawTime = Math.max(0, clickX / pixelsPerSecond);
@@ -135,6 +198,7 @@ export function Timeline({
 
   const handleRulerPointerUp = (e: React.PointerEvent) => {
     isDraggingPlayhead.current = false;
+    stopAutoScroller();
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {

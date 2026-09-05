@@ -143,14 +143,17 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         },
       };
     });
-    selectNode(newNode.id);
+    const key = newNode.uid || (typeof newNode.id === 'string' ? newNode.id : newNode.name || 'node');
+    selectNode(key);
   }, [setLevel, selectNode]);
 
   const handleUpdateNode = useCallback((updates: Partial<SceneNodeData>) => {
     if (!selectedNodeId) return;
     setLevel((prev) => {
       const currentNodes = prev.visual?.nodes || [];
-      const idx = currentNodes.findIndex((n) => n.id === selectedNodeId);
+      const idx = currentNodes.findIndex(
+        (n) => (n.uid && n.uid === selectedNodeId) || n.id === selectedNodeId || n.name === selectedNodeId
+      );
       if (idx === -1) return prev;
       const updated = { ...currentNodes[idx], ...updates } as SceneNodeData;
       const newNodes = [...currentNodes];
@@ -170,7 +173,9 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
       ...prev,
       visual: {
         ...prev.visual,
-        nodes: (prev.visual?.nodes || []).filter((n) => n.id !== id),
+        nodes: (prev.visual?.nodes || []).filter(
+          (n) => n.uid !== id && n.id !== id && n.name !== id
+        ),
         triggers: (prev.visual?.triggers || []).map((t) =>
           t.targetId === id ? { ...t, targetId: 'all' } : t
         ),
@@ -287,7 +292,10 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
   // Selected item lookup
   const selectedEvent = level.events.find((e) => e.id === selectedEventId) || null;
   const selectedTrigger = (level.visual?.triggers || []).find((t) => t.id === selectedTriggerId) || null;
-  const selectedNode = (level.visual?.nodes || []).find((n) => n.id === selectedNodeId) || null;
+  const selectedNode =
+    (level.visual?.nodes || []).find(
+      (n) => (n.uid && n.uid === selectedNodeId) || n.id === selectedNodeId || n.name === selectedNodeId
+    ) || null;
 
   return (
     <div className="relative z-10 min-h-screen w-full flex flex-col bg-[#0b0b12] text-white select-none">

@@ -106,6 +106,7 @@ export class VisualEngine {
   private bloomFilter: ColorMatrixFilter | null = null;
   private rgbFilter: Filter | null = null;
   private tickerCb: ((ticker: Ticker) => void) | null = null;
+  private resizeHandler: (() => void) | null = null;
 
   /** Emitted when player clicks/touches a pad directly */
   public onPadInput: ((padId: PadId, pressed: boolean) => void) | null = null;
@@ -132,6 +133,16 @@ export class VisualEngine {
     this.root.appendChild(this.app.canvas);
     this.setupScene();
     this.setupFilters();
+
+    this.resizeHandler = () => {
+      try {
+        this.app.resize();
+        this.updateLayout();
+      } catch {
+        // Ignored
+      }
+    };
+    window.addEventListener('resize', this.resizeHandler);
   }
 
   public syncEvents(newEvents: PadEvent[]): void {
@@ -232,7 +243,8 @@ export class VisualEngine {
     const h = this.app.screen.height;
     this.lastWidth = w;
     this.lastHeight = h;
-    this.padY = h - PAD_HEIGHT - 30;
+    const viewportH = Math.min(h, this.root.clientHeight || window.innerHeight, window.innerHeight);
+    this.padY = Math.max(60, viewportH - PAD_HEIGHT - 35);
 
     // 1. Create layers with strict zIndex hierarchy
     this.bgLayer = new Container();
@@ -240,6 +252,12 @@ export class VisualEngine {
 
     this.sceneLayer = new Container();
     this.sceneLayer.zIndex = 5;
+
+    // Scale and center virtual 1920x1080 stage
+    const sceneScale = Math.min(w / 1920, h / 1080);
+    this.sceneLayer.scale.set(sceneScale);
+    this.sceneLayer.x = (w - 1920 * sceneScale) / 2;
+    this.sceneLayer.y = (h - 1080 * sceneScale) / 2;
 
     this.laneLayer = new Container();
     this.laneLayer.zIndex = 10;
@@ -408,19 +426,32 @@ export class VisualEngine {
 
   private handleVisualEffect(
     effectType: EffectType,
-    targetId: string,
+    targetId: string | number,
     properties: Record<string, unknown>
   ): void {
+    const targetKey = String(targetId);
     if (effectType === 'particleBurst') {
+      const targetNodes =
+        typeof targetId === 'number'
+          ? this.sceneGraph.getNodesByTargetId(targetId)
+          : this.sceneGraph.getNode(targetKey)
+          ? [this.sceneGraph.getNode(targetKey)!]
+          : [];
+
+      if (targetNodes.length > 0) {
+        for (const node of targetNodes) {
+          const color = properties.color ? this.hexToInt(String(properties.color)) : 0x00e5ff;
+          const count = typeof properties.count === 'number' ? properties.count : 16;
+          this.particlePool.spawn(node.container.x, node.container.y, color, count);
+        }
+        return;
+      }
+
       let x = this.app.screen.width / 2;
       let y = this.padY;
 
-      const targetNode = this.sceneGraph.getNode(targetId);
-      if (targetNode) {
-        x = targetNode.container.x;
-        y = targetNode.container.y;
-      } else if (this.padXPositions.has(targetId)) {
-        x = (this.padXPositions.get(targetId) ?? 0) + 50;
+      if (this.padXPositions.has(targetKey as PadId)) {
+        x = (this.padXPositions.get(targetKey as PadId) ?? 0) + 50;
         y = this.padY + PAD_HEIGHT / 2;
       }
 
@@ -428,11 +459,17 @@ export class VisualEngine {
       const count = typeof properties.count === 'number' ? properties.count : 16;
       this.particlePool.spawn(x, y, color, count);
     } else if (effectType === 'reactivePulse') {
-      const targetNode = this.sceneGraph.getNode(targetId);
-      if (targetNode) {
-        const currentScale = targetNode.container.scale.x;
+      const targetNodes =
+        typeof targetId === 'number'
+          ? this.sceneGraph.getNodesByTargetId(targetId)
+          : this.sceneGraph.getNode(targetKey)
+          ? [this.sceneGraph.getNode(targetKey)!]
+          : [];
+
+      for (const node of targetNodes) {
+        const currentScale = node.container.scale.x;
         this.animator.addTransition(
-          targetId,
+          node.id,
           'scale',
           currentScale * 1.35,
           currentScale,
@@ -479,7 +516,16 @@ export class VisualEngine {
 
     this.lastWidth = w;
     this.lastHeight = h;
-    this.padY = h - PAD_HEIGHT - 30;
+    const viewportH = Math.min(h, this.root.clientHeight || window.innerHeight, window.innerHeight);
+    this.padY = Math.max(60, viewportH - PAD_HEIGHT - 35);
+
+    // Scale and center sceneLayer
+    if (this.sceneLayer) {
+      const sceneScale = Math.min(w / 1920, h / 1080);
+      this.sceneLayer.scale.set(sceneScale);
+      this.sceneLayer.x = (w - 1920 * sceneScale) / 2;
+      this.sceneLayer.y = (h - 1080 * sceneScale) / 2;
+    }
 
     const padCount = this.pads.length;
     const padWidth = 100;
@@ -889,7 +935,8 @@ export class VisualEngine {
   }
 
   public updateNode(nodeData: SceneNodeData): void {
-    const node = this.sceneGraph.getNode(nodeData.id);
+    const key = nodeData.uid || (typeof nodeData.id === 'string' ? nodeData.id : nodeData.name || '');
+    const node = this.sceneGraph.getNode(key);
     if (node) {
       node.updateData(nodeData);
     }
@@ -903,6 +950,11 @@ export class VisualEngine {
 
   dispose(): void {
     this.detachEventBus();
+
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
 
     if (this.tickerCb) {
       try {

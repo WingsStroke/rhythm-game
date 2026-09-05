@@ -180,7 +180,12 @@ export interface SceneNodeTransform {
 }
 
 export interface SceneNodeData {
-  id: string;
+  /** Clave interna única para React y grafo de escena (e.g. "node_1234"). */
+  uid?: string;
+  /** Nombre del objeto con formato "nombre-objeto + {contador}" (ej. "rect-1", "circle-1"). */
+  name?: string;
+  /** ID numérico de disparo/agrupación para Triggers (null por defecto). */
+  id: number | string | null;
   type: string; // 'rectangle' | 'circle' | 'line' | 'container' | 'sprite' | 'group'
   parentId?: string;
   group?: string | number;
@@ -204,8 +209,8 @@ export interface TriggerData {
   time: number;
   /** Type of action to execute. */
   action: TriggerActionType;
-  /** Target SceneNode ID or group identifier. */
-  targetId: string;
+  /** Target SceneNode ID numérico, 'all' o identificador de objeto. */
+  targetId: number | string;
   /** Easing curve for transition. */
   easing?: EasingType;
   /** Duration of transition in seconds. */
