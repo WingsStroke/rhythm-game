@@ -27,13 +27,37 @@ export class Game {
   private container: HTMLElement;
   private running = false;
 
+  private _isPaused = false;
+
   // Callbacks for React UI
   public onScoreUpdate: ((state: PlayerState) => void) | null = null;
   public onGameComplete: ((state: PlayerState) => void) | null = null;
   public onLoadStatus: ((status: string) => void) | null = null;
+  public onPauseChange: ((paused: boolean) => void) | null = null;
+  public onTimeUpdate: ((currentTime: number, duration: number) => void) | null = null;
 
   get songSource(): 'file' | 'procedural' {
     return this.transport.isUsingFile ? 'file' : 'procedural';
+  }
+
+  get isPaused(): boolean {
+    return this._isPaused;
+  }
+
+  get isRunning(): boolean {
+    return this.running;
+  }
+
+  get currentLevel(): LevelData {
+    return this.level;
+  }
+
+  get duration(): number {
+    return this.level.song.duration;
+  }
+
+  get currentTime(): number {
+    return this.transport.getTime();
   }
 
   constructor(container: HTMLElement, level: LevelData) {
@@ -51,8 +75,9 @@ export class Game {
     await this.transport.init();
 
     // 2. Load external audio file if the level specifies one
-    if (this.level.song.url) {
-      await this.transport.loadFile(this.level.song.url);
+    const audioUrl = this.level.song.url || this.level.song.audioUrl;
+    if (audioUrl) {
+      await this.transport.loadFile(audioUrl);
     }
 
     // 3. Initialize visual engine (PixiJS)
@@ -72,6 +97,33 @@ export class Game {
     await this.transport.play(this.level.song.bpm, 0);
 
     this.running = true;
+    this._isPaused = false;
+    this.onPauseChange?.(false);
+  }
+
+  pause(): void {
+    if (!this.running || this._isPaused) return;
+    this._isPaused = true;
+    this.transport.pause();
+    this.onPauseChange?.(true);
+  }
+
+  async resume(): Promise<void> {
+    if (!this.running || !this._isPaused) return;
+    this._isPaused = false;
+    await this.transport.play();
+    this.onPauseChange?.(false);
+  }
+
+  async restart(): Promise<void> {
+    this.stop();
+    this.gameplay.reset();
+    this.gameplay.start(0);
+    this._isPaused = false;
+    this.onPauseChange?.(false);
+    await this.transport.play(this.level.song.bpm, 0);
+    this.input.attach();
+    this.running = true;
   }
 
   private setupInput(): void {
@@ -82,10 +134,20 @@ export class Game {
       }
     }
     this.input.setKeyMap(map);
-    this.input.setHandler((event) => this.gameplay.handleInput(event));
-    this.input.onPadPress = (pad) => this.visual.pressPad(pad);
-    this.input.onPadRelease = (pad) => this.visual.releasePad(pad);
+    this.input.setHandler((event) => {
+      if (this._isPaused) return;
+      this.gameplay.handleInput(event);
+    });
+    this.input.onPadPress = (pad) => {
+      if (this._isPaused) return;
+      this.visual.pressPad(pad);
+    };
+    this.input.onPadRelease = (pad) => {
+      if (this._isPaused) return;
+      this.visual.releasePad(pad);
+    };
     this.visual.onPadInput = (padId, pressed) => {
+      if (this._isPaused) return;
       if (pressed) {
         this.input.pressPad(padId);
       } else {
@@ -104,10 +166,13 @@ export class Game {
 
   /** Called every frame by PixiJS ticker. */
   private frameUpdate(): void {
-    if (!this.running) return;
+    if (!this.running || this._isPaused) return;
 
     const audioTime = this.transport.getTime();
     const bands = this.transport.getAudioBands();
+
+    // Emit live time update for HUD progress bar
+    this.onTimeUpdate?.(audioTime, this.level.song.duration);
 
     // Update gameplay (check for misses, loop/hold expiry, pre-cue states)
     this.gameplay.update();
@@ -115,8 +180,9 @@ export class Game {
     // Update visuals
     this.visual.update(audioTime, bands);
 
-    // Check for game completion
-    if (this.gameplay.isComplete) {
+    // Check for game completion: either all notes consumed and expired, or audioTime >= duration
+    const songDuration = this.level.song.duration;
+    if (this.gameplay.isComplete || (songDuration > 0 && audioTime >= songDuration)) {
       this.running = false;
       this.stop();
       const finalState = this.gameplay.state;
@@ -126,6 +192,8 @@ export class Game {
 
   stop(): void {
     this.running = false;
+    this._isPaused = false;
+    this.onPauseChange?.(false);
     try {
       this.transport.stop();
     } catch (e) {

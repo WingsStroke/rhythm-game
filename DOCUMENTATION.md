@@ -300,20 +300,23 @@ Generates the prototype `LevelData`. Defines the four pads (Kick, Snare, Lead, A
 
 ## 4. Level Data Format
 
-`LevelData` is the universal data contract between the editor and the engine.
+`LevelData` is the universal data contract between the editor and the engine, supporting both standalone authored levels and separated `SongData` assets (Sección 11 Informe.md).
 
 ```
 LevelData {
   formatVersion: number
   metadata: { id, name, difficulty, author }
-  song: { id, title, artist, bpm, offset, duration, url? }
-  pads: PadConfig[]         // id, label, color, keyHint, role
+  songId?: string           // Reference to SongRegistry asset
+  song: SongData            // { id, title, artist, bpm, offset, duration, url?, audioUrl?, licenseInfo? }
+  pads: PadConfig[]         // id, label, color, keyHint, role, audioChannel?
   events: PadEvent[]        // sorted by targetTime
   timing: { bpm, offset, windows: { perfect, good, miss } }
   visual: {
-    nodes: SceneNodeData[]  // scene graph objects
+    nodes: SceneNodeData[]      // scene graph objects
     animations: AnimationData[]
-    triggers: TriggerData[] // timed visual events
+    triggers: TriggerData[]     // timed visual events
+    audioMappings?: AudioMapping[] // real-time FFT bands driving node transforms
+    settings?: LevelVisualSettings // declarative background, grid & shader intensities
   }
 }
 ```
@@ -336,17 +339,23 @@ SceneNodeData fields:
 ### Implemented and working
 
 - Complete game runtime: audio, input, gameplay, PixiJS rendering.
+- Standalone Player (`GameScreen`): fixed 1920×1080 logical resolution with automatic letterbox/pillarbox projection.
+- Pause system: immediate freeze of AudioTransport and PixiJS ticker via Escape key with full modal controls (Resume, Restart, Exit).
+- Real-time Performance HUD (`GameHUD`): dynamic combo multiplier (1x, 2x, 4x, 8x), live percentage accuracy (`Accuracy %`), and top song progress bar with remaining time.
+- Results screen (`ResultsModal`): automatic deployment on track completion with rank badges (SS, S, A, B, C, D), detailed hit breakdown (Perfect, Good, Miss), and score stats.
+- Complete Editor → Player circle: "PROBAR NIVEL" (Playtest) action in editor header with seamless roundtrip return.
+- Level serialization and deserialization: JSON export and import in both Editor and Player.
+- Declarative Audio Modulation Channels (`AudioMapping`): FFT frequency bands (`bass`, `mids`, `treble`, `ambient`) driving `SceneNode` transforms (`scale`, `opacity`, `rotation`, `x`, `y`) in real time.
+- Semantic pad reactivity: pad audio channels resolved by musical role (`PadRole`) or explicit `audioChannel` in `PadConfig`, eliminating hardcoded array indices.
+- Data-driven visual settings (`LevelVisualSettings`): background reactivity, grid pulse, bloom intensity and GLSL RGB aberration shader controlled by level configuration.
+- Separation of contracts: `SongData` metadata separated from `LevelData`, with `SongRegistry` preventing duplicate audio buffer allocations.
 - Procedural music synthesizer and external audio file playback with runtime fallback.
-- FFT-based audio reactivity (bass, mids, treble, amplitude, waveform).
 - Four pad behaviors: tap, hold, loop, trigger.
-- Scoring: perfect, good, miss, combo, max combo.
 - Full level editor with timeline, scene outliner, and properties panel.
-- DAW-style timeline with sticky 128px track headers, pen/select/eraser tools, grid snapping (1/1 through 1/16 and free), auto-scroll on playhead drag.
+- DAW-style timeline with sticky track headers, tools, grid snapping (1/1 through 1/16 and free), auto-scroll on playhead drag.
 - Undo/redo history (Ctrl+Z / Ctrl+Y, 50-entry stack, drag-safe).
 - Live recording mode: captures pad presses as timed events during playback.
-- External audio loading in the editor (File or URL).
-- Scene graph with parent-child hierarchy.
-- Numeric trigger grouping: one trigger can target all nodes sharing a numeric ID.
+- Scene graph with parent-child hierarchy and numeric trigger grouping.
 - TriggerDispatcher: time-sorted execution, seek-safe cumulative replay.
 - Animator: eased property transitions for scene nodes.
 - ParticlePool: pooled particle bursts on hit events.
@@ -354,13 +363,10 @@ SceneNodeData fields:
 ### Planned (not yet implemented)
 
 - Full keyframe animation curve editor in the timeline.
-- Shader and post-processing effects (distortion, RGB split, glow, noise).
-- Audio modulation channel: FFT bands driving object properties in real time without triggers.
-- Performance phrase detection and rewards.
-- Level serialization and deserialization (JSON import/export).
-- Game mode difficulty and level selection screen.
+- Additional shader and post-processing effects (custom GLSL distortion, noise).
+- Performance phrase detection and chained rewards.
+- Online song/beatmap repository integration (Supabase backend).
 - Touch and gamepad input sources.
-- Result screen statistics.
 
 ---
 

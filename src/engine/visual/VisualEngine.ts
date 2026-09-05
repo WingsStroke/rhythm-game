@@ -10,8 +10,10 @@ import type {
   SceneNodeData,
   TriggerData,
   EffectType,
+  ModulationChannel,
 } from '../types';
 import type { AudioEngine } from '../audio/AudioEngine';
+import type { ModulatedChannels } from '../audio/AudioModulator';
 import { AudioModulator } from '../audio/AudioModulator';
 import { SceneGraph } from './SceneGraph';
 import { Animator } from './Animator';
@@ -23,13 +25,14 @@ import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
  * VisualEngine — modular and reactive presentation engine using PixiJS v8.
  *
  * Layer Hierarchy:
- *  - bgLayer (zIndex: 0): Ambient reactive background & grid
- *  - sceneLayer (zIndex: 5): User/level designer scene graph nodes & triggers
- *  - laneLayer (zIndex: 10): Target columns and hit receptors (never occluded by scene nodes)
- *  - noteLayer (zIndex: 15): Incoming falling notes (guaranteed visibility)
- *  - padLayer (zIndex: 20): Interactive pads with glow feedback
- *  - fxLayer (zIndex: 25): Particle bursts & hit flares
- *  - hudLayer (zIndex: 30): Score, combo, and floating judgement labels
+ *  - bgLayer (zIndex: 0): Ambient reactive background & grid (full screen)
+ *  - virtualStage (zIndex: 5): 1920x1080 logical coordinate stage with letterbox/pillarbox
+ *    - sceneLayer (zIndex: 5): User/level designer scene graph nodes & triggers
+ *    - laneLayer (zIndex: 10): Target columns and hit receptors (never occluded by scene nodes)
+ *    - noteLayer (zIndex: 15): Incoming falling notes (guaranteed visibility)
+ *    - padLayer (zIndex: 20): Interactive pads with glow feedback
+ *    - fxLayer (zIndex: 25): Particle bursts & hit flares
+ *    - hudLayer (zIndex: 30): Score, combo, and floating judgement labels
  */
 
 const FALL_DISTANCE = 600;
@@ -48,7 +51,7 @@ interface PadVisual {
   state: PadState;
   stateAnim: number;
   x: number;
-  bandIndex: number;
+  channel: ModulationChannel;
 }
 
 interface JudgementPopup {
@@ -68,6 +71,7 @@ export class VisualEngine {
 
   // Strict Layer Hierarchy
   private bgLayer!: Container;
+  private virtualStage!: Container;
   private sceneLayer!: Container;
   private laneLayer!: Container;
   private noteLayer!: Container;
@@ -166,6 +170,7 @@ export class VisualEngine {
     if (level.visual?.triggers) {
       this.triggerDispatcher.setTriggers(level.visual.triggers);
     }
+    this.setupFilters();
   }
 
   public syncVisualNodes(nodes: SceneNodeData[]): void {
@@ -244,21 +249,17 @@ export class VisualEngine {
     const h = this.app.screen.height;
     this.lastWidth = w;
     this.lastHeight = h;
-    const viewportH = Math.min(h, this.root.clientHeight || window.innerHeight, window.innerHeight);
-    this.padY = Math.max(60, viewportH - PAD_HEIGHT - 35);
+    this.padY = 1080 - PAD_HEIGHT - 60;
 
     // 1. Create layers with strict zIndex hierarchy
     this.bgLayer = new Container();
     this.bgLayer.zIndex = 0;
 
+    this.virtualStage = new Container();
+    this.virtualStage.zIndex = 5;
+
     this.sceneLayer = new Container();
     this.sceneLayer.zIndex = 5;
-
-    // Scale and center virtual 1920x1080 stage
-    const sceneScale = Math.min(w / 1920, h / 1080);
-    this.sceneLayer.scale.set(sceneScale);
-    this.sceneLayer.x = (w - 1920 * sceneScale) / 2;
-    this.sceneLayer.y = (h - 1080 * sceneScale) / 2;
 
     this.laneLayer = new Container();
     this.laneLayer.zIndex = 10;
@@ -275,9 +276,8 @@ export class VisualEngine {
     this.hudLayer = new Container();
     this.hudLayer.zIndex = 30;
 
-    this.app.stage.sortableChildren = true;
-    this.app.stage.addChild(
-      this.bgLayer,
+    this.virtualStage.sortableChildren = true;
+    this.virtualStage.addChild(
       this.sceneLayer,
       this.laneLayer,
       this.noteLayer,
@@ -285,6 +285,15 @@ export class VisualEngine {
       this.fxLayer,
       this.hudLayer
     );
+
+    this.app.stage.sortableChildren = true;
+    this.app.stage.addChild(this.bgLayer, this.virtualStage);
+
+    // Scale and center virtual 1920x1080 stage
+    const sceneScale = Math.min(w / 1920, h / 1080);
+    this.virtualStage.scale.set(sceneScale);
+    this.virtualStage.x = (w - 1920 * sceneScale) / 2;
+    this.virtualStage.y = (h - 1080 * sceneScale) / 2;
 
     // 2. Initialize SceneGraph, Animator, and TriggerDispatcher
     this.sceneGraph = new SceneGraph(this.sceneLayer);
@@ -397,7 +406,7 @@ export class VisualEngine {
         state: 'ready',
         stateAnim: 0,
         x,
-        bandIndex: i,
+        channel: this.resolvePadChannel(pad),
       });
     });
 
@@ -408,8 +417,8 @@ export class VisualEngine {
       text: '0',
       style: { fontFamily: 'monospace', fontSize: 28, fill: 0xffffff },
     });
-    this.scoreText.x = 20;
-    this.scoreText.y = 20;
+    this.scoreText.x = 40;
+    this.scoreText.y = 30;
     this.hudLayer.addChild(this.scoreText);
 
     this.comboText = new Text({
@@ -417,7 +426,7 @@ export class VisualEngine {
       style: { fontFamily: 'monospace', fontSize: 34, fill: 0xffffff, fontWeight: 'bold' },
     });
     this.comboText.anchor.set(0.5);
-    this.comboText.x = w / 2;
+    this.comboText.x = 1920 / 2;
     this.comboText.y = 60;
     this.hudLayer.addChild(this.comboText);
 
@@ -511,22 +520,24 @@ export class VisualEngine {
   }
 
   private updateLayout(): void {
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
-    if (w === this.lastWidth && h === this.lastHeight) return;
+    const screenW = this.app.screen.width;
+    const screenH = this.app.screen.height;
+    if (screenW === this.lastWidth && screenH === this.lastHeight) return;
 
-    this.lastWidth = w;
-    this.lastHeight = h;
-    const viewportH = Math.min(h, this.root.clientHeight || window.innerHeight, window.innerHeight);
-    this.padY = Math.max(60, viewportH - PAD_HEIGHT - 35);
+    this.lastWidth = screenW;
+    this.lastHeight = screenH;
 
-    // Scale and center sceneLayer
-    if (this.sceneLayer) {
-      const sceneScale = Math.min(w / 1920, h / 1080);
-      this.sceneLayer.scale.set(sceneScale);
-      this.sceneLayer.x = (w - 1920 * sceneScale) / 2;
-      this.sceneLayer.y = (h - 1080 * sceneScale) / 2;
+    // Scale and center virtual 1920x1080 stage
+    const scale = Math.min(screenW / 1920, screenH / 1080);
+    if (this.virtualStage) {
+      this.virtualStage.scale.set(scale);
+      this.virtualStage.x = (screenW - 1920 * scale) / 2;
+      this.virtualStage.y = (screenH - 1080 * scale) / 2;
     }
+
+    const w = 1920;
+    const h = 1080;
+    this.padY = h - PAD_HEIGHT - 60;
 
     const padCount = this.pads.length;
     const padWidth = 100;
@@ -555,38 +566,65 @@ export class VisualEngine {
   }
 
   private setupFilters(): void {
+    const settings = this.level.visual?.settings;
     try {
+      const bloomIntensity = settings?.bloomIntensity ?? 1.06;
       this.bloomFilter = new ColorMatrixFilter();
-      this.bloomFilter.brightness(1.06, false);
+      this.bloomFilter.brightness(bloomIntensity, false);
       this.fxLayer.filters = [this.bloomFilter];
     } catch {
       this.bloomFilter = null;
     }
 
     try {
-      const fragShader = `
-        precision mediump float;
-        varying vec2 vTextureCoord;
-        uniform sampler2D uTexture;
-        uniform float uTime;
-        uniform float uBass;
-        uniform float uAmp;
-        void main() {
-          vec2 uv = vTextureCoord;
-          float shift = 0.002 + uBass * 0.006 + uAmp * 0.003;
-          float r = texture2D(uTexture, uv + vec2(shift, 0.0)).r;
-          float g = texture2D(uTexture, uv).g;
-          float b = texture2D(uTexture, uv - vec2(shift, 0.0)).b;
-          float a = texture2D(uTexture, uv).a;
-          gl_FragColor = vec4(r, g, b, a);
-        }
-      `;
-      this.rgbFilter = new Filter({
-        gl: { fragment: fragShader },
-      } as ConstructorParameters<typeof Filter>[0]);
-      this.noteLayer.filters = [this.rgbFilter];
+      const rgbEnabled = settings?.rgbShiftEnabled !== false;
+      if (rgbEnabled) {
+        const fragShader = `
+          precision mediump float;
+          varying vec2 vTextureCoord;
+          uniform sampler2D uTexture;
+          uniform float uTime;
+          uniform float uBass;
+          uniform float uAmp;
+          void main() {
+            vec2 uv = vTextureCoord;
+            float shift = 0.002 + uBass * 0.006 + uAmp * 0.003;
+            float r = texture2D(uTexture, uv + vec2(shift, 0.0)).r;
+            float g = texture2D(uTexture, uv).g;
+            float b = texture2D(uTexture, uv - vec2(shift, 0.0)).b;
+            float a = texture2D(uTexture, uv).a;
+            gl_FragColor = vec4(r, g, b, a);
+          }
+        `;
+        this.rgbFilter = new Filter({
+          gl: { fragment: fragShader },
+        } as ConstructorParameters<typeof Filter>[0]);
+        this.noteLayer.filters = [this.rgbFilter];
+      } else {
+        this.rgbFilter = null;
+        this.noteLayer.filters = [];
+      }
     } catch {
       this.rgbFilter = null;
+    }
+  }
+
+  private resolvePadChannel(pad: PadConfig): ModulationChannel {
+    if (pad.audioChannel) return pad.audioChannel;
+    switch (pad.role) {
+      case 'kick':
+      case 'drums':
+      case 'bass':
+        return 'bass';
+      case 'snare':
+      case 'lead':
+      case 'synth':
+        return 'mids';
+      case 'vocal':
+      case 'fx':
+        return 'treble';
+      default:
+        return 'ambient';
     }
   }
 
@@ -730,8 +768,11 @@ export class VisualEngine {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
 
-    // 3. Modulated background response
-    const bgIntensity = channels.bassIntensity * 0.6 + this.beatPulse * 0.4;
+    // 3. Modulated background response from level visual settings
+    const settings = this.level.visual?.settings;
+    const bgReactive = settings?.backgroundReactive !== false;
+    const bgBassMult = settings?.backgroundBassMultiplier ?? 0.6;
+    const bgIntensity = bgReactive ? (channels.bassIntensity * bgBassMult + this.beatPulse * 0.4) : 0;
     const br = Math.min(255, 7 + bgIntensity * 35);
     const bg = Math.min(255, 7 + bgIntensity * 18);
     const bb = Math.min(255, 20 + bgIntensity * 55);
@@ -740,20 +781,26 @@ export class VisualEngine {
       .rect(0, 0, w, h)
       .fill({ color: (Math.round(br) << 16) | (Math.round(bg) << 8) | Math.round(bb) });
 
-    // 4. Modulated Grid pulse
+    // 4. Modulated Grid pulse from level visual settings
     this.bgGrid.clear();
-    const gridAlpha = 0.04 + this.beatPulse * 0.08 + channels.midsReactivity * 0.04;
-    const gridSpacing = 40 + channels.bassIntensity * 8;
-    for (let gx = 0; gx < w; gx += gridSpacing) {
-      this.bgGrid.moveTo(gx, 0).lineTo(gx, h);
+    const gridEnabled = settings?.gridEnabled !== false;
+    if (gridEnabled) {
+      const gridReactive = settings?.gridReactive !== false;
+      const gridAlpha = 0.04 + (gridReactive ? (this.beatPulse * 0.08 + channels.midsReactivity * 0.04) : 0);
+      const gridSpacing = 40 + (gridReactive ? channels.bassIntensity * 8 : 0);
+      for (let gx = 0; gx < w; gx += gridSpacing) {
+        this.bgGrid.moveTo(gx, 0).lineTo(gx, h);
+      }
+      for (let gy = 0; gy < h; gy += gridSpacing) {
+        this.bgGrid.moveTo(0, gy).lineTo(w, gy);
+      }
+      this.bgGrid.stroke({ width: 1, color: 0x303055, alpha: gridAlpha });
     }
-    for (let gy = 0; gy < h; gy += gridSpacing) {
-      this.bgGrid.moveTo(0, gy).lineTo(w, gy);
-    }
-    this.bgGrid.stroke({ width: 1, color: 0x303055, alpha: gridAlpha });
     this.beatPulse *= 0.92;
 
-    // 5. RGB shift uniforms update
+    // 5. RGB shift uniforms update from level visual settings
+    const rgbEnabled = settings?.rgbShiftEnabled !== false;
+    const rgbIntensity = rgbEnabled ? (settings?.rgbShiftIntensity ?? 1.0) : 0;
     if (this.rgbFilter) {
       try {
         const u = this.rgbFilter as unknown as {
@@ -762,17 +809,20 @@ export class VisualEngine {
         };
         if (u.resources?.filterUniforms?.uniforms) {
           u.resources.filterUniforms.uniforms.uTime = audioTime;
-          u.resources.filterUniforms.uniforms.uBass = channels.bassIntensity;
-          u.resources.filterUniforms.uniforms.uAmp = channels.ambientBrightness;
+          u.resources.filterUniforms.uniforms.uBass = channels.bassIntensity * rgbIntensity;
+          u.resources.filterUniforms.uniforms.uAmp = channels.ambientBrightness * rgbIntensity;
         } else if (u.uniforms) {
           u.uniforms.uTime = audioTime;
-          u.uniforms.uBass = channels.bassIntensity;
-          u.uniforms.uAmp = channels.ambientBrightness;
+          u.uniforms.uBass = channels.bassIntensity * rgbIntensity;
+          u.uniforms.uAmp = channels.ambientBrightness * rgbIntensity;
         }
       } catch {
         // Ignored
       }
     }
+
+    // 5b. Apply declarative real-time Audio Mappings to SceneNodes
+    this.applyAudioMappings(channels);
 
     // 6. Cleanup events that fell past the pads
     for (const [event, gfx] of this.noteGraphics) {
@@ -814,13 +864,24 @@ export class VisualEngine {
       gfx.alpha = progress < 0.08 ? progress * 12.5 : 1;
     }
 
-    // 9. Pad animations driven by PadState and modulated audio channels
+    // 9. Pad animations driven by PadState and semantic modulated audio channels
     for (const [, pv] of this.padVisuals) {
       let bandValue = 0;
-      if (pv.bandIndex === 0) bandValue = channels.bassIntensity;
-      else if (pv.bandIndex === 1) bandValue = channels.midsReactivity;
-      else if (pv.bandIndex === 2) bandValue = channels.trebleDispersion;
-      else bandValue = channels.ambientBrightness;
+      switch (pv.channel) {
+        case 'bass':
+          bandValue = channels.bassIntensity;
+          break;
+        case 'mids':
+          bandValue = channels.midsReactivity;
+          break;
+        case 'treble':
+          bandValue = channels.trebleDispersion;
+          break;
+        case 'ambient':
+        default:
+          bandValue = channels.ambientBrightness;
+          break;
+      }
 
       let idleGlow = 0.12 + bandValue * 0.28;
       const pressGlow = pv.pressAnim * 0.55;
@@ -933,6 +994,46 @@ export class VisualEngine {
     // 12. Combo text pulse with ambient brightness
     if (this.comboText?.text) {
       this.comboText.scale.set(1 + channels.ambientBrightness * 0.12);
+    }
+  }
+
+  /**
+   * Applies real-time audio modulation channels to SceneNodes based on LevelData.visual.audioMappings.
+   */
+  private applyAudioMappings(channels: ModulatedChannels): void {
+    const mappings = this.level.visual?.audioMappings;
+    if (!mappings || mappings.length === 0) return;
+
+    for (const mapping of mappings) {
+      let rawSignal = 0;
+      switch (mapping.channel) {
+        case 'bass':
+          rawSignal = channels.bassIntensity;
+          break;
+        case 'mids':
+          rawSignal = channels.midsReactivity;
+          break;
+        case 'treble':
+          rawSignal = channels.trebleDispersion;
+          break;
+        case 'ambient':
+        default:
+          rawSignal = channels.ambientBrightness;
+          break;
+      }
+
+      let delta = rawSignal * mapping.multiplier;
+      if (mapping.clampMin !== undefined) delta = Math.max(mapping.clampMin, delta);
+      if (mapping.clampMax !== undefined) delta = Math.min(mapping.clampMax, delta);
+
+      const targets =
+        mapping.targetId === 'all'
+          ? this.sceneGraph.getAllNodes()
+          : this.sceneGraph.getNodesByTargetId(mapping.targetId);
+
+      for (const node of targets) {
+        node.setModulatedTransform(mapping.property, delta, mapping.baseValue);
+      }
     }
   }
 

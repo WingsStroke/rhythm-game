@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite, Texture, Color } from 'pixi.js';
-import type { SceneNodeData } from '../../types';
+import type { SceneNodeData, ModulatableProperty } from '../../types';
 
 /**
  * SceneNode wraps a PixiJS Container or display object.
@@ -79,6 +79,56 @@ export class SceneNode {
       // PixiJS v8 Container supports blendMode at runtime but the generic
       // Container type does not declare it; cast through unknown to avoid 'any'.
       (this.container as unknown as { blendMode: string }).blendMode = data.blendMode;
+    }
+  }
+
+  /**
+   * Applies real-time audio modulation delta to a specific property.
+   */
+  public setModulatedTransform(property: ModulatableProperty, delta: number, baseValue?: number): void {
+    const base = baseValue ?? this.getBaseProperty(property);
+    const val = base + delta;
+    switch (property) {
+      case 'scale':
+        this.container.scale.set(Math.max(0.01, val));
+        break;
+      case 'scaleX':
+        this.container.scale.x = Math.max(0.01, val);
+        break;
+      case 'scaleY':
+        this.container.scale.y = Math.max(0.01, val);
+        break;
+      case 'opacity':
+        this.container.alpha = Math.max(0, Math.min(1, val));
+        break;
+      case 'rotation':
+        this.container.rotation = val;
+        break;
+      case 'x':
+        this.container.x = val;
+        break;
+      case 'y':
+        this.container.y = val;
+        break;
+    }
+  }
+
+  public getBaseProperty(property: ModulatableProperty): number {
+    const t = this.data.transform || {};
+    switch (property) {
+      case 'scale':
+      case 'scaleX':
+        return t.scaleX ?? 1;
+      case 'scaleY':
+        return t.scaleY ?? 1;
+      case 'opacity':
+        return t.opacity ?? 1;
+      case 'rotation':
+        return t.rotation ?? 0;
+      case 'x':
+        return t.x ?? 0;
+      case 'y':
+        return t.y ?? 0;
     }
   }
 

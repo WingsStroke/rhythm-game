@@ -82,6 +82,8 @@ src/
     constants.ts               Shared editor constants
     utils.ts                   Shared editor utilities
   game/
+    GameScreen.tsx             Standalone Player full-screen view (1920x1080 fixed)
+    components/                HUD, PauseModal, and ResultsModal components
     createPrototypeLevel.ts    Prototype level definition
 ```
 

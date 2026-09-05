@@ -13,7 +13,13 @@ import { ListVideo, Gamepad2, Zap } from 'lucide-react';
 
 type EditorTab = 'timeline' | 'preview';
 
-export function EditorApp({ onExit }: { onExit: () => void }) {
+export interface EditorAppProps {
+  onExit: () => void;
+  onPlaytest?: (level: LevelData) => void;
+  initialLevel?: LevelData;
+}
+
+export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) {
   // History-managed level state (Undo / Redo stack)
   const {
     level,
@@ -23,7 +29,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     canUndo,
     canRedo,
     resetHistory,
-  } = useEditorHistory(INITIAL_LEVEL);
+  } = useEditorHistory(initialLevel || INITIAL_LEVEL);
 
   const [activeTab, setActiveTab] = useState<EditorTab>('timeline');
 
@@ -317,6 +323,14 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         onLoadAudioFile={handleAudioLoad}
         onImportJson={handleJsonImport}
         onExport={handleExport}
+        onPlaytest={
+          onPlaytest
+            ? () => {
+                handleStop();
+                onPlaytest(level);
+              }
+            : undefined
+        }
         onExit={() => {
           dispose();
           onExit();

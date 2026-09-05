@@ -220,8 +220,7 @@ export class GameplayEngine {
         this.emitPadStateChange(pad, 'holding', 'miss');
         const s = this.playerState;
         if (s.combo > 0) this.onComboBreak?.();
-        s.combo = 0;
-        s.missCount++;
+        this.applyMiss();
         this.eventBus?.emit({
           type: 'HIT_MISS',
           padId: pad,
@@ -252,13 +251,8 @@ export class GameplayEngine {
     }
 
     // Valid press — award score immediately and start tracking the sustain
+    this.applyHitScore(judgement);
     const s = this.playerState;
-    const points = judgement === 'perfect' ? 300 : 100;
-    s.score += points;
-    s.combo++;
-    if (judgement === 'perfect') s.perfectCount++;
-    else s.goodCount++;
-    if (s.combo > s.maxCombo) s.maxCombo = s.combo;
 
     this.eventBus?.emit({
       type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
@@ -282,13 +276,8 @@ export class GameplayEngine {
       return;
     }
 
+    this.applyHitScore(judgement);
     const s = this.playerState;
-    const points = judgement === 'perfect' ? 300 : 100;
-    s.score += points;
-    s.combo++;
-    if (judgement === 'perfect') s.perfectCount++;
-    else s.goodCount++;
-    if (s.combo > s.maxCombo) s.maxCombo = s.combo;
 
     this.eventBus?.emit({
       type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
@@ -327,26 +316,10 @@ export class GameplayEngine {
     const eventTime = this.getTime();
     const prevState = this.padStates.get(evt.padId) ?? 'ready';
 
-    if (judgement === 'perfect') {
-      s.score += 300;
-      s.combo++;
-      s.perfectCount++;
+    if (judgement === 'perfect' || judgement === 'good') {
+      this.applyHitScore(judgement);
       this.eventBus?.emit({
-        type: 'HIT_PERFECT',
-        padId: evt.padId,
-        time: eventTime,
-        event: evt,
-        score: s.score,
-        combo: s.combo,
-      });
-      this.emitPadStateChange(evt.padId, prevState, 'success');
-      this.schedulePadStateTransition(evt.padId, 'success', 'ready', 300);
-    } else if (judgement === 'good') {
-      s.score += 100;
-      s.combo++;
-      s.goodCount++;
-      this.eventBus?.emit({
-        type: 'HIT_GOOD',
+        type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
         padId: evt.padId,
         time: eventTime,
         event: evt,
@@ -367,8 +340,7 @@ export class GameplayEngine {
           combo: 0,
         });
       }
-      s.combo = 0;
-      s.missCount++;
+      this.applyMiss();
       this.eventBus?.emit({
         type: 'HIT_MISS',
         padId: evt.padId,
@@ -381,9 +353,45 @@ export class GameplayEngine {
       this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 400);
     }
 
-    if (s.combo > s.maxCombo) s.maxCombo = s.combo;
     this.onJudgement?.(evt, judgement, offset);
     this.onScoreChange?.(this.state);
+  }
+
+  private calculateMultiplier(combo: number): number {
+    if (combo >= 40) return 8;
+    if (combo >= 20) return 4;
+    if (combo >= 10) return 2;
+    return 1;
+  }
+
+  private calculateAccuracy(): number {
+    const total = this.playerState.perfectCount + this.playerState.goodCount + this.playerState.missCount;
+    if (total === 0) return 100;
+    const acc = ((this.playerState.perfectCount * 300 + this.playerState.goodCount * 100) / (total * 300)) * 100;
+    return Number(acc.toFixed(1));
+  }
+
+  private applyHitScore(judgement: 'perfect' | 'good'): void {
+    const s = this.playerState;
+    s.combo++;
+    if (s.combo > s.maxCombo) s.maxCombo = s.combo;
+    s.multiplier = this.calculateMultiplier(s.combo);
+
+    const basePoints = judgement === 'perfect' ? 300 : 100;
+    s.score += basePoints * s.multiplier;
+
+    if (judgement === 'perfect') s.perfectCount++;
+    else s.goodCount++;
+
+    s.accuracy = this.calculateAccuracy();
+  }
+
+  private applyMiss(): void {
+    const s = this.playerState;
+    s.combo = 0;
+    s.multiplier = 1;
+    s.missCount++;
+    s.accuracy = this.calculateAccuracy();
   }
 
   // ---- Helpers ----
@@ -433,6 +441,8 @@ export class GameplayEngine {
       score: 0,
       combo: 0,
       maxCombo: 0,
+      multiplier: 1,
+      accuracy: 100,
       perfectCount: 0,
       goodCount: 0,
       missCount: 0,

@@ -51,10 +51,10 @@ export interface PadEvent {
 
 // ---- Pad configuration ----
 
-/**
- * Semantic acoustic role of a pad within the musical arrangement.
- * Drives default color palettes and VisualEngine reactivity profiles.
- */
+/** Audio modulation channel derived from frequency bands. */
+export type ModulationChannel = 'bass' | 'mids' | 'treble' | 'ambient';
+
+/** Semantic acoustic function within the musical arrangement. */
 export type PadRole =
   | 'kick' | 'snare' | 'drums'
   | 'bass' | 'lead' | 'synth'
@@ -71,10 +71,12 @@ export interface PadConfig {
   keyHint?: string;
   /** Semantic acoustic function within the musical arrangement. */
   role?: PadRole;
+  /** Explicit audio modulation channel. If omitted, derived from role. */
+  audioChannel?: ModulationChannel;
 }
 
-/** Song metadata. */
-export interface SongInfo {
+/** Song metadata (Sección 11 Informe.md). */
+export interface SongData {
   id: string;
   title: string;
   artist: string;
@@ -84,13 +86,14 @@ export interface SongInfo {
   offset: number;
   /** Duration in seconds. */
   duration: number;
-  /**
-   * URL to an external audio file. When provided, the AudioEngine loads and
-   * plays this file instead of synthesizing procedural music.
-   * Leave undefined to use the built-in procedural synthesizer.
-   */
+  /** URL or path to external audio file. */
   url?: string;
+  audioUrl?: string;
+  licenseInfo?: string;
 }
+
+/** SongInfo alias for backward compatibility. */
+export type SongInfo = SongData;
 
 /** Judgement result for a hit event. */
 export type Judgement = 'perfect' | 'good' | 'miss';
@@ -107,6 +110,8 @@ export interface PlayerState {
   score: number;
   combo: number;
   maxCombo: number;
+  multiplier: number;
+  accuracy: number;
   perfectCount: number;
   goodCount: number;
   missCount: number;
@@ -130,7 +135,8 @@ export interface LevelData {
     difficulty: string;
     author: string;
   };
-  song: SongInfo;
+  songId?: string;
+  song: SongData;
   pads: PadConfig[];
   /** All authored pad events, ordered chronologically by targetTime. */
   events: PadEvent[];
@@ -143,6 +149,8 @@ export interface LevelData {
     nodes: SceneNodeData[];
     animations: AnimationData[];
     triggers: TriggerData[];
+    audioMappings?: AudioMapping[];
+    settings?: LevelVisualSettings;
   };
 }
 
@@ -239,6 +247,39 @@ export interface AnimationData {
   targetId: string; // ID of the VisualObject or SceneGroup
   property: 'x' | 'y' | 'scaleX' | 'scaleY' | 'rotation' | 'alpha';
   keyframes: Keyframe[];
+}
+
+// ---- Audio Modulation Channels (Etapa 2 Roadmap) ----
+
+export type ModulatableProperty =
+  | 'scale'
+  | 'scaleX'
+  | 'scaleY'
+  | 'opacity'
+  | 'rotation'
+  | 'x'
+  | 'y';
+
+export interface AudioMapping {
+  id: string;
+  /** Target SceneNode ID numérico, 'all' o identificador de objeto. */
+  targetId: number | string;
+  channel: ModulationChannel;
+  property: ModulatableProperty;
+  baseValue?: number;
+  multiplier: number;
+  clampMin?: number;
+  clampMax?: number;
+}
+
+export interface LevelVisualSettings {
+  backgroundReactive?: boolean;
+  backgroundBassMultiplier?: number;
+  gridEnabled?: boolean;
+  gridReactive?: boolean;
+  rgbShiftEnabled?: boolean;
+  rgbShiftIntensity?: number;
+  bloomIntensity?: number;
 }
 
 // ---- Gameplay Event Bus Types ----

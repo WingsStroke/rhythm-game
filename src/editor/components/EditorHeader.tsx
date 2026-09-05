@@ -34,6 +34,7 @@ interface EditorHeaderProps {
   onLoadAudioFile: (file: File) => void;
   onImportJson: (file: File) => void;
   onExport: () => void;
+  onPlaytest?: () => void;
   onExit: () => void;
 }
 
@@ -54,6 +55,7 @@ export function EditorHeader({
   onLoadAudioFile,
   onImportJson,
   onExport,
+  onPlaytest,
   onExit,
 }: EditorHeaderProps) {
   return (
@@ -151,6 +153,18 @@ export function EditorHeader({
 
       {/* Action Buttons: Audio, Import, Export, Exit */}
       <div className="flex items-center gap-2.5">
+        {/* Playtest / Test Play in Real Game */}
+        {onPlaytest && (
+          <button
+            onClick={onPlaytest}
+            title="Probar nivel en el motor de juego real (Standalone Runtime)"
+            className="px-3.5 py-1.5 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white font-black rounded hover:scale-105 active:scale-95 transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#ff2d6f]/30 mr-1"
+          >
+            <Play className="w-3.5 h-3.5 fill-white" />
+            <span>PROBAR NIVEL</span>
+          </button>
+        )}
+
         {/* Load Audio File */}
         <label
           title="Load Audio File (.mp3, .wav, .ogg)"

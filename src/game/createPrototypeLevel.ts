@@ -36,6 +36,7 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
       difficulty: 'Normal',
       author: 'Prototype',
     },
+    songId: 'proto-song',
     song: {
       id: 'proto-song',
       title: 'Neon Pulse',
@@ -87,6 +88,23 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
         },
       ],
       triggers: [],
+      audioMappings: [
+        {
+          id: 'mapping_pulse_rect',
+          targetId: 'test_rect',
+          channel: 'bass',
+          property: 'scale',
+          baseValue: 1,
+          multiplier: 0.25,
+        },
+      ],
+      settings: {
+        backgroundReactive: true,
+        gridEnabled: true,
+        gridReactive: true,
+        rgbShiftEnabled: true,
+        bloomIntensity: 1.06,
+      },
     },
   };
 }
