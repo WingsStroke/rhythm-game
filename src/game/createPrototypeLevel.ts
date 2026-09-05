@@ -15,15 +15,17 @@ export const SONG_URL = '/audio/song.mp3';
  * If `songUrl` is provided, the level references that audio file and the
  * AudioEngine will load it. If omitted, the procedural synthesizer plays.
  *
- * The beatmap is always generated procedurally and synced to the BPM —
- * this is a prototype. When a real beatmap is authored (via the editor),
- * it will replace the generated notes.
+ * Pad semantic roles:
+ *  - Pad 0 (Kick)     → role: 'kick',  behavior: 'tap'
+ *  - Pad 1 (Snare)    → role: 'snare', behavior: 'tap'
+ *  - Pad 2 (Lead)     → role: 'lead',  behavior: 'tap'
+ *  - Pad 3 (FX)       → role: 'fx',    behavior: 'tap'
  */
 export function createPrototypeLevel(songUrl?: string): LevelData {
   const bpm = 128;
   const bars = 16; // ~30 seconds of gameplay
   const leadInBars = 2;
-  const notes = BeatmapGenerator.generate(bpm, bars, leadInBars);
+  const events = BeatmapGenerator.generate(bpm, bars, leadInBars);
   const duration = ((bars + leadInBars) * 4 * 60) / bpm;
 
   return {
@@ -44,7 +46,7 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
       url: songUrl,
     },
     pads: BeatmapGenerator.defaultPads(),
-    notes,
+    events,
     timing: {
       bpm,
       offset: 0,
@@ -66,9 +68,9 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
           properties: {
             width: 200,
             height: 100,
-            color: '#00e5ff'
-          }
-        }
+            color: '#00e5ff',
+          },
+        },
       ],
       animations: [
         {
@@ -78,9 +80,9 @@ export function createPrototypeLevel(songUrl?: string): LevelData {
           keyframes: [
             { time: 0, value: 500, easing: 'easeInOut' },
             { time: 2, value: 900, easing: 'easeInOut' },
-            { time: 4, value: 500, easing: 'easeInOut' }
-          ]
-        }
+            { time: 4, value: 500, easing: 'easeInOut' },
+          ],
+        },
       ],
       triggers: [],
     },

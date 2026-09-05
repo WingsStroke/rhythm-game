@@ -3,9 +3,13 @@ import type { GameplayEvent, GameplayEventType } from '../types';
 export type EventBusListener = (event: GameplayEvent) => void;
 
 /**
- * Decoupled event bus for gameplay events (hits, misses, combo breaks).
+ * Decoupled event bus for gameplay events.
+ *
+ * Channels: HIT_PERFECT, HIT_GOOD, HIT_MISS, COMBO_BREAK,
+ *           PAD_STATE_CHANGE, TRIGGER_TRIGGERED, PHRASE_COMPLETED
+ *
  * Allows VisualEngine and other systems to react to player actions
- * without direct method couplings.
+ * without direct method couplings between classes.
  */
 export class GameplayEventBus {
   private listeners: Map<GameplayEventType | '*', Set<EventBusListener>> = new Map();

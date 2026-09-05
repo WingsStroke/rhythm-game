@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Text, ColorMatrixFilter, Filter, Ticker } from 'pixi.js';
 import type {
   LevelData,
-  Note,
+  PadEvent,
   PadId,
   PadConfig,
   AudioBands,
@@ -60,7 +60,7 @@ export class VisualEngine {
   private root: HTMLElement;
   private level: LevelData;
   private pads: PadConfig[];
-  private notes: Note[];
+  private events: PadEvent[];
 
   // Strict Layer Hierarchy
   private bgLayer!: Container;
@@ -86,7 +86,7 @@ export class VisualEngine {
   private bgRect!: Graphics;
   private bgGrid!: Graphics;
   private laneGfx!: Graphics;
-  private noteGraphics: Map<Note, Graphics> = new Map();
+  private noteGraphics: Map<PadEvent, Graphics> = new Map();
   private padVisuals: Map<PadId, PadVisual> = new Map();
   private judgementPopups: JudgementPopup[] = [];
   private scoreText!: Text;
@@ -112,7 +112,7 @@ export class VisualEngine {
     this.root = root;
     this.level = level;
     this.pads = level.pads;
-    this.notes = level.notes;
+    this.events = level.events;
     this.app = new Application();
     this.audioModulator = new AudioModulator();
   }
@@ -130,15 +130,15 @@ export class VisualEngine {
     this.setupFilters();
   }
 
-  public syncNotes(newNotes: Note[]): void {
-    // Destroy graphics for notes that are no longer in the new array
-    for (const [note, gfx] of this.noteGraphics) {
-      if (!newNotes.includes(note)) {
+  public syncEvents(newEvents: PadEvent[]): void {
+    // Destroy graphics for events that are no longer in the new array
+    for (const [event, gfx] of this.noteGraphics) {
+      if (!newEvents.includes(event)) {
         gfx.destroy();
-        this.noteGraphics.delete(note);
+        this.noteGraphics.delete(event);
       }
     }
-    this.notes = newNotes;
+    this.events = newEvents;
   }
 
   public syncLevelVisual(level: LevelData): void {
@@ -160,27 +160,40 @@ export class VisualEngine {
     this.eventBus = bus;
 
     this.eventUnsubscribers.push(
-      bus.subscribe('HIT_PERFECT', (event) => {
-        if (event.note) this.showJudgement(event.note, 'perfect');
-        if (event.score !== undefined && event.combo !== undefined) {
-          this.updateScore(event.score, event.combo);
+      bus.subscribe('HIT_PERFECT', (gameEvent) => {
+        if (gameEvent.event) this.showJudgement(gameEvent.event, 'perfect');
+        if (gameEvent.score !== undefined && gameEvent.combo !== undefined) {
+          this.updateScore(gameEvent.score, gameEvent.combo);
         }
       }),
-      bus.subscribe('HIT_GOOD', (event) => {
-        if (event.note) this.showJudgement(event.note, 'good');
-        if (event.score !== undefined && event.combo !== undefined) {
-          this.updateScore(event.score, event.combo);
+      bus.subscribe('HIT_GOOD', (gameEvent) => {
+        if (gameEvent.event) this.showJudgement(gameEvent.event, 'good');
+        if (gameEvent.score !== undefined && gameEvent.combo !== undefined) {
+          this.updateScore(gameEvent.score, gameEvent.combo);
         }
       }),
-      bus.subscribe('HIT_MISS', (event) => {
-        if (event.note) this.showJudgement(event.note, 'miss');
-        if (event.score !== undefined && event.combo !== undefined) {
-          this.updateScore(event.score, event.combo);
+      bus.subscribe('HIT_MISS', (gameEvent) => {
+        if (gameEvent.event) this.showJudgement(gameEvent.event, 'miss');
+        if (gameEvent.score !== undefined && gameEvent.combo !== undefined) {
+          this.updateScore(gameEvent.score, gameEvent.combo);
         }
       }),
       bus.subscribe('COMBO_BREAK', () => {
         if (this.comboText) {
           this.comboText.text = '';
+        }
+      }),
+      bus.subscribe('PAD_STATE_CHANGE', (gameEvent) => {
+        // Visual feedback based on PadState transitions
+        if (gameEvent.newState === 'success') {
+          this.pressPad(gameEvent.padId);
+        } else if (gameEvent.newState === 'miss') {
+          // Brief dim effect is handled by pressAnim decay
+        }
+      }),
+      bus.subscribe('TRIGGER_TRIGGERED', (gameEvent) => {
+        if (gameEvent.triggerId && this.triggerDispatcher) {
+          this.triggerDispatcher.fireTrigger(gameEvent.triggerId);
         }
       })
     );
@@ -525,15 +538,15 @@ export class VisualEngine {
     if (pv) pv.pressed = false;
   }
 
-  showJudgement(note: Note, judgement: Judgement): void {
+  showJudgement(event: PadEvent, judgement: Judgement): void {
     // 1. Immediately remove note sprite from screen
-    const noteGfx = this.noteGraphics.get(note);
+    const noteGfx = this.noteGraphics.get(event);
     if (noteGfx) {
       noteGfx.destroy();
-      this.noteGraphics.delete(note);
+      this.noteGraphics.delete(event);
     }
 
-    const pv = this.padVisuals.get(note.pad);
+    const pv = this.padVisuals.get(event.padId);
     if (!pv) return;
     const x = pv.x + 50;
     const y = this.padY + PAD_HEIGHT / 2;
@@ -682,20 +695,20 @@ export class VisualEngine {
       }
     }
 
-    // 6. Cleanup notes that fell past the pads
-    for (const [note, gfx] of this.noteGraphics) {
-      if (note.time + 0.4 < audioTime) {
+    // 6. Cleanup events that fell past the pads
+    for (const [event, gfx] of this.noteGraphics) {
+      if (event.targetTime + 0.4 < audioTime) {
         gfx.destroy();
-        this.noteGraphics.delete(note);
+        this.noteGraphics.delete(event);
       }
     }
 
-    // 7. Spawn notes approaching within leadTime window
-    for (const note of this.notes) {
-      if (this.noteGraphics.has(note)) continue;
-      const timeUntilHit = note.time - audioTime;
+    // 7. Spawn event sprites approaching within leadTime window
+    for (const event of this.events) {
+      if (this.noteGraphics.has(event)) continue;
+      const timeUntilHit = event.targetTime - audioTime;
       if (timeUntilHit > this.leadTime || timeUntilHit < -0.2) continue;
-      const padConfig = this.pads.find((p) => p.id === note.pad);
+      const padConfig = this.pads.find((p) => p.id === event.padId);
       if (!padConfig) continue;
 
       const gfx = new Graphics();
@@ -706,14 +719,14 @@ export class VisualEngine {
         .fill({ color, alpha: 0.92 });
       gfx.stroke({ color: 0xffffff, width: 2, alpha: 0.7 });
       this.noteLayer.addChild(gfx);
-      this.noteGraphics.set(note, gfx);
+      this.noteGraphics.set(event, gfx);
     }
 
-    // 8. Note positions: fall from top towards pad center
+    // 8. Event positions: fall from top towards pad center
     const targetY = this.padY + PAD_HEIGHT / 2;
-    for (const [note, gfx] of this.noteGraphics) {
-      const x = this.padXPositions.get(note.pad) ?? 0;
-      const progress = 1 - (note.time - audioTime) / this.leadTime;
+    for (const [event, gfx] of this.noteGraphics) {
+      const x = this.padXPositions.get(event.padId) ?? 0;
+      const progress = 1 - (event.targetTime - audioTime) / this.leadTime;
       const y = targetY - FALL_DISTANCE * (1 - progress);
 
       gfx.x = x + 50;
@@ -823,6 +836,7 @@ export class VisualEngine {
       }
     }
     this.noteGraphics.clear();
+    this.events = [];
 
     for (const popup of this.judgementPopups) {
       try {

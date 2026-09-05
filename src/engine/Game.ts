@@ -1,24 +1,24 @@
-import { AudioEngine } from './audio/AudioEngine';
+import { AudioTransport } from './time/AudioTransport';
 import { InputManager } from './input/InputManager';
 import { GameplayEngine } from './gameplay/GameplayEngine';
 import { GameplayEventBus } from './gameplay/GameplayEventBus';
 import { VisualEngine } from './visual/VisualEngine';
 import { BeatmapGenerator } from './beatmap/BeatmapGenerator';
-import type { LevelData, PlayerState, Judgement, Note, PadId } from './types';
+import type { LevelData, PlayerState, Judgement, PadEvent, PadId } from './types';
 import type { Ticker } from 'pixi.js';
 
 /**
  * Game — top-level orchestrator.
  *
- * Wires together: AudioEngine, InputManager, GameplayEngine, VisualEngine.
+ * Wires together: AudioTransport, InputManager, GameplayEngine, VisualEngine.
  *
  * The update loop runs on PixiJS's Ticker (driven by rAF), but all time
- * references use the audio clock. This ensures frame-rate-independent
- * gameplay: timing, hit detection, and note positions are based on
- * AudioContext.currentTime, not frame count.
+ * references use the audio clock via Transport.getTime(). This ensures
+ * frame-rate-independent gameplay: timing, hit detection, and event positions
+ * are based on AudioContext.currentTime, not frame count.
  */
 export class Game {
-  private audio: AudioEngine;
+  private transport: AudioTransport;
   private input: InputManager;
   private gameplay: GameplayEngine;
   private eventBus: GameplayEventBus;
@@ -33,26 +33,26 @@ export class Game {
   public onLoadStatus: ((status: string) => void) | null = null;
 
   get songSource(): 'file' | 'procedural' {
-    return this.audio.isUsingFile ? 'file' : 'procedural';
+    return this.transport.isUsingFile ? 'file' : 'procedural';
   }
 
   constructor(container: HTMLElement, level: LevelData) {
     this.container = container;
     this.level = level;
     this.eventBus = new GameplayEventBus();
-    this.audio = new AudioEngine();
-    this.input = new InputManager(() => this.audio.getTime());
-    this.gameplay = new GameplayEngine(level, () => this.audio.getTime(), this.eventBus);
-    this.visual = new VisualEngine(container, level, this.audio);
+    this.transport = new AudioTransport();
+    this.input = new InputManager(() => this.transport.getTime());
+    this.gameplay = new GameplayEngine(level, () => this.transport.getTime(), this.eventBus);
+    this.visual = new VisualEngine(container, level, this.transport.audioEngine);
   }
 
   async start(): Promise<void> {
     // 1. Initialize audio (must be from user gesture)
-    await this.audio.init();
+    await this.transport.init();
 
     // 2. Load external audio file if the level specifies one
     if (this.level.song.url) {
-      await this.audio.loadFile(this.level.song.url);
+      await this.transport.loadFile(this.level.song.url);
     }
 
     // 3. Initialize visual engine (PixiJS)
@@ -65,10 +65,10 @@ export class Game {
     // 5. Set up the update loop on PixiJS ticker
     this.visual.setUpdateCallback((_ticker: Ticker) => this.frameUpdate());
 
-    // 6. Start audio + gameplay
+    // 6. Start gameplay and transport
     this.gameplay.start();
-    this.audio.onBeat = (beatIndex: number) => this.visual.onBeat(beatIndex);
-    this.audio.start(this.level.song.bpm);
+    this.transport.onBeat((beatIndex: number) => this.visual.onBeat(beatIndex));
+    await this.transport.play(this.level.song.bpm, 0);
 
     this.running = true;
   }
@@ -77,7 +77,6 @@ export class Game {
     const map: Record<string, PadId> = {};
     for (const pad of this.level.pads) {
       if (pad.keyHint) {
-        // keyHint is a character like "A" -> KeyboardEvent.code "KeyA"
         map[`Key${pad.keyHint}`] = pad.id;
       }
     }
@@ -106,10 +105,10 @@ export class Game {
   private frameUpdate(): void {
     if (!this.running) return;
 
-    const audioTime = this.audio.getTime();
-    const bands = this.audio.getAudioBands();
+    const audioTime = this.transport.getTime();
+    const bands = this.transport.getAudioBands();
 
-    // Update gameplay (check for misses)
+    // Update gameplay (check for misses, loop/hold expiry, pre-cue states)
     this.gameplay.update();
 
     // Update visuals
@@ -127,9 +126,9 @@ export class Game {
   stop(): void {
     this.running = false;
     try {
-      this.audio.stop();
+      this.transport.stop();
     } catch (e) {
-      console.warn('Error stopping audio:', e);
+      console.warn('Error stopping transport:', e);
     }
     try {
       this.input.detach();
@@ -146,9 +145,9 @@ export class Game {
       console.warn('Error disposing visual engine:', e);
     }
     try {
-      this.audio.dispose();
+      this.transport.dispose();
     } catch (e) {
-      console.warn('Error disposing audio engine:', e);
+      console.warn('Error disposing transport:', e);
     }
   }
 }

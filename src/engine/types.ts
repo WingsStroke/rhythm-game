@@ -5,20 +5,60 @@
 /** Pad identity. A pad represents a sonic FUNCTION (e.g. "kick"), not a pitch. */
 export type PadId = string;
 
-/** Note types — extensible for future hold/release/special notes. */
-export type NoteType = 'tap' | 'hold';
+// ---- PadEvent — replaces the old Note interface ----
 
-/** A single note in a beatmap. */
-export interface Note {
-  /** Time in seconds (relative to song start) when the note should be hit. */
-  time: number;
-  /** Target pad id (e.g. "pad_0"). */
-  pad: PadId;
-  /** Note type. */
-  type: NoteType;
-  /** Duration for hold notes (seconds). 0 for tap notes. */
+/**
+ * The interaction mode required from the player for a given event.
+ *  - 'tap'     : Single precise press aligned to the target time.
+ *  - 'hold'    : Press and sustain from targetTime until targetTime + duration.
+ *  - 'loop'    : Activates a persistent playback state for a span of measures.
+ *  - 'trigger' : Tap that fires an audiovisual trigger on success.
+ */
+export type PadBehavior = 'tap' | 'hold' | 'loop' | 'trigger';
+
+/**
+ * Discrete states that govern a pad's LED-like feedback.
+ *  - 'ready'   : Idle, dim base illumination.
+ *  - 'queued'  : Pre-cue flash (~half a measure before the event).
+ *  - 'playing' : Loop active, modulated in real-time by FFT spectrum.
+ *  - 'holding' : Active sustained press emitting continuous energy.
+ *  - 'success' : Hit flash after a valid judgement.
+ *  - 'miss'    : Desaturation/dimming after a temporal error.
+ */
+export type PadState = 'ready' | 'queued' | 'playing' | 'holding' | 'success' | 'miss';
+
+/**
+ * A single authoring event in the level. Carries a stable unique ID
+ * so that operations in the engine and editor (selection, undo/redo,
+ * duplication, serialization) are always safe and index-independent.
+ */
+export interface PadEvent {
+  /** Immutable unique identifier (UUID/nanoid). */
+  id: string;
+  /** Musical execution timestamp in seconds (audio clock). */
+  targetTime: number;
+  /** Target pad that must receive the interaction. */
+  padId: PadId;
+  /** Interaction modality required from the player. */
+  behavior: PadBehavior;
+  /** Temporal length required for 'hold' and 'loop' behaviors (seconds). */
   duration?: number;
+  /** Visual trigger identifier linked to 'trigger' behavior events. */
+  triggerId?: string;
+  /** Preparatory flag for rhythmic quantization. */
+  quantized?: boolean;
 }
+
+// ---- Pad configuration ----
+
+/**
+ * Semantic acoustic role of a pad within the musical arrangement.
+ * Drives default color palettes and VisualEngine reactivity profiles.
+ */
+export type PadRole =
+  | 'kick' | 'snare' | 'drums'
+  | 'bass' | 'lead' | 'synth'
+  | 'vocal' | 'fx' | 'custom';
 
 /** Pad configuration within a level. */
 export interface PadConfig {
@@ -29,6 +69,8 @@ export interface PadConfig {
   color: string;
   /** Key binding hint for the editor (not used by the engine directly). */
   keyHint?: string;
+  /** Semantic acoustic function within the musical arrangement. */
+  role?: PadRole;
 }
 
 /** Song metadata. */
@@ -50,7 +92,7 @@ export interface SongInfo {
   url?: string;
 }
 
-/** Judgement result for a hit note. */
+/** Judgement result for a hit event. */
 export type Judgement = 'perfect' | 'good' | 'miss';
 
 /** Timing windows in seconds. */
@@ -90,7 +132,8 @@ export interface LevelData {
   };
   song: SongInfo;
   pads: PadConfig[];
-  notes: Note[];
+  /** All authored pad events, ordered chronologically by targetTime. */
+  events: PadEvent[];
   timing: {
     bpm: number;
     offset: number;
@@ -101,6 +144,24 @@ export interface LevelData {
     animations: AnimationData[];
     triggers: TriggerData[];
   };
+}
+
+// ---- Performance Phrases ----
+
+/**
+ * Groups a sequence of PadEvents that must be perceived as a single
+ * interpretive entity. Used by GameplayEngine to detect and reward
+ * successful chained sequences.
+ *
+ * NOTE: Logic for phrase completion detection is planned for a future phase.
+ * This interface defines the data contract only.
+ */
+export interface PerformancePhrase {
+  id: string;
+  startTime: number;
+  endTime: number;
+  /** Ordered list of PadEvent IDs belonging to this phrase. */
+  eventIds: string[];
 }
 
 // ---- Data-Driven Visual Engine Types ----
@@ -175,16 +236,34 @@ export interface AnimationData {
   keyframes: Keyframe[];
 }
 
-/** Gameplay judgement event emitted by GameplayEngine. */
-export type GameplayEventType = 'HIT_PERFECT' | 'HIT_GOOD' | 'HIT_MISS' | 'COMBO_BREAK';
+// ---- Gameplay Event Bus Types ----
 
+export type GameplayEventType =
+  | 'HIT_PERFECT'
+  | 'HIT_GOOD'
+  | 'HIT_MISS'
+  | 'COMBO_BREAK'
+  | 'PAD_STATE_CHANGE'
+  | 'TRIGGER_TRIGGERED'
+  | 'PHRASE_COMPLETED';
+
+/** Gameplay event emitted by GameplayEngine and dispatched via GameplayEventBus. */
 export interface GameplayEvent {
   type: GameplayEventType;
   padId: PadId;
   time: number;
-  note?: Note;
+  /** The pad event that originated this gameplay event. */
+  event?: PadEvent;
   score?: number;
   combo?: number;
+  /** For PAD_STATE_CHANGE: the previous state of the pad. */
+  oldState?: PadState;
+  /** For PAD_STATE_CHANGE: the new state of the pad. */
+  newState?: PadState;
+  /** For TRIGGER_TRIGGERED: the visual trigger identifier. */
+  triggerId?: string;
+  /** For PHRASE_COMPLETED: the phrase identifier. */
+  phraseId?: string;
 }
 
 /** Audio frequency band data for visual reactivity. */
@@ -199,8 +278,7 @@ export interface AudioBands {
   waveData: Uint8Array;
 }
 
-/** Callback when a note is judged. */
+/** Callback when a pad event is judged. */
 export interface JudgementCallback {
-  (note: Note, judgement: Judgement, offset: number): void;
+  (event: PadEvent, judgement: Judgement, offset: number): void;
 }
-

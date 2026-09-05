@@ -65,6 +65,16 @@ export class TriggerDispatcher {
   }
 
   /**
+   * Fires a trigger immediately by its ID (e.g. triggered by interactive gameplay).
+   */
+  public fireTrigger(triggerId: string, currentTime = 0): void {
+    const trigger = this.triggers.find((t) => t.id === triggerId);
+    if (trigger) {
+      this.dispatch(trigger, currentTime);
+    }
+  }
+
+  /**
    * Dispatches a single trigger, applying transformations or routing visual effects.
    */
   public dispatch(trigger: TriggerData, currentTime: number): void {

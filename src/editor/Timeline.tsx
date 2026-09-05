@@ -1,17 +1,17 @@
-import { useState, useRef, useEffect } from 'react';
-import type { LevelData, PadId, Note } from '../engine/types';
+import { useRef, useEffect } from 'react';
+import type { LevelData, PadId } from '../engine/types';
 
 interface TimelineProps {
   level: LevelData;
   currentTime: number;
   onSeek?: (time: number) => void;
-  onAddNote: (time: number, padId: PadId) => void;
-  onRemoveNote: (index: number) => void;
+  onAddEvent: (time: number, padId: PadId) => void;
+  onRemoveEvent: (id: string) => void;
 }
 
 const SECONDS_PER_PIXEL = 0.01; // Zoom level
 
-export function Timeline({ level, currentTime, onSeek, onAddNote, onRemoveNote }: TimelineProps) {
+export function Timeline({ level, currentTime, onSeek, onAddEvent, onRemoveEvent }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isAutoScrolling = useRef(false);
 
@@ -53,7 +53,7 @@ export function Timeline({ level, currentTime, onSeek, onAddNote, onRemoveNote }
     const snapInterval = beatDuration / 4;
     const snappedTime = Math.round(clickedTime / snapInterval) * snapInterval;
     
-    onAddNote(snappedTime, padId);
+    onAddEvent(snappedTime, padId);
   };
 
   const handleSeek = (e: React.MouseEvent) => {
@@ -71,7 +71,7 @@ export function Timeline({ level, currentTime, onSeek, onAddNote, onRemoveNote }
         className="h-8 border-b border-white/10 bg-black/40 relative overflow-hidden flex-shrink-0 cursor-crosshair"
         onClick={handleSeek}
       >
-         {/* Ruler markings can go here */}
+         {/* Ruler markings */}
          <div className="absolute top-0 left-0 h-full flex items-end text-[10px] text-white/40" style={{ width: widthPx }}>
             {Array.from({ length: totalBeats }).map((_, i) => (
                <div 
@@ -116,15 +116,13 @@ export function Timeline({ level, currentTime, onSeek, onAddNote, onRemoveNote }
                   <span className="text-xs font-mono">{pad.label}</span>
                 </div>
 
-                {/* Notes */}
-                {level.notes.filter(n => n.pad === pad.id).map((note, idx) => {
-                  const x = note.time / SECONDS_PER_PIXEL;
-                  // Original index across all notes is needed for removal
-                  const originalIndex = level.notes.indexOf(note);
+                {/* Events */}
+                {level.events.filter(e => e.padId === pad.id).map((event) => {
+                  const x = event.targetTime / SECONDS_PER_PIXEL;
                   
                   return (
                     <div
-                      key={idx}
+                      key={event.id}
                       className="absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-sm hover:scale-125 transition-transform z-30"
                       style={{ 
                         left: x - 6, 
@@ -133,7 +131,7 @@ export function Timeline({ level, currentTime, onSeek, onAddNote, onRemoveNote }
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        onRemoveNote(originalIndex);
+                        onRemoveEvent(event.id);
                       }}
                     />
                   );

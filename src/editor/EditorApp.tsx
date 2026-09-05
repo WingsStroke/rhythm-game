@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Timeline } from './Timeline';
-import { AudioEngine } from '../engine/audio/AudioEngine';
+import { AudioTransport } from '../engine/time/AudioTransport';
 import { VisualEngine } from '../engine/visual/VisualEngine';
-import type { LevelData, Note, PadId, AudioBands } from '../engine/types';
+import type { LevelData, PadEvent, PadId, AudioBands } from '../engine/types';
 import { BeatmapGenerator } from '../engine/beatmap/BeatmapGenerator';
 import { Play, Pause, Square, Download, LogOut, Clock, Activity, Settings2, SlidersHorizontal, MousePointerClick, Gamepad2, ListVideo } from 'lucide-react';
 
@@ -24,7 +24,7 @@ const initialLevel: LevelData = {
     duration: 120,
   },
   pads: BeatmapGenerator.defaultPads(),
-  notes: [],
+  events: [],
   timing: {
     bpm: 120,
     offset: 0,
@@ -53,7 +53,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
   const [activeTab, setActiveTab] = useState<EditorTab>('timeline');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const audioRef = useRef<AudioEngine | null>(null);
+  const transportRef = useRef<AudioTransport | null>(null);
   const visualRef = useRef<VisualEngine | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number>(0);
@@ -63,7 +63,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     if (activeTab !== 'preview' || !canvasContainerRef.current) return;
     if (visualRef.current) return; // Already initialized
 
-    const ve = new VisualEngine(canvasContainerRef.current, level, null as any);
+    const ve = new VisualEngine(canvasContainerRef.current, level, transportRef.current?.audioEngine ?? null);
     ve.onNodeSelect = (id) => setSelectedNodeId(id);
     ve.init().then(() => {
       visualRef.current = ve;
@@ -78,24 +78,24 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     };
   }, []);
 
-  // Sync notes to VisualEngine in real-time when level.notes changes
+  // Sync events to VisualEngine in real-time when level.events changes
   useEffect(() => {
     if (visualRef.current) {
-      visualRef.current.syncNotes(level.notes);
+      visualRef.current.syncEvents(level.events);
     }
-  }, [level.notes, activeTab]); // also run when tab changes because it might be newly initialized
+  }, [level.events, activeTab]); // also run when tab changes because it might be newly initialized
 
-  // Main animation loop — runs always but only polls audio when playing
+  // Main animation loop — runs always but only polls transport when playing
   useEffect(() => {
     const loop = () => {
       let t = currentTime;
-      if (isPlaying && audioRef.current) {
-        t = audioRef.current.getTime();
+      if (isPlaying && transportRef.current) {
+        t = transportRef.current.getTime();
         setCurrentTime(t);
       }
       if (visualRef.current && activeTab === 'preview') {
-        const bands: AudioBands = (isPlaying && audioRef.current)
-          ? audioRef.current.getAudioBands()
+        const bands: AudioBands = (isPlaying && transportRef.current)
+          ? transportRef.current.getAudioBands()
           : {
               bass: 0, mids: 0, treble: 0, amplitude: 0,
               freqData: new Uint8Array(0), waveData: new Uint8Array(0),
@@ -110,23 +110,23 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
 
   const togglePlay = async () => {
     if (isPlaying) {
-      audioRef.current?.stop();
+      transportRef.current?.pause();
       setIsPlaying(false);
     } else {
-      if (!audioRef.current) {
-        audioRef.current = new AudioEngine();
-        await audioRef.current.init();
+      if (!transportRef.current) {
+        transportRef.current = new AudioTransport();
+        await transportRef.current.init();
         if (level.song.url) {
-          await audioRef.current.loadFile(level.song.url);
+          await transportRef.current.loadFile(level.song.url);
         }
       }
-      audioRef.current.start(level.timing.bpm, currentTime);
+      await transportRef.current.play(level.timing.bpm, currentTime);
       setIsPlaying(true);
     }
   };
 
   const handleStop = () => {
-    audioRef.current?.stop();
+    transportRef.current?.stop();
     setIsPlaying(false);
     setCurrentTime(0);
     visualRef.current?.seek(0);
@@ -140,20 +140,25 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     dlAnchorElem.click();
   };
 
-  const addNote = (time: number, padId: PadId) => {
+  const addEvent = (time: number, padId: PadId) => {
+    const newEvent: PadEvent = {
+      id: crypto.randomUUID(),
+      padId,
+      targetTime: time,
+      behavior: 'tap',
+    };
     setLevel(prev => {
-      const newNotes = [...prev.notes, { time, pad: padId, type: 'tap' }];
-      newNotes.sort((a, b) => a.time - b.time);
-      return { ...prev, notes: newNotes as Note[] };
+      const newEvents = [...prev.events, newEvent];
+      newEvents.sort((a, b) => a.targetTime - b.targetTime);
+      return { ...prev, events: newEvents };
     });
   };
 
-  const removeNote = (index: number) => {
-    setLevel(prev => {
-      const newNotes = [...prev.notes];
-      newNotes.splice(index, 1);
-      return { ...prev, notes: newNotes };
-    });
+  const removeEvent = (id: string) => {
+    setLevel(prev => ({
+      ...prev,
+      events: prev.events.filter(e => e.id !== id),
+    }));
   };
 
   const formatTime = (t: number) => {
@@ -213,7 +218,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
           <button onClick={handleExport} className="px-4 py-1.5 bg-[#00e5ff]/20 text-[#00e5ff] rounded hover:bg-[#00e5ff]/40 transition-colors text-sm font-semibold flex items-center gap-2">
             <Download className="w-4 h-4" /> Export JSON
           </button>
-          <button onClick={() => { audioRef.current?.dispose(); onExit(); }} className="px-4 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/40 transition-colors text-sm font-semibold flex items-center gap-2">
+          <button onClick={() => { transportRef.current?.dispose(); onExit(); }} className="px-4 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/40 transition-colors text-sm font-semibold flex items-center gap-2">
             <LogOut className="w-4 h-4" /> Exit
           </button>
         </div>
@@ -283,7 +288,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
               <Gamepad2 className="w-4 h-4" /> Live Preview
             </button>
             <div className="ml-auto px-4 flex items-center text-xs text-white/30">
-              {level.notes.length} notes
+              {level.events.length} events
             </div>
           </div>
 
@@ -297,10 +302,11 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
                 currentTime={currentTime}
                 onSeek={(t) => {
                   setCurrentTime(t);
+                  transportRef.current?.seek(t);
                   visualRef.current?.seek(t);
                 }}
-                onAddNote={addNote}
-                onRemoveNote={removeNote}
+                onAddEvent={addEvent}
+                onRemoveEvent={removeEvent}
               />
             </div>
 
