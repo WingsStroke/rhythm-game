@@ -630,6 +630,15 @@ export class VisualEngine {
     if (this.particlePool) {
       this.particlePool.reset();
     }
+    // Destroy all active note graphics so they cleanly re-instantiate for the new timestamp
+    for (const [, gfx] of this.noteGraphics) {
+      try {
+        if (!gfx.destroyed) gfx.destroy();
+      } catch {
+        // Ignored
+      }
+    }
+    this.noteGraphics.clear();
   }
 
   update(audioTime: number, bands: AudioBands): void {

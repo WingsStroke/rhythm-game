@@ -29,6 +29,8 @@ export class AudioTransport implements Transport {
   private stateListeners: Set<(state: TransportState) => void> = new Set();
   private beatListeners: Set<(beatIndex: number, beatTime: number) => void> = new Set();
 
+  private pausedTime = 0;
+
   constructor() {
     this.audio = new AudioEngine();
   }
@@ -59,7 +61,13 @@ export class AudioTransport implements Transport {
   }
 
   getTime(): number {
-    return this.audio.getTime();
+    if (this._state === 'playing') {
+      return this.audio.getTime();
+    }
+    if (this._state === 'paused') {
+      return this.pausedTime;
+    }
+    return 0;
   }
 
   getAudioBands(): AudioBands {
@@ -69,7 +77,7 @@ export class AudioTransport implements Transport {
   async play(bpm?: number, offset?: number): Promise<void> {
     if (bpm !== undefined) this._bpm = bpm;
 
-    const startOffset = offset ?? (this._state === 'paused' ? this.audio.getTime() : 0);
+    const startOffset = offset ?? (this._state === 'paused' ? this.pausedTime : 0);
 
     this.audio.start(this._bpm, startOffset);
     this._setState('playing');
@@ -78,7 +86,8 @@ export class AudioTransport implements Transport {
   pause(): void {
     if (this._state !== 'playing') return;
 
-    // Capture current position before stopping
+    // Capture and freeze current position before stopping audio
+    this.pausedTime = Math.max(0, this.audio.getTime());
     this.audio.stop();
     this._setState('paused');
   }
@@ -86,39 +95,27 @@ export class AudioTransport implements Transport {
   stop(): void {
     if (this._state === 'stopped') return;
 
+    this.pausedTime = 0;
     this.audio.stop();
     this._setState('stopped');
   }
 
   seek(targetTime: number): void {
+    const clampedTime = Math.max(0, targetTime);
     const wasPlaying = this._state === 'playing';
 
-    // Always stop current playback first
+    // Stop current audio output
     if (this._state !== 'stopped') {
       this.audio.stop();
     }
 
     if (wasPlaying) {
-      // Restart from the new position immediately
-      this.audio.start(this._bpm, targetTime);
+      // Restart playback from new position immediately
+      this.audio.start(this._bpm, clampedTime);
       this._setState('playing');
     } else {
-      // Paused or stopped: freeze at the requested position without playing.
-      // We achieve this by starting and immediately stopping to set internal offset,
-      // then stopping so AudioEngine holds the offset for getTime().
-      // AudioEngine.start() sets startTime = ctx.currentTime - offset, so
-      // getTime() will return targetTime when called right after.
-      // However, since we immediately stop, we store the value via a brief start.
-      // A cleaner approach: AudioEngine exposes a setOffset method; until then,
-      // we start briefly so getTime() resolves correctly when queried.
-      this.audio.start(this._bpm, targetTime);
-      // Tiny delay to let getTime() settle, then stop — preserves the offset
-      // internally via AudioEngine's pauseOffset logic.
-      setTimeout(() => {
-        if (this._state !== 'playing') {
-          this.audio.stop();
-        }
-      }, 0);
+      // Freeze position at the requested time without playing
+      this.pausedTime = clampedTime;
       this._setState('paused');
     }
   }

@@ -41,6 +41,8 @@ export class GameplayEngine {
   private pressedPads: Set<PadId> = new Set();
   /** Tracks the current visual state of each pad */
   private padStates: Map<PadId, PadState> = new Map();
+  /** Tracks pending timers to cancel them cleanly on reset/dispose */
+  private pendingTimers: Set<ReturnType<typeof setTimeout>> = new Set();
 
   public onJudgement: ((event: PadEvent, judgement: Judgement, offset: number) => void) | null = null;
   public onComboBreak: (() => void) | null = null;
@@ -60,6 +62,10 @@ export class GameplayEngine {
   }
 
   reset(): void {
+    for (const timer of this.pendingTimers) {
+      clearTimeout(timer);
+    }
+    this.pendingTimers.clear();
     this.pending = [];
     this.activeHolds.clear();
     this.activeLoops.clear();
@@ -119,7 +125,7 @@ export class GameplayEngine {
         this.activeHolds.delete(id);
         // Pad held long enough — score was already given on press, just reset state
         this.emitPadStateChange(evt.padId, 'holding', 'success');
-        setTimeout(() => this.emitPadStateChange(evt.padId, 'success', 'ready'), 300);
+        this.schedulePadStateTransition(evt.padId, 'success', 'ready', 300);
       }
     }
 
@@ -199,7 +205,7 @@ export class GameplayEngine {
 
       if (heldEnough) {
         this.emitPadStateChange(pad, 'holding', 'success');
-        setTimeout(() => this.emitPadStateChange(pad, 'success', 'ready'), 300);
+        this.schedulePadStateTransition(pad, 'success', 'ready', 300);
       } else {
         // Released too early — treat as miss
         this.emitPadStateChange(pad, 'holding', 'miss');
@@ -216,7 +222,7 @@ export class GameplayEngine {
           combo: 0,
         });
         this.onScoreChange?.(this.state);
-        setTimeout(() => this.emitPadStateChange(pad, 'miss', 'ready'), 400);
+        this.schedulePadStateTransition(pad, 'miss', 'ready', 400);
       }
       break;
     }
@@ -325,7 +331,7 @@ export class GameplayEngine {
         combo: s.combo,
       });
       this.emitPadStateChange(evt.padId, prevState, 'success');
-      setTimeout(() => this.emitPadStateChange(evt.padId, 'success', 'ready'), 300);
+      this.schedulePadStateTransition(evt.padId, 'success', 'ready', 300);
     } else if (judgement === 'good') {
       s.score += 100;
       s.combo++;
@@ -339,7 +345,7 @@ export class GameplayEngine {
         combo: s.combo,
       });
       this.emitPadStateChange(evt.padId, prevState, 'success');
-      setTimeout(() => this.emitPadStateChange(evt.padId, 'success', 'ready'), 300);
+      this.schedulePadStateTransition(evt.padId, 'success', 'ready', 300);
     } else {
       if (s.combo > 0) {
         this.onComboBreak?.();
@@ -363,7 +369,7 @@ export class GameplayEngine {
         combo: 0,
       });
       this.emitPadStateChange(evt.padId, prevState, 'miss');
-      setTimeout(() => this.emitPadStateChange(evt.padId, 'miss', 'ready'), 400);
+      this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 400);
     }
 
     if (s.combo > s.maxCombo) s.maxCombo = s.combo;
@@ -388,6 +394,19 @@ export class GameplayEngine {
       oldState,
       newState,
     });
+  }
+
+  private schedulePadStateTransition(
+    padId: PadId,
+    fromState: PadState,
+    toState: PadState,
+    delayMs: number
+  ): void {
+    const timer = setTimeout(() => {
+      this.pendingTimers.delete(timer);
+      this.emitPadStateChange(padId, fromState, toState);
+    }, delayMs);
+    this.pendingTimers.add(timer);
   }
 
   get isComplete(): boolean {
