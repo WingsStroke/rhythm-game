@@ -359,63 +359,74 @@ export function Timeline({
   };
 
   return (
-    <div className="flex-1 flex overflow-y-auto overflow-x-hidden relative select-none bg-[#09090f]">
+    <div className="flex-1 w-full h-full flex overflow-y-auto overflow-x-hidden relative select-none bg-[#09090f]">
       {/* 1. Dedicated Left Column: Track Headers (always visible, strictly left of timeline, never overlapping) */}
-      <div className="w-32 flex-shrink-0 flex flex-col bg-[#09090f] border-r border-white/10 select-none z-20">
+      <div className="w-36 flex-shrink-0 flex flex-col bg-[#09090f] border-r border-white/10 select-none z-20 min-h-full">
         {/* TIEMPO Header */}
-        <div className="sticky top-0 z-30 h-8 border-b border-white/10 bg-black/95 flex items-center px-3 gap-1.5 shadow-md flex-shrink-0">
-          <Clock className="w-3.5 h-3.5 text-[#00e5ff]" />
-          <span className="font-mono text-[10px] font-bold text-white/70">TIEMPO</span>
+        <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/95 flex items-center px-3.5 gap-2 shadow-md flex-shrink-0">
+          <Clock className="w-4 h-4 text-[#00e5ff]" />
+          <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIEMPO</span>
         </div>
 
-        {/* Pad Track Labels */}
-        <div className="flex flex-col gap-1.5 py-2">
+        {/* Pad Track Labels (flex-1 to distribute vertical space generously and match tracks exactly) */}
+        <div className="flex-1 flex flex-col py-1.5 gap-1.5">
           {level.pads.map((pad) => (
             <div
               key={pad.id}
-              className="h-13 flex items-center px-3 bg-black/90 border-y border-white/10 shadow-sm flex-shrink-0"
+              className="flex-1 min-h-[96px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-white/10 shadow-sm transition-colors hover:bg-white/[0.04] group"
             >
-              <div
-                className="w-2.5 h-2.5 rounded-full mr-2 shadow-sm flex-shrink-0"
-                style={{ backgroundColor: pad.color }}
-              />
-              <div className="flex flex-col overflow-hidden">
-                <span className="text-xs font-mono font-semibold text-white/90 truncate">{pad.label}</span>
-                <span className="text-[10px] text-white/40 font-mono">[{pad.keyHint}]</span>
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-3 h-3 rounded-full shadow-md flex-shrink-0 transition-transform group-hover:scale-110"
+                  style={{ backgroundColor: pad.color, boxShadow: `0 0 10px ${pad.color}80` }}
+                />
+                <span className="text-sm font-mono font-bold text-white tracking-wide truncate">{pad.label}</span>
+                <span className="ml-auto text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/80 font-semibold border border-white/10">
+                  {pad.keyHint}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5 text-[10px] text-white/40 font-mono">
+                <span className="uppercase tracking-wider">{pad.role || 'track'}</span>
+                {pad.audioChannel && (
+                  <>
+                    <span className="text-white/20">•</span>
+                    <span className="text-[#00e5ff]/80 font-semibold">{pad.audioChannel}</span>
+                  </>
+                )}
               </div>
             </div>
           ))}
         </div>
 
         {/* Triggers Section Header */}
-        <div className="h-8 my-1 flex items-center px-3 bg-black/95 border-y border-violet-500/40 shadow-sm flex-shrink-0">
-          <Zap className="w-3.5 h-3.5 text-yellow-400 mr-1.5 flex-shrink-0" />
-          <span className="text-[11px] font-mono font-bold text-white/90">TRIGGERS</span>
+        <div className="h-9 my-1 flex items-center px-3.5 bg-black/95 border-y border-violet-500/40 shadow-sm flex-shrink-0">
+          <Zap className="w-4 h-4 text-yellow-400 mr-2 flex-shrink-0" />
+          <span className="text-xs font-mono font-bold text-white/90 tracking-wider">TRIGGERS</span>
         </div>
 
         {/* FX Lane Track Label */}
-        <div className="h-28 flex flex-col justify-center px-3 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
-          <div className="flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />
-            <span className="text-xs font-mono font-bold text-white/90">FX LANE</span>
+        <div className="h-36 flex flex-col justify-center px-3.5 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+            <span className="text-xs font-mono font-bold text-white/90 tracking-wide">FX LANE</span>
           </div>
-          <span className="text-[10px] text-white/40 font-mono mt-0.5">Automation</span>
+          <span className="text-[10px] text-white/40 font-mono mt-1">Escena & Efectos</span>
         </div>
       </div>
 
       {/* 2. Scrollable Timeline Canvas: Grid, Notes, Triggers, and Playhead */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative cursor-default"
+        className="flex-1 h-full overflow-x-auto overflow-y-hidden relative cursor-default"
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
         <div
-          style={{ width: widthPx, minHeight: level.pads.length * 56 + 36 + 120 + 30 }}
-          className="relative bg-[#09090f]"
+          style={{ width: widthPx }}
+          className="h-full min-h-full flex flex-col relative bg-[#09090f]"
         >
           {/* Sticky Time Ruler */}
-          <div className="sticky top-0 z-30 h-8 border-b border-white/10 bg-black/90 backdrop-blur-md flex">
+          <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/90 backdrop-blur-md flex flex-shrink-0">
             <div
               ref={rulerTrackRef}
               className="relative flex-1 cursor-crosshair overflow-hidden"
@@ -432,8 +443,8 @@ export function Timeline({
                     className="absolute top-0 bottom-0 border-l-2 border-[#00e5ff]/40 flex flex-col justify-between pl-1 pointer-events-none"
                     style={{ left: barTime * pixelsPerSecond }}
                   >
-                    <span className="font-mono text-[10px] font-bold text-[#00e5ff]/80">m.{barIdx + 1}</span>
-                    <span className="text-[9px] text-white/30 font-mono mb-0.5">{barTime.toFixed(1)}s</span>
+                    <span className="font-mono text-[10px] font-bold text-[#00e5ff]/90">m.{barIdx + 1}</span>
+                    <span className="text-[9px] text-white/40 font-mono mb-0.5">{barTime.toFixed(1)}s</span>
                   </div>
                 );
               })}
@@ -442,7 +453,7 @@ export function Timeline({
                 return (
                   <div
                     key={beatIdx}
-                    className="absolute bottom-0 h-3 border-l border-white/20 pointer-events-none"
+                    className="absolute bottom-0 h-3.5 border-l border-white/20 pointer-events-none"
                     style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
                   />
                 );
@@ -450,12 +461,12 @@ export function Timeline({
             </div>
           </div>
 
-          {/* Background Beat & Bar Grid Lines */}
-          <div className="absolute top-8 bottom-0 pointer-events-none z-0" style={{ left: 0, width: widthPx }}>
+          {/* Background Beat & Bar Grid Lines spanning full height */}
+          <div className="absolute top-9 bottom-0 pointer-events-none z-0" style={{ left: 0, width: widthPx }}>
             {Array.from({ length: totalBars + 1 }).map((_, barIdx) => (
               <div
                 key={`bar-${barIdx}`}
-                className="absolute top-0 bottom-0 border-l border-white/25 pointer-events-none"
+                className="absolute top-0 bottom-0 border-l border-white/20 pointer-events-none"
                 style={{ left: barIdx * 4 * beatDuration * pixelsPerSecond }}
               />
             ))}
@@ -470,15 +481,15 @@ export function Timeline({
             )}
           </div>
 
-          {/* Note Track Lanes */}
-          <div className="flex flex-col gap-1.5 py-2 relative z-10">
+          {/* Note Track Lanes (flex-1 to consume remaining vertical space smoothly) */}
+          <div className="flex-1 flex flex-col py-1.5 gap-1.5 relative z-10">
             {level.pads.map((pad) => {
               const trackEvents = level.events.filter((e) => e.padId === pad.id);
               return (
                 <div
                   key={pad.id}
-                  className={`h-13 bg-white/[0.03] border-y border-white/10 relative transition-colors ${
-                    activeTool === 'pen' ? 'hover:bg-white/[0.07] cursor-crosshair' : ''
+                  className={`flex-1 min-h-[96px] bg-white/[0.025] border-y border-white/10 relative transition-colors ${
+                    activeTool === 'pen' ? 'hover:bg-white/[0.06] cursor-crosshair' : ''
                   }`}
                   style={{ width: widthPx, minWidth: widthPx }}
                   onClick={(e) => handleTrackClick(e, pad.id)}
@@ -486,23 +497,29 @@ export function Timeline({
                   {trackEvents.map((event) => {
                     const isSelected = event.id === selectedEventId;
                     const x = event.targetTime * pixelsPerSecond;
-                    const width = Math.max(14, (event.duration ?? beatDuration) * pixelsPerSecond);
+                    const width = Math.max(16, (event.duration ?? beatDuration) * pixelsPerSecond);
 
                     if (event.behavior === 'tap') {
                       return (
                         <div
                           key={event.id}
                           data-event-item="true"
-                          className={`absolute top-1/2 -translate-y-1/2 w-4 h-8 rounded-md transition-shadow z-20 cursor-grab ${
-                            isSelected ? 'ring-2 ring-white shadow-[0_0_15px_#ffffff]' : 'hover:brightness-125'
+                          className={`absolute top-1/2 -translate-y-1/2 w-5 h-14 rounded-lg transition-all z-20 cursor-grab active:cursor-grabbing ${
+                            isSelected
+                              ? 'ring-2 ring-white scale-105 shadow-[0_0_20px_#ffffff]'
+                              : 'hover:brightness-125 hover:scale-102'
                           }`}
                           style={{
-                            left: Math.max(0, x - 8),
+                            left: Math.max(0, x - 10),
                             backgroundColor: pad.color,
-                            boxShadow: `0 0 10px ${pad.color}90`,
+                            boxShadow: `0 0 14px ${pad.color}90`,
                           }}
                           onPointerDown={(e) => startEventMove(e, event)}
-                        />
+                        >
+                          <div className="w-full h-full border border-white/30 rounded-lg flex items-center justify-center">
+                            <div className="w-1.5 h-6 rounded-full bg-white/70" />
+                          </div>
+                        </div>
                       );
                     }
                     if (event.behavior === 'hold') {
@@ -510,33 +527,36 @@ export function Timeline({
                         <div
                           key={event.id}
                           data-event-item="true"
-                          className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-md border flex items-center transition-all z-20 cursor-grab ${
-                            isSelected ? 'ring-2 ring-white border-white shadow-[0_0_15px_#ffffff]' : 'border-white/30'
+                          className={`absolute top-1/2 -translate-y-1/2 h-14 rounded-lg border-2 flex items-center transition-all z-20 cursor-grab active:cursor-grabbing ${
+                            isSelected
+                              ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffffff]'
+                              : 'border-white/40'
                           }`}
                           style={{
                             left: x,
                             width,
                             backgroundColor: `${pad.color}35`,
                             borderColor: pad.color,
+                            boxShadow: `0 0 12px ${pad.color}40`,
                           }}
                           onPointerDown={(e) => startEventMove(e, event)}
                         >
                           <div
-                            className="w-3.5 h-full rounded-l-md flex items-center justify-center flex-shrink-0"
+                            className="w-4 h-full rounded-l-md flex items-center justify-center flex-shrink-0 shadow"
                             style={{ backgroundColor: pad.color }}
                           >
-                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                            <div className="w-2 h-2 rounded-full bg-white" />
                           </div>
-                          <span className="text-[9px] font-mono text-white/70 px-1 truncate flex-1 pointer-events-none">
-                            {(event.duration || 0).toFixed(2)}s
+                          <span className="text-[11px] font-mono font-bold text-white/90 px-2 truncate flex-1 pointer-events-none">
+                            HOLD ({(event.duration || 0).toFixed(2)}s)
                           </span>
                           {activeTool === 'select' && (
                             <div
                               data-event-item="true"
-                              className="w-3.5 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                              className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
                               onPointerDown={(e) => startEventResize(e, event)}
                             >
-                              <div className="w-1 h-4 bg-white/60 rounded-full pointer-events-none" />
+                              <div className="w-1.5 h-6 bg-white/70 rounded-full pointer-events-none" />
                             </div>
                           )}
                         </div>
@@ -547,33 +567,36 @@ export function Timeline({
                         <div
                           key={event.id}
                           data-event-item="true"
-                          className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-md border border-dashed flex items-center transition-all z-20 cursor-grab ${
-                            isSelected ? 'ring-2 ring-white border-solid shadow-[0_0_15px_#ffffff]' : 'border-white/40'
+                          className={`absolute top-1/2 -translate-y-1/2 h-14 rounded-lg border-2 border-dashed flex items-center transition-all z-20 cursor-grab active:cursor-grabbing ${
+                            isSelected
+                              ? 'ring-2 ring-white border-solid shadow-[0_0_20px_#ffffff]'
+                              : 'border-white/50'
                           }`}
                           style={{
                             left: x,
                             width,
                             backgroundColor: `${pad.color}25`,
                             borderColor: pad.color,
+                            boxShadow: `0 0 12px ${pad.color}35`,
                           }}
                           onPointerDown={(e) => startEventMove(e, event)}
                         >
                           <div
-                            className="w-3.5 h-full rounded-l-md flex items-center justify-center flex-shrink-0"
+                            className="w-4 h-full rounded-l-md flex items-center justify-center flex-shrink-0 shadow"
                             style={{ backgroundColor: pad.color }}
                           >
-                            <Repeat className="w-2.5 h-2.5 text-white" />
+                            <Repeat className="w-3 h-3 text-white" />
                           </div>
-                          <span className="text-[9px] font-mono text-white/70 px-1 truncate flex-1 pointer-events-none">
-                            Loop {(event.duration || 0).toFixed(2)}s
+                          <span className="text-[11px] font-mono font-bold text-white/90 px-2 truncate flex-1 pointer-events-none">
+                            LOOP ({(event.duration || 0).toFixed(2)}s)
                           </span>
                           {activeTool === 'select' && (
                             <div
                               data-event-item="true"
-                              className="w-3.5 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                              className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
                               onPointerDown={(e) => startEventResize(e, event)}
                             >
-                              <div className="w-1 h-4 bg-white/60 rounded-full pointer-events-none" />
+                              <div className="w-1.5 h-6 bg-white/70 rounded-full pointer-events-none" />
                             </div>
                           )}
                         </div>
@@ -584,16 +607,16 @@ export function Timeline({
                         <div
                           key={event.id}
                           data-event-item="true"
-                          className={`absolute top-1/2 -translate-y-1/2 h-7 rounded-sm flex items-center gap-1 px-1.5 border z-20 cursor-grab ${
+                          className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center gap-1.5 px-2.5 border-2 z-20 cursor-grab active:cursor-grabbing transition-all ${
                             isSelected
-                              ? 'ring-2 ring-white border-white shadow-[0_0_15px_#ffffff]'
-                              : 'border-yellow-400/60 bg-yellow-500/20'
+                              ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffea00]'
+                              : 'border-yellow-400/80 bg-yellow-500/25 hover:scale-105'
                           }`}
                           style={{ left: x }}
                           onPointerDown={(e) => startEventMove(e, event)}
                         >
-                          <Zap className="w-3 h-3 text-yellow-400" />
-                          <span className="text-[9px] font-mono font-bold text-yellow-300">
+                          <Zap className="w-4 h-4 text-yellow-400" />
+                          <span className="text-[10px] font-mono font-bold text-yellow-300">
                             {event.triggerId || 'trig'}
                           </span>
                         </div>
@@ -607,35 +630,35 @@ export function Timeline({
           </div>
 
           {/* Triggers Section Title Row */}
-          <div className="h-8 border-y border-violet-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-violet-300">
+          <div className="h-9 border-y border-violet-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3 flex-shrink-0">
+            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-violet-300">
               SCENE TRIGGERS & FX AUTOMATION
             </span>
-            <span className="text-[9px] font-mono text-white/60 bg-white/10 px-2 py-0.5 rounded border border-white/10">
+            <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
               {triggers.length} disparadores
             </span>
           </div>
 
           {/* FX Lane Track */}
           <div
-            className={`h-28 bg-violet-950/[0.07] border-b border-violet-500/20 relative z-10 transition-colors ${
-              activeTool === 'pen' ? 'hover:bg-violet-950/[0.14] cursor-crosshair' : ''
+            className={`h-36 bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
+              activeTool === 'pen' ? 'hover:bg-violet-950/[0.16] cursor-crosshair' : ''
             }`}
             style={{ width: widthPx, minWidth: widthPx }}
             onClick={handleTriggerTrackClick}
           >
             {triggers.map((trigger) => {
               const x = trigger.time * pixelsPerSecond;
-              const width = Math.max(28, (trigger.duration || 0) * pixelsPerSecond);
+              const width = Math.max(32, (trigger.duration || 0) * pixelsPerSecond);
               const color = getTriggerColor(trigger.action);
               return (
                 <div
                   key={trigger.id}
                   data-trigger-item="true"
-                  className={`absolute top-1/2 -translate-y-1/2 h-14 rounded-md flex items-center z-20 cursor-grab ${
+                  className={`absolute top-1/2 -translate-y-1/2 h-18 rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all ${
                     selectedTriggerId === trigger.id
-                      ? 'ring-2 ring-white shadow-[0_0_16px_rgba(255,255,255,0.8)]'
-                      : ''
+                      ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
+                      : 'hover:brightness-110'
                   }`}
                   style={{
                     left: x,
@@ -646,24 +669,24 @@ export function Timeline({
                   onPointerDown={(e) => startTriggerMove(e, trigger)}
                 >
                   <div
-                    className="w-5 h-5 rounded flex items-center justify-center ml-1.5 flex-shrink-0"
+                    className="w-6 h-6 rounded-md flex items-center justify-center ml-2 flex-shrink-0 shadow"
                     style={{ backgroundColor: color }}
                   >
-                    <Zap className="w-2.5 h-2.5 -rotate-45 text-black" />
+                    <Zap className="w-3.5 h-3.5 -rotate-45 text-black font-bold" />
                   </div>
-                  <div className="flex flex-col px-2 overflow-hidden flex-1">
-                    <span className="text-[10px] font-mono font-bold uppercase truncate text-white">
+                  <div className="flex flex-col px-2.5 overflow-hidden flex-1">
+                    <span className="text-[11px] font-mono font-bold uppercase truncate text-white">
                       {trigger.action}
                     </span>
-                    <span className="text-[9px] font-mono text-white/60 truncate">{trigger.targetId}</span>
+                    <span className="text-[10px] font-mono text-white/60 truncate">{trigger.targetId}</span>
                   </div>
                   {activeTool === 'select' && (
                     <div
                       data-trigger-item="true"
-                      className="w-3.5 h-full hover:bg-white/40 rounded-r-sm cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                      className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
                       onPointerDown={(e) => startTriggerResize(e, trigger)}
                     >
-                      <div className="w-1 h-5 bg-white/60 rounded-full" />
+                      <div className="w-1.5 h-6 bg-white/60 rounded-full" />
                     </div>
                   )}
                 </div>
@@ -676,7 +699,7 @@ export function Timeline({
             className="absolute top-0 bottom-0 w-px bg-red-500 z-40 pointer-events-none"
             style={{ left: currentTime * pixelsPerSecond }}
           >
-            <div className="w-3.5 h-3.5 bg-red-500 rotate-45 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_8px_#ff0000]" />
+            <div className="w-4 h-4 bg-red-500 rotate-45 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_#ff0000]" />
           </div>
         </div>
       </div>

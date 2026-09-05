@@ -89,10 +89,17 @@ src/
 
 ## Design Principles
 
-- The audio clock (AudioContext.currentTime) is the single source of truth for all timing decisions. requestAnimationFrame drives rendering only.
-- Levels are pure data (LevelData). The engine interprets them; no gameplay logic is embedded in level files.
-- All subsystems are decoupled. GameplayEngine emits events via GameplayEventBus. VisualEngine subscribes to those events without importing gameplay logic directly.
+### Core Architecture
+- The audio clock (`AudioContext.currentTime`) is the single source of truth for all timing decisions. `requestAnimationFrame` drives rendering only.
+- Levels are pure data (`LevelData`). The engine interprets them; no gameplay logic is embedded in level files.
+- All subsystems are decoupled. `GameplayEngine` emits events via `GameplayEventBus`. `VisualEngine` subscribes to those events without importing gameplay logic directly.
 - The level editor reuses the same engine modules used at runtime, ensuring editor preview fidelity.
+
+### UI/UX Design & Interface Standards
+- **Optimización de UI**: Full utilization of the screen real estate with zero dead voids. Authoring tracks, interactive pads, notes, handles, and indicators maintain spacious, ergonomic proportions.
+- **Diseño totalmente responsivo**: Fluid multi-viewport adaptability across windowed mode, F11 full-screen, laptops, standard 1080p, and high-DPI/ultrawide displays without element clipping or miniaturization.
+- **Lógica de diseño no abrumadora**: Clean, hierarchical interfaces where complex parameters are presented contextually on demand in dedicated inspectors rather than crowding the central workspace.
+- **Interactividad en menús**: Tactile micro-interactions with rich, responsive states (`hover`, `active`, `focus`, keyboard navigability) and immediate visual feedback.
 
 ## Documentation
 

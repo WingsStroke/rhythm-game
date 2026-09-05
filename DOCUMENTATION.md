@@ -37,6 +37,32 @@ Visual spectacle must never compromise playability. Frame rate targets: 60 FPS m
 
 ---
 
+## 1.2. Design and Interface Philosophy (UI/UX Principles)
+
+From prototype maturation through production runtime, all visual interfaces, menus, and authoring tools must adhere to four design principles:
+
+### 1. Optimización de UI (UI Optimization & Space Ergonomics)
+- **Zero Wasted Space**: Interfaces must eliminate dead voids or underutilized areas. Workspaces (such as the timeline authoring surface, outliners, and inspectors) must expand to utilize the available screen real estate efficiently.
+- **Visual Ergonomics**: Authoring tracks, interactive pads, notes, handles, and indicators must maintain generous, accessible proportions so clicking, dragging, scrubbing, and inspecting feel comfortable and precise.
+- **Visual Hierarchy**: Critical information (playback time, snap division, bpm, pad roles, active tools) must be legible at a glance without eye strain.
+
+### 2. Diseño Totalmente Responsivo (Full Multi-Viewport Responsiveness)
+- **Universal Adaptation**: The application must function and look balanced across all viewport formats: standard desktop windowed mode, full-screen F11, laptops (1366x768 / 1440x900), standard 1080p, 1440p, 4K, and ultrawide monitors.
+- **Elastic Proportions**: Avoid brittle, hardcoded heights and offsets that cause miniaturization, excessive margins, or element overlap. Containers must use elastic layouts (`flex-1`, `min-h`, percentage bounds, and `ResizeObserver`) to distribute space proportionally.
+- **Independent Canvas Preservation**: Decorative background scene nodes scale within a virtual 1920x1080 coordinate reference, while gameplay lanes, launchpads, falling notes, and HUD adapt in real time to the true physical screen bounds.
+
+### 3. Lógica de Diseño No Abrumadora (Contextual, Non-Overwhelming Logic)
+- **Focus on the Creative Flow**: The central canvas must prioritize the primary task (playing or composing rhythm tracks). Secondary tools, advanced trigger properties, and node hierarchies must be accessible without visual noise or cognitive clutter.
+- **Contextual Presentation**: Information is presented on demand (e.g., selecting a note, trigger, or node opens its targeted properties in the contextual inspector, rather than permanently crowding the viewport with inactive parameters).
+- **Predictable Muscle Memory**: Standard, intuitive keybindings (Space for play/pause, DEL/Backspace for deleting any selected element, Ctrl+Z/Ctrl+Y for history, V/B/E for tools) allow creators to author quickly without second-guessing controls.
+
+### 4. Interactividad en Menús (Tactile Micro-Interactions & Rich Feedback)
+- **Living Interface**: Every interactive element—buttons, tabs, track headers, handles, toggles, and modal options—must provide immediate, tactile feedback.
+- **Multi-State Richness**: Explicit and polished styling for `hover`, `active`, `focus`, and `disabled` states using subtle micro-animations, neon accent illumination, smooth CSS transitions, and elevation shadows.
+- **Aesthetic Consistency**: The UI reflects the high-energy, neon-infused cyberpunk and synth aesthetic of the rhythm game, creating an engaging first impression.
+
+---
+
 ## 1.1. Technology Stack
 
 ### Active
@@ -246,10 +272,11 @@ Root component of the editor. Assembles all panels and manages top-level UI stat
 
 ### src/editor/Timeline.tsx
 
-The primary authoring surface. Multi-track DAW-style timeline with decoupled track header architecture:
-- Dedicated fixed left column (128px) displaying track headers (TIEMPO, Pad labels, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without ever overlaying or occluding timeline notes and triggers.
-- Horizontally scrollable timeline canvas for ruler, beat/bar grid lines, notes, hold spans, loops, scene triggers, and playhead starting at origin `t = 0`.
-- Sticky time ruler with seek-on-click and playhead drag with auto-scroll at viewport edges.
+The primary authoring surface. Multi-track DAW-style timeline engineered under the UI optimization and responsive design principles:
+- **Decoupled Track Header Architecture**: Dedicated fixed left column (144px / `w-36`) displaying track headers (TIEMPO, Pad labels with role & key indicators, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without ever overlaying or occluding timeline notes and triggers.
+- **Vertical Space Optimization**: Eliminates dead vertical voids by using an elastic flex distribution (`flex-1` with `min-h-[96px]` per pad track). On standard 1080p/1440p displays, pad tracks expand smoothly to 110px–165px, providing generous ergonomics for interacting with notes (`h-14` / 56px height, high-contrast handles, neon indicators) and triggers (`h-18` automation blocks).
+- **Horizontally Scrollable Canvas**: Scrollable tracks container for ruler, beat/bar grid lines, notes (tap, hold, loop, trigger), scene triggers, and playhead starting at origin `t = 0`.
+- **Sticky Time Ruler**: Quantized ruler with seek-on-click, playhead drag, and edge auto-scrolling.
 
 Tools: Pen (insert), Select (move/resize via drag), Eraser (delete on click).
 
