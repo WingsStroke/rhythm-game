@@ -3,6 +3,7 @@ import type {
   LevelData,
   PadEvent,
   PadId,
+  PadState,
   PadConfig,
   AudioBands,
   Judgement,
@@ -43,6 +44,8 @@ interface PadVisual {
   baseColor: number;
   pressed: boolean;
   pressAnim: number;
+  state: PadState;
+  stateAnim: number;
   x: number;
   bandIndex: number;
 }
@@ -184,11 +187,17 @@ export class VisualEngine {
         }
       }),
       bus.subscribe('PAD_STATE_CHANGE', (gameEvent) => {
-        // Visual feedback based on PadState transitions
-        if (gameEvent.newState === 'success') {
-          this.pressPad(gameEvent.padId);
-        } else if (gameEvent.newState === 'miss') {
-          // Brief dim effect is handled by pressAnim decay
+        const pv = this.padVisuals.get(gameEvent.padId);
+        if (pv && gameEvent.newState) {
+          pv.state = gameEvent.newState;
+          if (gameEvent.newState === 'success') {
+            this.pressPad(gameEvent.padId);
+            this.particlePool.spawn(pv.x + 50, this.padY + PAD_HEIGHT / 2, pv.baseColor, 10, 1.2);
+          } else if (gameEvent.newState === 'miss') {
+            pv.stateAnim = 1.0;
+          } else if (gameEvent.newState === 'queued') {
+            pv.stateAnim = 1.0;
+          }
         }
       }),
       bus.subscribe('TRIGGER_TRIGGERED', (gameEvent) => {
@@ -355,6 +364,8 @@ export class VisualEngine {
         baseColor: color,
         pressed: false,
         pressAnim: 0,
+        state: 'ready',
+        stateAnim: 0,
         x,
         bandIndex: i,
       });
@@ -744,7 +755,7 @@ export class VisualEngine {
       gfx.alpha = progress < 0.08 ? progress * 12.5 : 1;
     }
 
-    // 9. Pad animations driven by modulated audio channels
+    // 9. Pad animations driven by PadState and modulated audio channels
     for (const [, pv] of this.padVisuals) {
       let bandValue = 0;
       if (pv.bandIndex === 0) bandValue = channels.bassIntensity;
@@ -752,8 +763,64 @@ export class VisualEngine {
       else if (pv.bandIndex === 2) bandValue = channels.trebleDispersion;
       else bandValue = channels.ambientBrightness;
 
-      const idleGlow = 0.12 + bandValue * 0.28;
-      const pressGlow = pv.pressAnim * 0.55;
+      let idleGlow = 0.12 + bandValue * 0.28;
+      let pressGlow = pv.pressAnim * 0.55;
+      let fillAlpha = 0.25 + bandValue * 0.18 + pv.pressAnim * 0.45;
+      let strokeColor = pv.baseColor;
+      let strokeWidth = 2 + pv.pressAnim * 2.5;
+      let strokeAlpha = 0.6 + pv.pressAnim * 0.4;
+      let pressScale = 1 + pv.pressAnim * 0.12;
+
+      // State-specific visual behaviors
+      switch (pv.state) {
+        case 'queued': {
+          // Pre-cue rhythmic pulse
+          const pulse = Math.sin(audioTime * 16) * 0.5 + 0.5;
+          strokeWidth = 3 + pulse * 2;
+          strokeAlpha = 0.8 + pulse * 0.2;
+          idleGlow = 0.25 + pulse * 0.35;
+          break;
+        }
+        case 'playing': {
+          // Loop active: 100% full intensity glow modulated in real time
+          idleGlow = 0.6 + bandValue * 0.4;
+          fillAlpha = 0.5 + bandValue * 0.35;
+          strokeWidth = 3 + bandValue * 2;
+          strokeAlpha = 0.95;
+          pressScale = Math.max(pressScale, 1.0 + bandValue * 0.08);
+          break;
+        }
+        case 'holding': {
+          // Holding sustained note: intense glow and continuous edge particles
+          idleGlow = 0.7 + bandValue * 0.3;
+          fillAlpha = 0.65 + bandValue * 0.25;
+          strokeWidth = 4;
+          strokeAlpha = 1.0;
+          if (Math.random() < 0.35) {
+            this.particlePool.spawn(
+              pv.x + 15 + Math.random() * 70,
+              this.padY + PAD_HEIGHT / 2 + (Math.random() - 0.5) * 20,
+              pv.baseColor,
+              1,
+              0.6
+            );
+          }
+          break;
+        }
+        case 'miss': {
+          // Warning red tint pulse
+          if (pv.stateAnim > 0) {
+            strokeColor = 0xff3344;
+            strokeWidth = 2 + pv.stateAnim * 3;
+            strokeAlpha = 0.9;
+            pv.stateAnim *= 0.88;
+          }
+          break;
+        }
+        case 'ready':
+        default:
+          break;
+      }
 
       pv.glow.clear();
       pv.glow
@@ -764,20 +831,18 @@ export class VisualEngine {
           PAD_HEIGHT + 30 + bandValue * 8,
           14
         )
-        .fill({ color: pv.baseColor, alpha: idleGlow + pressGlow });
+        .fill({ color: strokeColor, alpha: Math.min(1, idleGlow + pressGlow) });
 
       pv.rect.clear();
-      const fillAlpha = 0.25 + bandValue * 0.18 + pv.pressAnim * 0.45;
       pv.rect
         .roundRect(0, 0, 100, PAD_HEIGHT, 10)
-        .fill({ color: pv.baseColor, alpha: fillAlpha });
+        .fill({ color: strokeColor, alpha: Math.min(1, fillAlpha) });
       pv.rect.stroke({
-        color: pv.baseColor,
-        width: 2 + pv.pressAnim * 2.5,
-        alpha: 0.6 + pv.pressAnim * 0.4,
+        color: strokeColor,
+        width: strokeWidth,
+        alpha: strokeAlpha,
       });
 
-      const pressScale = 1 + pv.pressAnim * 0.12;
       pv.container.scale.set(pressScale);
       pv.container.x = pv.x - (pressScale - 1) * 50;
       pv.container.y = this.padY - (pressScale - 1) * (PAD_HEIGHT / 2);
