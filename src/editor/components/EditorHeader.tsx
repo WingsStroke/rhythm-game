@@ -79,7 +79,7 @@ export function EditorHeader({
           <button
             onClick={onUndo}
             disabled={!canUndo}
-            title="Deshacer cambio (Ctrl+Z)"
+            title="Undo (Ctrl+Z)"
             className={`p-1.5 rounded transition-colors text-xs font-bold flex items-center border border-white/10 ${
               canUndo
                 ? 'bg-white/10 text-white/90 hover:bg-white/20 hover:text-white cursor-pointer'
@@ -91,7 +91,7 @@ export function EditorHeader({
           <button
             onClick={onRedo}
             disabled={!canRedo}
-            title="Rehacer cambio (Ctrl+Y)"
+            title="Redo (Ctrl+Y)"
             className={`p-1.5 rounded transition-colors text-xs font-bold flex items-center border border-white/10 ${
               canRedo
                 ? 'bg-white/10 text-white/90 hover:bg-white/20 hover:text-white cursor-pointer'
@@ -157,11 +157,11 @@ export function EditorHeader({
         {onPlaytest && (
           <button
             onClick={onPlaytest}
-            title="Probar nivel en el motor de juego real (Standalone Runtime)"
+            title="Test play level in real game engine (Standalone Runtime)"
             className="px-3.5 py-1.5 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white font-black rounded hover:scale-105 active:scale-95 transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#ff2d6f]/30 mr-1"
           >
             <Play className="w-3.5 h-3.5 fill-white" />
-            <span>PROBAR NIVEL</span>
+            <span>PLAYTEST</span>
           </button>
         )}
 

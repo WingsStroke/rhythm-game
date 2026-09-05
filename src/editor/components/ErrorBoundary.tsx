@@ -23,7 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    console.error('[ErrorBoundary] Error capturado en el editor:', error, errorInfo);
+    console.error('[ErrorBoundary] Caught editor error:', error, errorInfo);
   }
 
   private handleReset = () => {
@@ -41,11 +41,11 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <h2 className="text-base font-bold text-white mb-2 tracking-wide font-mono">
-              Ocurrió un problema en la interfaz
+              An interface error occurred
             </h2>
 
             <p className="text-xs text-white/60 mb-4 leading-relaxed font-mono">
-              Se detectó un valor incompatible durante la edición. La aplicación recuperó el estado para evitar perder tu progreso.
+              An incompatible value was detected during editing. The application recovered its state to preserve your progress.
             </p>
 
             {this.state.error?.message && (
@@ -59,7 +59,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleReset}
                 className="flex-1 py-2 px-3 bg-[#00e5ff]/20 hover:bg-[#00e5ff]/30 text-[#00e5ff] rounded-lg border border-[#00e5ff]/50 font-mono text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
-                <RefreshCw className="w-3.5 h-3.5" /> Reintentar
+                <RefreshCw className="w-3.5 h-3.5" /> Retry
               </button>
 
               {this.props.onExit && (
@@ -67,7 +67,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   onClick={this.props.onExit}
                   className="py-2 px-3 bg-white/10 hover:bg-white/15 text-white/80 rounded-lg border border-white/10 font-mono text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
-                  <Home className="w-3.5 h-3.5" /> Salir
+                  <Home className="w-3.5 h-3.5" /> Exit
                 </button>
               )}
             </div>

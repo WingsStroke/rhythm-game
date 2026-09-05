@@ -67,7 +67,7 @@ export const ResultsModal: React.FC<ResultsModalProps> = ({
           </h2>
           {difficulty && (
             <span className="text-xs uppercase font-semibold text-white/50 tracking-wider">
-              {difficulty} Dificultad
+              {difficulty} Difficulty
             </span>
           )}
         </div>

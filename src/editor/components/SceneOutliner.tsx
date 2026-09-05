@@ -124,13 +124,13 @@ export function SceneOutliner({
       {/* Action Toolbar for Adding Primitives */}
       <div className="p-3 border-b border-white/10 bg-black/30">
         <div className="text-[10px] uppercase font-mono text-white/40 mb-2 font-bold flex items-center justify-between">
-          <span>Crear Primitiva</span>
-          <span className="text-white/60">{nodes.length} nodos</span>
+          <span>Create Primitive</span>
+          <span className="text-white/60">{nodes.length} {nodes.length === 1 ? 'node' : 'nodes'}</span>
         </div>
         <div className="grid grid-cols-3 gap-1.5">
           <button
             onClick={handleAddRectangle}
-            title="Crear Rectángulo en centro (X:960, Y:540)"
+            title="Create Rectangle at center (X:960, Y:540)"
             className="px-2 py-1.5 bg-white/5 hover:bg-[#00e5ff]/20 text-white/90 hover:text-[#00e5ff] rounded border border-white/10 hover:border-[#00e5ff]/40 transition-colors flex items-center justify-center gap-1 font-mono font-medium"
           >
             <Square className="w-3 h-3 text-[#00e5ff]" />
@@ -138,7 +138,7 @@ export function SceneOutliner({
           </button>
           <button
             onClick={handleAddCircle}
-            title="Crear Círculo en centro (X:960, Y:540)"
+            title="Create Circle at center (X:960, Y:540)"
             className="px-2 py-1.5 bg-white/5 hover:bg-[#ff007f]/20 text-white/90 hover:text-[#ff007f] rounded border border-white/10 hover:border-[#ff007f]/40 transition-colors flex items-center justify-center gap-1 font-mono font-medium"
           >
             <Circle className="w-3 h-3 text-[#ff007f]" />
@@ -146,7 +146,7 @@ export function SceneOutliner({
           </button>
           <button
             onClick={handleAddGroup}
-            title="Crear Contenedor / Grupo lógico"
+            title="Create Container / Logical Group"
             className="px-2 py-1.5 bg-white/5 hover:bg-[#ffea00]/20 text-white/90 hover:text-[#ffea00] rounded border border-white/10 hover:border-[#ffea00]/40 transition-colors flex items-center justify-center gap-1 font-mono font-medium"
           >
             <Folder className="w-3 h-3 text-[#ffea00]" />
@@ -159,8 +159,8 @@ export function SceneOutliner({
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {nodes.length === 0 ? (
           <div className="text-center py-8 text-white/30 text-[11px] font-mono">
-            No hay nodos escénicos.<br />
-            Haz clic en los botones superiores para agregar elementos visuales.
+            No scene nodes.<br />
+            Click the buttons above to add visual elements.
           </div>
         ) : (
           nodes.map((node) => {
@@ -205,7 +205,7 @@ export function SceneOutliner({
                     e.stopPropagation();
                     onRemoveNode(nodeKey);
                   }}
-                  title="Eliminar nodo"
+                  title="Delete node"
                   className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
                 >
                   <Trash2 className="w-3 h-3" />

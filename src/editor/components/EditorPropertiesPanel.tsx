@@ -307,7 +307,7 @@ export function EditorPropertiesPanel({
           {/* Target ID / Node Selection */}
           <div className="flex flex-col gap-1 text-white/70">
             <div className="flex justify-between items-center">
-              <span className="font-semibold">Target ID (Objetos a Afectar)</span>
+              <span className="font-semibold">Target ID (Affected Objects)</span>
               <span className="text-[10px] text-white/40 font-mono">
                 {selectedTrigger.targetId === 'all' ? 'all' : `ID: ${selectedTrigger.targetId}`}
               </span>
@@ -324,7 +324,7 @@ export function EditorPropertiesPanel({
                 }}
                 className="flex-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#ffea00] font-mono cursor-pointer text-xs"
               >
-                <option value="all">[Todos los objetos escénicos]</option>
+                <option value="all">[All Scene Objects]</option>
                 {Array.from(
                   new Set(
                     nodes
@@ -349,7 +349,7 @@ export function EditorPropertiesPanel({
               <input
                 type="number"
                 placeholder="ID #"
-                title="Escribe un ID numérico directamente"
+                title="Enter numeric ID directly"
                 value={typeof selectedTrigger.targetId === 'number' ? selectedTrigger.targetId : ''}
                 onChange={(e) => {
                   const val = e.target.value.trim();
@@ -362,7 +362,7 @@ export function EditorPropertiesPanel({
               />
             </div>
             <span className="text-[10px] text-white/40">
-              Afecta a todos los objetos que tengan este número de ID asignado.
+              Affects all objects assigned this numeric ID.
             </span>
           </div>
 
@@ -400,7 +400,7 @@ export function EditorPropertiesPanel({
 
           {/* Action Parameters Form */}
           <div className="p-2.5 bg-black/40 rounded border border-white/10 flex flex-col gap-2">
-            <span className="text-[10px] uppercase font-mono font-bold text-white/50">Parámetros de Acción</span>
+            <span className="text-[10px] uppercase font-mono font-bold text-white/50">Action Parameters</span>
 
             {selectedTrigger.action === 'transform' && (
               <div className="grid grid-cols-2 gap-2">
@@ -567,30 +567,30 @@ export function EditorPropertiesPanel({
         <div className="flex flex-col gap-4 text-xs">
           <div className="flex items-center justify-between pb-2 border-b border-white/10">
             <span className="font-bold uppercase tracking-wider text-[#00ff9d] flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5" /> Objeto Escénico
+              <Layers className="w-3.5 h-3.5" /> Scene Object
             </span>
             <span className="font-mono text-[#00e5ff] text-[10px]">{selectedNode.type}</span>
           </div>
 
-          {/* 1. Nombre */}
+          {/* 1. Name */}
           <label className="flex flex-col gap-1 text-white/70">
-            <span className="font-semibold">Nombre del Objeto</span>
+            <span className="font-semibold">Object Name</span>
             <input
               type="text"
               value={selectedNode.name || (typeof selectedNode.id === 'string' ? selectedNode.id : '')}
               onChange={(e) => onUpdateNode({ name: e.target.value })}
-              placeholder="ej. rect-1"
+              placeholder="e.g. rect-1"
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
             />
           </label>
 
-          {/* 2. ID Numérico de Agrupación */}
+          {/* 2. Numeric Group ID */}
           <label className="flex flex-col gap-1 text-white/70">
             <div className="flex justify-between items-center">
-              <span className="font-semibold">ID de Objeto (Trigger ID)</span>
+              <span className="font-semibold">Object ID (Trigger ID)</span>
               <span className="text-[10px] text-white/40 font-mono">
                 {selectedNode.id === null || selectedNode.id === undefined || selectedNode.id === ''
-                  ? 'null (Sin ID)'
+                  ? 'null (No ID)'
                   : `ID: ${selectedNode.id}`}
               </span>
             </div>
@@ -601,17 +601,17 @@ export function EditorPropertiesPanel({
                 const val = e.target.value.trim();
                 onUpdateNode({ id: val === '' ? null : Number(val) });
               }}
-              placeholder="null (Sin ID asignado)"
+              placeholder="null (No ID assigned)"
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none placeholder:text-white/30"
             />
             <span className="text-[10px] text-white/40">
-              Varios objetos pueden compartir el mismo ID para ser controlados por un mismo Trigger.
+              Multiple objects can share the same ID to be controlled by a single Trigger.
             </span>
           </label>
 
           {/* Transform */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-white/40 uppercase font-mono font-bold text-[10px]">Posición (Espacio 1920x1080)</h3>
+            <h3 className="text-white/40 uppercase font-mono font-bold text-[10px]">Position (1920x1080 Space)</h3>
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col text-white/60">
                 X
@@ -645,7 +645,7 @@ export function EditorPropertiesPanel({
           {/* Scale & Rotation */}
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col text-white/60">
-              Escala
+              Scale
               <input
                 type="number"
                 step="0.1"
@@ -663,7 +663,7 @@ export function EditorPropertiesPanel({
               />
             </label>
             <label className="flex flex-col text-white/60">
-              Rotación (deg)
+              Rotation (deg)
               <input
                 type="number"
                 step="15"
@@ -683,7 +683,7 @@ export function EditorPropertiesPanel({
 
           {/* Opacity */}
           <label className="flex flex-col gap-1 text-white/60">
-            Opacidad ({((selectedNode.transform?.opacity ?? 1)).toFixed(2)})
+            Opacity ({((selectedNode.transform?.opacity ?? 1)).toFixed(2)})
             <input
               type="range"
               min="0"
@@ -704,11 +704,11 @@ export function EditorPropertiesPanel({
 
           {/* Dimensions / Color */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-white/40 uppercase font-mono font-bold text-[10px]">Geometría y Color</h3>
+            <h3 className="text-white/40 uppercase font-mono font-bold text-[10px]">Geometry & Color</h3>
             {selectedNode.type === 'rectangle' && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col text-white/60">
-                  Ancho
+                  Width
                   <input
                     type="number"
                     value={(selectedNode.properties?.width as number) ?? 100}
@@ -721,7 +721,7 @@ export function EditorPropertiesPanel({
                   />
                 </label>
                 <label className="flex flex-col text-white/60">
-                  Alto
+                  Height
                   <input
                     type="number"
                     value={(selectedNode.properties?.height as number) ?? 100}
@@ -738,7 +738,7 @@ export function EditorPropertiesPanel({
 
             {selectedNode.type === 'circle' && (
               <label className="flex flex-col text-white/60">
-                Radio
+                Radius
                 <input
                   type="number"
                   value={(selectedNode.properties?.radius as number) ?? 60}
@@ -783,7 +783,7 @@ export function EditorPropertiesPanel({
 
             {/* Blend Mode */}
             <label className="flex flex-col text-white/60">
-              Modo de Fusión (Blend Mode)
+              Blend Mode
               <select
                 value={selectedNode.blendMode || 'normal'}
                 onChange={(e) =>
@@ -794,9 +794,9 @@ export function EditorPropertiesPanel({
                 className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
               >
                 <option value="normal">Normal</option>
-                <option value="add">Add (Glow aditivo)</option>
-                <option value="screen">Screen (Iluminación)</option>
-                <option value="multiply">Multiply (Sombra)</option>
+                <option value="add">Add (Additive Glow)</option>
+                <option value="screen">Screen (Lighten)</option>
+                <option value="multiply">Multiply (Darken)</option>
               </select>
             </label>
           </div>
@@ -812,7 +812,7 @@ export function EditorPropertiesPanel({
               }
               className="mt-2 px-3 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded border border-red-500/40 flex items-center justify-center gap-2 transition-colors font-semibold"
             >
-              <Trash2 className="w-3.5 h-3.5" /> Eliminar Nodo
+              <Trash2 className="w-3.5 h-3.5" /> Delete Node
             </button>
           )}
         </div>
@@ -822,8 +822,8 @@ export function EditorPropertiesPanel({
           <MousePointerClick className="w-8 h-8 mb-2 text-white/60" />
           <div className="text-xs italic leading-relaxed text-white/80">
             {activeTab === 'timeline'
-              ? 'Haz clic en una nota o en un trigger de la línea de tiempo para inspeccionar sus propiedades.'
-              : 'Selecciona un objeto en la pestaña Escena o en Live Preview para editarlo.'}
+              ? 'Click a note or timeline trigger to inspect properties.'
+              : 'Select an object in Scene tab or Live Preview to edit it.'}
           </div>
         </div>
       )}

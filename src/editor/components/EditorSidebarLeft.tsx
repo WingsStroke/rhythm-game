@@ -46,7 +46,7 @@ export function EditorSidebarLeft({
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
-          <span>Escena ({level.visual?.nodes?.length || 0})</span>
+          <span>Scene ({level.visual?.nodes?.length || 0})</span>
         </button>
       </div>
 
@@ -119,14 +119,14 @@ export function EditorSidebarLeft({
           </div>
 
           <div className="text-[10px] text-white/30 border-t border-white/10 pt-3 flex flex-col gap-0.5 font-mono mt-4">
-            <span className="font-bold text-white/40 mb-0.5">Atajos:</span>
+            <span className="font-bold text-white/40 mb-0.5">Shortcuts:</span>
             <span>V - Select / Move</span>
             <span>B - Draw Note / Trigger</span>
             <span>E - Eraser</span>
             <span>Del - Delete</span>
             <span>Space - Play / Pause</span>
-            <span>Ctrl+Z - Deshacer</span>
-            <span>Ctrl+Y - Rehacer</span>
+            <span>Ctrl+Z - Undo</span>
+            <span>Ctrl+Y - Redo</span>
           </div>
         </div>
       ) : (

@@ -58,10 +58,10 @@ export default function App() {
           setPlaytestFromEditor(false);
           setScreen('playing');
         } else {
-          setErrorMsg('El archivo JSON no tiene un formato válido de nivel.');
+          setErrorMsg('The JSON file does not have a valid level format.');
         }
       } catch {
-        setErrorMsg('No se pudo interpretar el archivo JSON.');
+        setErrorMsg('Could not parse the JSON file.');
       }
     };
     reader.readAsText(file);
@@ -151,7 +151,7 @@ function StartScreen({
       <div className="relative z-10 flex flex-col items-center gap-8 text-center max-w-xl">
         <div className="flex flex-col gap-2">
           <span className="text-xs uppercase tracking-widest text-[#00e5ff] font-semibold">
-            ETAPA 4 — STANDALONE PLAYER & CONTENT PIPELINE
+            STAGE 4 — STANDALONE PLAYER & CONTENT PIPELINE
           </span>
           <h1 className="text-6xl md:text-8xl font-black tracking-tight drop-shadow-2xl">
             <span className="text-[#ff2d6f]">NEON</span>{' '}
@@ -183,15 +183,15 @@ function StartScreen({
               className="flex-1 py-4 px-6 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white text-xl font-black rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-[#ff2d6f]/40 cursor-pointer tracking-wider flex items-center justify-center gap-2"
             >
               <Play className="w-5 h-5 fill-white" />
-              <span>JUGAR</span>
+              <span>PLAY</span>
             </button>
 
             <label
-              title="Cargar nivel externo desde archivo .json"
+              title="Load external level from .json file"
               className="py-4 px-5 bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold rounded-2xl border border-white/20 transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
             >
               <Upload className="w-4 h-4 text-[#00e5ff]" />
-              <span>CARGAR JSON</span>
+              <span>LOAD JSON</span>
               <input
                 type="file"
                 accept=".json"
@@ -209,7 +209,7 @@ function StartScreen({
             <button
               onClick={onOpenEditor}
               className="py-4 px-5 bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold rounded-2xl border border-white/20 transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
-              title="Abrir Editor de Niveles"
+              title="Open Level Editor"
             >
               <Edit3 className="w-4 h-4 text-[#ffcc00]" />
               <span>EDITOR</span>
@@ -224,7 +224,7 @@ function StartScreen({
 
           {/* Controls hint card */}
           <div className="text-sm text-white/50 mt-4 bg-white/5 border border-white/10 p-5 rounded-2xl backdrop-blur-sm w-full">
-            <p className="mb-3 text-white/80 font-medium">Controles — Presiona las teclas o haz clic en los pads:</p>
+            <p className="mb-3 text-white/80 font-medium">Controls — Press keys or click on pads:</p>
             <div className="grid grid-cols-4 gap-3 justify-center">
               {[
                 { key: 'A', label: 'Kick', color: '#ff2d6f' },

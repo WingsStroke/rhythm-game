@@ -386,7 +386,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               <Gamepad2 className="w-3.5 h-3.5" /> Live Preview
             </button>
             <div className="ml-auto px-4 flex items-center gap-3 text-xs text-white/40 font-mono">
-              <span>{level.events.length} notas</span>
+              <span>{level.events.length} {level.events.length === 1 ? 'note' : 'notes'}</span>
               <span className="text-white/20">|</span>
               <span className="text-yellow-400/80 flex items-center gap-1">
                 <Zap className="w-3 h-3" /> {(level.visual?.triggers || []).length} triggers

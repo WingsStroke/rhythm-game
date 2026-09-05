@@ -420,7 +420,7 @@ export function Timeline({
               <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
               <span className="text-xs font-mono font-bold text-white/90 tracking-wide">FX LANE</span>
             </div>
-            <span className="text-[10px] text-white/40 font-mono mt-1">Escena & Efectos</span>
+            <span className="text-[10px] text-white/40 font-mono mt-1">Scene & Effects</span>
           </div>
         </div>
       </div>
@@ -651,7 +651,7 @@ export function Timeline({
               SCENE TRIGGERS & FX AUTOMATION
             </span>
             <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
-              {triggers.length} disparadores
+              {triggers.length} {triggers.length === 1 ? 'trigger' : 'triggers'}
             </span>
           </div>
 

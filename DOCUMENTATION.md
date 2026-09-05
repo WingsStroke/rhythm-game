@@ -63,6 +63,16 @@ From prototype maturation through production runtime, all visual interfaces, men
 
 ---
 
+## 1.3. Language and Localization Standard
+
+To eliminate linguistic discrepancy across the game experience and authoring suite:
+
+- **Frontend User Interface (100% Native English)**: All user-facing text, HUD elements, modals, editor panels, track headers, tooltips, buttons, status indicators, shortcuts hints, and error boundaries must natively be in English. This adheres to industry DAW conventions and global rhythm game standards.
+- **Internal Development & Context (Spanish)**: Team discussions, conversational context, project roadmaps, agent planning/tasks, and version control commits are maintained in Spanish.
+- **Technical Documentation (English)**: The official project documentation (`DOCUMENTATION.md`, `README.md`, and module-level technical guides) is written and maintained in English.
+
+---
+
 ## 1.1. Technology Stack
 
 ### Active
