@@ -170,32 +170,58 @@ export class AudioEngine implements TimeSource {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      let baseFreq = 440;
+      // Use triangle waveform for rich acoustic harmonics so low/mid transients
+      // remain clearly audible on laptop speakers, monitors, and headphones alike.
+      osc.type = 'triangle';
+
+      let startFreq = 440;
+      let endFreq = 220;
+      let hitGain = 0.25;
+      let duration = 0.06;
+
       if (padId === 'pad_0') {
-        baseFreq = 130; // Kick punch
-        osc.frequency.setValueAtTime(baseFreq, now);
-        osc.frequency.exponentialRampToValueAtTime(45, now + 0.05);
+        // Pad 0: Punchy Low-Mid Kick (240Hz -> 105Hz).
+        // Uses higher gain and punchy transient to guarantee equal loudness on all speakers.
+        startFreq = 240;
+        endFreq = 105;
+        hitGain = 0.36;
+        duration = 0.07;
       } else if (padId === 'pad_1') {
-        baseFreq = 260; // Snare snap
-        osc.frequency.setValueAtTime(baseFreq, now);
+        // Pad 1: Snappy Snare / Low-Mid Snap (360Hz -> 200Hz).
+        startFreq = 360;
+        endFreq = 200;
+        hitGain = 0.26;
+        duration = 0.065;
       } else if (padId === 'pad_2') {
-        baseFreq = 520; // Lead chime
-        osc.frequency.setValueAtTime(baseFreq, now);
+        // Pad 2: Crisp Mid Clap / Pop (560Hz -> 380Hz).
+        startFreq = 560;
+        endFreq = 380;
+        hitGain = 0.22;
+        duration = 0.06;
       } else if (padId === 'pad_3') {
-        baseFreq = 780; // High bell
-        osc.frequency.setValueAtTime(baseFreq, now);
+        // Pad 3: Bright High Bell / Tick (860Hz -> 680Hz).
+        startFreq = 860;
+        endFreq = 680;
+        hitGain = 0.18;
+        duration = 0.055;
       } else {
-        osc.frequency.setValueAtTime(baseFreq, now);
+        startFreq = 500;
+        endFreq = 300;
+        hitGain = 0.22;
+        duration = 0.06;
       }
 
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      osc.frequency.setValueAtTime(startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(10, endFreq), now + duration * 0.7);
+
+      gain.gain.setValueAtTime(hitGain, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start(now);
-      osc.stop(now + 0.07);
+      osc.stop(now + duration + 0.01);
     } catch {
       // AudioContext might be closed or suspended
     }

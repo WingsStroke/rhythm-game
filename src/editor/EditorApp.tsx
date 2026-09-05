@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Timeline, snapTimeToGrid, getSnapInterval, type EditorTool, type GridSubdivision } from './Timeline';
+import { Timeline, type EditorTool, type GridSubdivision } from './Timeline';
 import { EditorHeader } from './components/EditorHeader';
 import { EditorToolbar } from './components/EditorToolbar';
 import { EditorSidebarLeft } from './components/EditorSidebarLeft';
@@ -162,32 +162,6 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
     dlAnchorElem.click();
   }, [level]);
 
-  // Quantize selected note or all notes to current grid snap
-  const handleQuantize = useCallback(() => {
-    const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
-    if (interval <= 0) return; // 'free' mode does not quantize
-
-    setLevel((prev) => {
-      const newEvents = prev.events
-        .map((event) => {
-          if (selectedEventId && event.id !== selectedEventId) return event;
-          const snappedTarget = snapTimeToGrid(event.targetTime, prev.timing.bpm, gridSubdivision);
-          let snappedDuration = event.duration;
-          if (event.duration !== undefined) {
-            snappedDuration = Math.max(interval, Math.round(event.duration / interval) * interval);
-          }
-          return {
-            ...event,
-            targetTime: snappedTarget,
-            duration: snappedDuration,
-            quantized: true,
-          };
-        })
-        .sort((a, b) => a.targetTime - b.targetTime);
-      return { ...prev, events: newEvents };
-    });
-  }, [level.timing.bpm, gridSubdivision, selectedEventId]);
-
   const selectedEvent = level.events.find((e) => e.id === selectedEventId) || null;
   const selectedNode = level.visual.nodes.find((n) => n.id === selectedNodeId) || null;
 
@@ -223,7 +197,6 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         onChangeGridSubdivision={setGridSubdivision}
         pixelsPerSecond={pixelsPerSecond}
         onChangePixelsPerSecond={setPixelsPerSecond}
-        onQuantize={handleQuantize}
       />
 
       {/* Main Workspace Layout */}

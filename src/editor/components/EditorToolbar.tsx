@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, Pencil, Eraser, ZoomIn, ZoomOut, Sparkles } from 'lucide-react';
+import { MousePointer, Pencil, Eraser, ZoomIn, ZoomOut } from 'lucide-react';
 import type { EditorTool, GridSubdivision } from '../Timeline';
 import type { PadBehavior } from '../../engine/types';
 
@@ -12,7 +12,6 @@ interface EditorToolbarProps {
   onChangeGridSubdivision: (subdivision: GridSubdivision) => void;
   pixelsPerSecond: number;
   onChangePixelsPerSecond: (fn: (prev: number) => number) => void;
-  onQuantize: () => void;
 }
 
 export function EditorToolbar({
@@ -24,7 +23,6 @@ export function EditorToolbar({
   onChangeGridSubdivision,
   pixelsPerSecond,
   onChangePixelsPerSecond,
-  onQuantize,
 }: EditorToolbarProps) {
   return (
     <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-6 shrink-0 select-none">
@@ -85,7 +83,7 @@ export function EditorToolbar({
         )}
       </div>
 
-      {/* Grid Snapping, Quantize & Zoom controls */}
+      {/* Grid Snapping & Zoom controls */}
       <div className="flex items-center gap-4">
         {/* Snap Selector */}
         <div className="flex items-center gap-1.5">
@@ -103,16 +101,6 @@ export function EditorToolbar({
             <option value="free">Free (Off)</option>
           </select>
         </div>
-
-        {/* Quantize Button */}
-        <button
-          onClick={onQuantize}
-          title="Quantize selected note (or all notes if none selected) to current grid snap"
-          className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white/90 rounded text-xs font-medium flex items-center gap-1.5 transition-colors border border-white/10 shadow-sm"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-[#ffea00]" />
-          <span>Quantize</span>
-        </button>
 
         {/* Zoom controls */}
         <div className="flex items-center gap-1.5 border-l border-white/10 pl-4">

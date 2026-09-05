@@ -101,14 +101,14 @@ export function EditorHeader({
         <button
           onClick={onToggleHitsounds}
           title={enableHitsounds ? 'Hitsounds Enabled (Low-latency audio click)' : 'Hitsounds Disabled'}
-          className={`px-2.5 py-1.5 rounded border text-xs font-mono flex items-center gap-1.5 transition-colors ${
+          className={`px-3.5 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-2 shadow-sm border ${
             enableHitsounds
               ? 'bg-[#00ff9d]/20 text-[#00ff9d] border-[#00ff9d]/40 hover:bg-[#00ff9d]/30'
-              : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'
+              : 'bg-white/10 text-white/40 border-white/10 hover:bg-white/20'
           }`}
         >
           {enableHitsounds ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-          <span className="text-[10px] uppercase font-bold">{enableHitsounds ? 'HITS' : 'MUTE'}</span>
+          {enableHitsounds ? 'HITS' : 'MUTE'}
         </button>
       </div>
 
