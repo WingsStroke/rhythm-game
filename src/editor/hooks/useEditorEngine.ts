@@ -4,16 +4,37 @@ import { VisualEngine } from '../../engine/visual/VisualEngine';
 import { InputManager } from '../../engine/input/InputManager';
 import { GameplayEngine } from '../../engine/gameplay/GameplayEngine';
 import { GameplayEventBus } from '../../engine/gameplay/GameplayEventBus';
-import type { LevelData, PadId, AudioBands, SceneNodeData } from '../../engine/types';
+import { snapTimeToGrid, getSnapInterval } from '../Timeline';
+import type {
+  LevelData,
+  PadId,
+  AudioBands,
+  SceneNodeData,
+  PadEvent,
+  PadBehavior,
+} from '../../engine/types';
+import type { GridSubdivision } from '../Timeline';
 
 interface UseEditorEngineOptions {
   level: LevelData;
   activeTab: 'timeline' | 'preview';
+  creationBehavior: PadBehavior;
+  gridSubdivision: GridSubdivision;
   onSelectNode?: (nodeId: string | null) => void;
+  onRecordEvent?: (event: PadEvent) => void;
 }
 
-export function useEditorEngine({ level, activeTab, onSelectNode }: UseEditorEngineOptions) {
+export function useEditorEngine({
+  level,
+  activeTab,
+  creationBehavior,
+  gridSubdivision,
+  onSelectNode,
+  onRecordEvent,
+}: UseEditorEngineOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [enableHitsounds, setEnableHitsounds] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
 
   const transportRef = useRef<AudioTransport | null>(null);
@@ -24,7 +45,123 @@ export function useEditorEngine({ level, activeTab, onSelectNode }: UseEditorEng
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number>(0);
 
-  // Initialize Visual Engine, Gameplay Engine and Input Manager when preview tab is shown
+  // Active hold records: padId -> { startTime, eventId }
+  const activeRecordHolds = useRef<Map<PadId, { startTime: number; eventId: string }>>(new Map());
+
+  // Mutable refs to prevent stale closures in input callbacks
+  const levelRef = useRef(level);
+  levelRef.current = level;
+
+  const isRecordingRef = useRef(isRecording);
+  isRecordingRef.current = isRecording;
+
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
+  const enableHitsoundsRef = useRef(enableHitsounds);
+  enableHitsoundsRef.current = enableHitsounds;
+
+  const creationBehaviorRef = useRef(creationBehavior);
+  creationBehaviorRef.current = creationBehavior;
+
+  const gridSubdivisionRef = useRef(gridSubdivision);
+  gridSubdivisionRef.current = gridSubdivision;
+
+  const onRecordEventRef = useRef(onRecordEvent);
+  onRecordEventRef.current = onRecordEvent;
+
+  // Initialize InputManager once and maintain key mapping
+  useEffect(() => {
+    const input = new InputManager(() => transportRef.current?.getTime() ?? 0);
+    inputRef.current = input;
+
+    const map: Record<string, PadId> = {};
+    for (const pad of levelRef.current.pads) {
+      if (pad.keyHint) {
+        map[`Key${pad.keyHint.toUpperCase()}`] = pad.id;
+      }
+    }
+    input.setKeyMap(map);
+
+    input.onPadPress = (padId) => {
+      // 1. Play immediate hitsound if enabled
+      if (enableHitsoundsRef.current) {
+        transportRef.current?.playHitsound(padId);
+      }
+
+      // 2. Animate pad in visual engine
+      visualRef.current?.pressPad(padId);
+
+      // 3. Live recording logic when recording and playback are active
+      if (isRecordingRef.current && isPlayingRef.current) {
+        const t = transportRef.current?.getTime() ?? 0;
+        const beh = creationBehaviorRef.current;
+        const currentBpm = levelRef.current.timing.bpm;
+        const sub = gridSubdivisionRef.current;
+
+        if (beh === 'hold') {
+          activeRecordHolds.current.set(padId, { startTime: t, eventId: crypto.randomUUID() });
+        } else {
+          const snappedTime = sub !== 'free' ? snapTimeToGrid(t, currentBpm, sub) : t;
+          let defaultDuration: number | undefined;
+
+          if (beh === 'loop') {
+            const beatDuration = 60 / currentBpm;
+            defaultDuration = beatDuration * 4; // 1 full bar
+          }
+
+          const newEvent: PadEvent = {
+            id: crypto.randomUUID(),
+            padId,
+            targetTime: snappedTime,
+            behavior: beh,
+            duration: defaultDuration,
+            triggerId: beh === 'trigger' ? levelRef.current.visual.triggers[0]?.id || 'trigger_1' : undefined,
+            quantized: sub !== 'free',
+          };
+          onRecordEventRef.current?.(newEvent);
+        }
+      }
+    };
+
+    input.onPadRelease = (padId) => {
+      visualRef.current?.releasePad(padId);
+
+      // Live recording completion for hold notes
+      if (isRecordingRef.current && isPlayingRef.current) {
+        const hold = activeRecordHolds.current.get(padId);
+        if (hold) {
+          activeRecordHolds.current.delete(padId);
+          const releaseTime = transportRef.current?.getTime() ?? hold.startTime;
+          const rawDuration = Math.max(0.05, releaseTime - hold.startTime);
+          const currentBpm = levelRef.current.timing.bpm;
+          const sub = gridSubdivisionRef.current;
+
+          const snappedStart = sub !== 'free' ? snapTimeToGrid(hold.startTime, currentBpm, sub) : hold.startTime;
+          const interval = getSnapInterval(currentBpm, sub);
+          const snappedDuration =
+            interval > 0 ? Math.max(interval, Math.round(rawDuration / interval) * interval) : rawDuration;
+
+          const newEvent: PadEvent = {
+            id: hold.eventId,
+            padId,
+            targetTime: snappedStart,
+            behavior: 'hold',
+            duration: snappedDuration,
+            quantized: sub !== 'free',
+          };
+          onRecordEventRef.current?.(newEvent);
+        }
+      }
+    };
+
+    return () => {
+      input.detach();
+      inputRef.current = null;
+    };
+  }, []);
+
+  // Initialize Visual Engine and Gameplay Engine when preview tab is shown
   useEffect(() => {
     if (activeTab !== 'preview' || !canvasContainerRef.current) return;
 
@@ -39,25 +176,14 @@ export function useEditorEngine({ level, activeTab, onSelectNode }: UseEditorEng
       );
       gameplayRef.current = gameplay;
 
-      const input = new InputManager(() => transportRef.current?.getTime() ?? 0);
-      inputRef.current = input;
-
-      const map: Record<string, PadId> = {};
-      for (const pad of level.pads) {
-        if (pad.keyHint) {
-          map[`Key${pad.keyHint.toUpperCase()}`] = pad.id;
-        }
+      if (inputRef.current) {
+        inputRef.current.setHandler((event) => gameplayRef.current?.handleInput(event));
       }
-      input.setKeyMap(map);
-      input.setHandler((event) => gameplayRef.current?.handleInput(event));
 
       const ve = new VisualEngine(canvasContainerRef.current, level, transportRef.current?.audioEngine ?? null);
       ve.onNodeSelect = (id) => {
         onSelectNode?.(id);
       };
-
-      input.onPadPress = (padId) => ve.pressPad(padId);
-      input.onPadRelease = (padId) => ve.releasePad(padId);
 
       ve.onPadInput = (padId, pressed) => {
         if (pressed) {
@@ -71,34 +197,29 @@ export function useEditorEngine({ level, activeTab, onSelectNode }: UseEditorEng
 
       ve.init().then(() => {
         visualRef.current = ve;
-        if (activeTab === 'preview') {
-          input.attach();
+        if (activeTab === 'preview' || isRecording) {
+          inputRef.current?.attach();
         }
         if (isPlaying) {
           gameplay.start(currentTime);
         }
       });
-    } else {
-      inputRef.current?.attach();
-      if (isPlaying) {
-        gameplayRef.current?.start(currentTime);
-      }
     }
   }, [activeTab]);
 
-  // Tab switching effect to attach/detach input listeners
+  // Attach input listener in preview mode OR when recording is active in timeline mode
   useEffect(() => {
-    if (activeTab === 'preview') {
+    if (activeTab === 'preview' || isRecording) {
       inputRef.current?.attach();
-      if (isPlaying) {
+      if (isPlaying && activeTab === 'preview') {
         gameplayRef.current?.start(currentTime);
       }
     } else {
       inputRef.current?.detach();
     }
-  }, [activeTab]);
+  }, [activeTab, isRecording]);
 
-  // Cleanup Visual Engine, Gameplay Engine and Input Manager on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       inputRef.current?.detach();
@@ -170,6 +291,7 @@ export function useEditorEngine({ level, activeTab, onSelectNode }: UseEditorEng
     if (isPlaying) {
       transportRef.current?.pause();
       setIsPlaying(false);
+      setIsRecording(false);
     } else {
       if (!transportRef.current) {
         transportRef.current = new AudioTransport();
@@ -194,22 +316,61 @@ export function useEditorEngine({ level, activeTab, onSelectNode }: UseEditorEng
   const handleStop = useCallback(() => {
     transportRef.current?.stop();
     setIsPlaying(false);
+    setIsRecording(false);
     setCurrentTime(0);
     visualRef.current?.seek(0);
     gameplayRef.current?.reset();
     gameplayRef.current?.start(0);
+    activeRecordHolds.current.clear();
   }, []);
 
-  const handleSeek = useCallback((t: number) => {
-    setCurrentTime(t);
-    transportRef.current?.seek(t);
-    visualRef.current?.seek(t);
-    if (isPlaying) {
-      gameplayRef.current?.start(t);
+  const handleSeek = useCallback(
+    (t: number) => {
+      setCurrentTime(t);
+      transportRef.current?.seek(t);
+      visualRef.current?.seek(t);
+      if (isPlaying) {
+        gameplayRef.current?.start(t);
+      } else {
+        gameplayRef.current?.reset();
+      }
+    },
+    [isPlaying]
+  );
+
+  const toggleRecord = useCallback(async () => {
+    if (isRecording) {
+      setIsRecording(false);
     } else {
-      gameplayRef.current?.reset();
+      setIsRecording(true);
+      if (!isPlaying) {
+        await togglePlay();
+      }
     }
-  }, [isPlaying]);
+  }, [isRecording, isPlaying, togglePlay]);
+
+  const toggleHitsounds = useCallback(() => {
+    setEnableHitsounds((prev) => !prev);
+  }, []);
+
+  const loadAudioFile = useCallback(
+    async (file: File): Promise<{ success: boolean; duration: number }> => {
+      if (!transportRef.current) {
+        transportRef.current = new AudioTransport();
+        await transportRef.current.init();
+      }
+      const result = await transportRef.current.loadAudio(file);
+      if (result.success) {
+        setIsPlaying(false);
+        setIsRecording(false);
+        setCurrentTime(0);
+        visualRef.current?.seek(0);
+        gameplayRef.current?.reset();
+      }
+      return result;
+    },
+    []
+  );
 
   const updateSceneNode = useCallback((node: SceneNodeData) => {
     visualRef.current?.updateNode(node);
@@ -223,11 +384,16 @@ export function useEditorEngine({ level, activeTab, onSelectNode }: UseEditorEng
   return {
     canvasContainerRef,
     isPlaying,
+    isRecording,
+    enableHitsounds,
     currentTime,
     setCurrentTime,
     togglePlay,
+    toggleRecord,
+    toggleHitsounds,
     handleStop,
     handleSeek,
+    loadAudioFile,
     updateSceneNode,
     dispose,
   };

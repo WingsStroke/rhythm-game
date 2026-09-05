@@ -60,6 +60,14 @@ export class AudioTransport implements Transport {
     return this.audio.loadFile(url);
   }
 
+  async loadAudio(source: string | File | ArrayBuffer): Promise<{ success: boolean; duration: number }> {
+    return this.audio.loadAudio(source);
+  }
+
+  playHitsound(padId: string): void {
+    this.audio.playHitsound(padId);
+  }
+
   getTime(): number {
     if (this._state === 'playing') {
       return this.audio.getTime();

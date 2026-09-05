@@ -1,13 +1,32 @@
 import React from 'react';
-import { Activity, Clock, Play, Pause, Square, Download, LogOut } from 'lucide-react';
+import {
+  Activity,
+  Clock,
+  Play,
+  Pause,
+  Square,
+  Circle,
+  Download,
+  Upload,
+  LogOut,
+  Music,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import { formatTime } from '../utils';
 
 interface EditorHeaderProps {
   bpm: number;
   currentTime: number;
   isPlaying: boolean;
+  isRecording: boolean;
+  enableHitsounds: boolean;
   onTogglePlay: () => void;
+  onToggleRecord: () => void;
+  onToggleHitsounds: () => void;
   onStop: () => void;
+  onLoadAudioFile: (file: File) => void;
+  onImportJson: (file: File) => void;
   onExport: () => void;
   onExit: () => void;
 }
@@ -16,13 +35,20 @@ export function EditorHeader({
   bpm,
   currentTime,
   isPlaying,
+  isRecording,
+  enableHitsounds,
   onTogglePlay,
+  onToggleRecord,
+  onToggleHitsounds,
   onStop,
+  onLoadAudioFile,
+  onImportJson,
   onExport,
   onExit,
 }: EditorHeaderProps) {
   return (
     <header className="h-14 border-b border-white/10 flex items-center justify-between px-6 bg-black/50 shrink-0 select-none">
+      {/* Brand & Time Badges */}
       <div className="flex items-center gap-4">
         <Activity className="w-5 h-5 text-[#00e5ff]" />
         <span className="font-bold text-lg tracking-wider text-[#00e5ff]">BEATMAP EDITOR</span>
@@ -34,8 +60,23 @@ export function EditorHeader({
         </div>
       </div>
 
-      {/* Transport Controls */}
+      {/* Transport & Recording Controls */}
       <div className="flex items-center gap-2">
+        {/* REC Button */}
+        <button
+          onClick={onToggleRecord}
+          title="Toggle Live Recording Mode (R) — Tap A,S,D,F to place notes in real-time"
+          className={`px-3.5 py-1.5 rounded transition-all text-xs font-bold flex items-center gap-2 shadow-sm ${
+            isRecording
+              ? 'bg-red-500 text-white shadow-[0_0_15px_#ff0055] animate-pulse border border-red-400'
+              : 'bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30'
+          }`}
+        >
+          <Circle className={`w-3.5 h-3.5 ${isRecording ? 'fill-white' : 'fill-red-400'}`} />
+          {isRecording ? 'RECORDING' : 'REC (R)'}
+        </button>
+
+        {/* Play/Pause Button */}
         <button
           onClick={onTogglePlay}
           className={`px-4 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-2 shadow-sm ${
@@ -47,25 +88,86 @@ export function EditorHeader({
           {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
           {isPlaying ? 'PAUSE' : 'PLAY'}
         </button>
+
+        {/* Stop Button */}
         <button
           onClick={onStop}
           className="px-3.5 py-1.5 bg-white/10 text-white/80 rounded hover:bg-white/20 transition-colors text-xs font-bold flex items-center gap-2 border border-white/10"
         >
           <Square className="w-3.5 h-3.5" /> STOP
         </button>
+
+        {/* Hitsound Toggle */}
+        <button
+          onClick={onToggleHitsounds}
+          title={enableHitsounds ? 'Hitsounds Enabled (Low-latency audio click)' : 'Hitsounds Disabled'}
+          className={`px-2.5 py-1.5 rounded border text-xs font-mono flex items-center gap-1.5 transition-colors ${
+            enableHitsounds
+              ? 'bg-[#00ff9d]/20 text-[#00ff9d] border-[#00ff9d]/40 hover:bg-[#00ff9d]/30'
+              : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'
+          }`}
+        >
+          {enableHitsounds ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          <span className="text-[10px] uppercase font-bold">{enableHitsounds ? 'HITS' : 'MUTE'}</span>
+        </button>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-3">
+      {/* Action Buttons: Audio, Import, Export, Exit */}
+      <div className="flex items-center gap-2.5">
+        {/* Load Audio File */}
+        <label
+          title="Load Audio File (.mp3, .wav, .ogg)"
+          className="px-3 py-1.5 bg-[#00e5ff]/15 text-[#00e5ff] hover:bg-[#00e5ff]/25 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 border border-[#00e5ff]/30 cursor-pointer"
+        >
+          <Music className="w-3.5 h-3.5" />
+          <span>Load Audio</span>
+          <input
+            type="file"
+            accept="audio/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                onLoadAudioFile(file);
+                e.target.value = '';
+              }
+            }}
+          />
+        </label>
+
+        {/* Import JSON */}
+        <label
+          title="Import Beatmap JSON"
+          className="px-3 py-1.5 bg-white/10 text-white/80 hover:bg-white/20 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 border border-white/10 cursor-pointer"
+        >
+          <Upload className="w-3.5 h-3.5 text-white/70" />
+          <span>Import JSON</span>
+          <input
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                onImportJson(file);
+                e.target.value = '';
+              }
+            }}
+          />
+        </label>
+
+        {/* Export JSON */}
         <button
           onClick={onExport}
-          className="px-3.5 py-1.5 bg-[#00e5ff]/20 text-[#00e5ff] rounded hover:bg-[#00e5ff]/30 transition-colors text-xs font-semibold flex items-center gap-2 border border-[#00e5ff]/30"
+          className="px-3 py-1.5 bg-[#00ff9d]/15 text-[#00ff9d] rounded hover:bg-[#00ff9d]/25 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-[#00ff9d]/30"
         >
           <Download className="w-3.5 h-3.5" /> Export JSON
         </button>
+
+        {/* Exit Button */}
         <button
           onClick={onExit}
-          className="px-3.5 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors text-xs font-semibold flex items-center gap-2 border border-red-500/30"
+          className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-red-500/30"
         >
           <LogOut className="w-3.5 h-3.5" /> Exit
         </button>

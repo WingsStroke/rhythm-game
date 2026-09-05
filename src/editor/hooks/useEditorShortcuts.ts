@@ -3,18 +3,22 @@ import type { EditorTool } from '../Timeline';
 
 interface UseEditorShortcutsOptions {
   activeTab: 'timeline' | 'preview';
+  isRecording?: boolean;
   selectedEventId: string | null;
   onSelectTool: (tool: EditorTool) => void;
   onDeleteSelectedEvent: () => void;
   onTogglePlay: () => void;
+  onToggleRecord?: () => void;
 }
 
 export function useEditorShortcuts({
   activeTab,
+  isRecording,
   selectedEventId,
   onSelectTool,
   onDeleteSelectedEvent,
   onTogglePlay,
+  onToggleRecord,
 }: UseEditorShortcutsOptions) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -26,12 +30,22 @@ export function useEditorShortcuts({
         return;
       }
 
-      // In preview mode, allow Space to toggle play/pause, but don't intercept other keys (e.g. pad inputs)
-      if (activeTab === 'preview') {
-        if (e.code === 'Space') {
-          e.preventDefault();
-          onTogglePlay();
-        }
+      // Record shortcut (R)
+      if (e.code === 'KeyR') {
+        e.preventDefault();
+        onToggleRecord?.();
+        return;
+      }
+
+      // Space play/pause
+      if (e.code === 'Space') {
+        e.preventDefault();
+        onTogglePlay();
+        return;
+      }
+
+      // In preview mode or while actively recording, let pad keys pass through to InputManager
+      if (activeTab === 'preview' || isRecording) {
         return;
       }
 
@@ -46,13 +60,10 @@ export function useEditorShortcuts({
           e.preventDefault();
           onDeleteSelectedEvent();
         }
-      } else if (e.code === 'Space') {
-        e.preventDefault();
-        onTogglePlay();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedEventId, onTogglePlay, onSelectTool, onDeleteSelectedEvent, activeTab]);
+  }, [selectedEventId, onTogglePlay, onToggleRecord, onSelectTool, onDeleteSelectedEvent, activeTab, isRecording]);
 }

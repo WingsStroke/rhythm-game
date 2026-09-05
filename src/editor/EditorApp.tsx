@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Timeline, type EditorTool, type GridSubdivision } from './Timeline';
+import React, { useState, useCallback } from 'react';
+import { Timeline, snapTimeToGrid, getSnapInterval, type EditorTool, type GridSubdivision } from './Timeline';
 import { EditorHeader } from './components/EditorHeader';
 import { EditorToolbar } from './components/EditorToolbar';
 import { EditorSidebarLeft } from './components/EditorSidebarLeft';
@@ -26,99 +26,186 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // Modular Engine hook (AudioTransport, VisualEngine, GameplayEngine, InputManager, EventBus)
-  const {
-    canvasContainerRef,
-    isPlaying,
-    currentTime,
-    togglePlay,
-    handleStop,
-    handleSeek,
-    updateSceneNode,
-    dispose,
-  } = useEditorEngine({
-    level,
-    activeTab,
-    onSelectNode: (id) => {
-      setSelectedNodeId(id);
-      setSelectedEventId(null);
-    },
-  });
-
   // Event mutations
-  const handleAddEvent = (newEvent: PadEvent) => {
+  const handleAddEvent = useCallback((newEvent: PadEvent) => {
     setLevel((prev) => {
       const newEvents = [...prev.events, newEvent].sort((a, b) => a.targetTime - b.targetTime);
       return { ...prev, events: newEvents };
     });
     setSelectedEventId(newEvent.id);
     setSelectedNodeId(null);
-  };
+  }, []);
 
-  const handleUpdateEvent = (updatedEvent: PadEvent) => {
+  const handleUpdateEvent = useCallback((updatedEvent: PadEvent) => {
     setLevel((prev) => {
       const newEvents = prev.events
         .map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
         .sort((a, b) => a.targetTime - b.targetTime);
       return { ...prev, events: newEvents };
     });
-  };
+  }, []);
 
-  const handleRemoveEvent = (id: string) => {
+  const handleRemoveEvent = useCallback((id: string) => {
     setLevel((prev) => ({
       ...prev,
       events: prev.events.filter((e) => e.id !== id),
     }));
-    if (selectedEventId === id) {
+    setSelectedEventId((prevId) => (prevId === id ? null : prevId));
+  }, []);
+
+  // Modular Engine hook (AudioTransport, VisualEngine, GameplayEngine, InputManager, EventBus, Recording)
+  const {
+    canvasContainerRef,
+    isPlaying,
+    isRecording,
+    enableHitsounds,
+    currentTime,
+    togglePlay,
+    toggleRecord,
+    toggleHitsounds,
+    handleStop,
+    handleSeek,
+    loadAudioFile,
+    updateSceneNode,
+    dispose,
+  } = useEditorEngine({
+    level,
+    activeTab,
+    creationBehavior,
+    gridSubdivision,
+    onSelectNode: (id) => {
+      setSelectedNodeId(id);
       setSelectedEventId(null);
-    }
-  };
+    },
+    onRecordEvent: handleAddEvent,
+  });
 
-  const handleUpdateNode = (updates: Partial<SceneNodeData>) => {
-    const selectedNode = level.visual.nodes.find((n) => n.id === selectedNodeId);
-    if (!selectedNode) return;
-    const newNode = { ...selectedNode, ...updates } as SceneNodeData;
-    setLevel((prev) => {
-      const idx = prev.visual.nodes.findIndex((n) => n.id === newNode.id);
-      if (idx === -1) return prev;
-      const newNodes = [...prev.visual.nodes];
-      newNodes[idx] = newNode;
-      return { ...prev, visual: { ...prev.visual, nodes: newNodes } };
-    });
-    updateSceneNode(newNode);
-  };
+  const handleUpdateNode = useCallback(
+    (updates: Partial<SceneNodeData>) => {
+      const selectedNode = level.visual.nodes.find((n) => n.id === selectedNodeId);
+      if (!selectedNode) return;
+      const newNode = { ...selectedNode, ...updates } as SceneNodeData;
+      setLevel((prev) => {
+        const idx = prev.visual.nodes.findIndex((n) => n.id === newNode.id);
+        if (idx === -1) return prev;
+        const newNodes = [...prev.visual.nodes];
+        newNodes[idx] = newNode;
+        return { ...prev, visual: { ...prev.visual, nodes: newNodes } };
+      });
+      updateSceneNode(newNode);
+    },
+    [level.visual.nodes, selectedNodeId, updateSceneNode]
+  );
 
-  // Keyboard shortcuts hook (V, B, E, Del, Space)
+  // Keyboard shortcuts hook (V, B, E, Del, Space, R)
   useEditorShortcuts({
     activeTab,
+    isRecording,
     selectedEventId,
     onSelectTool: setActiveTool,
     onDeleteSelectedEvent: () => {
       if (selectedEventId) handleRemoveEvent(selectedEventId);
     },
     onTogglePlay: togglePlay,
+    onToggleRecord: toggleRecord,
   });
 
-  const handleExport = () => {
+  // Load external audio file into editor
+  const handleAudioLoad = useCallback(
+    async (file: File) => {
+      const res = await loadAudioFile(file);
+      if (res.success) {
+        const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+        setLevel((prev) => ({
+          ...prev,
+          song: {
+            ...prev.song,
+            title: cleanTitle,
+            duration: Math.ceil(res.duration) || prev.song.duration,
+          },
+        }));
+      } else {
+        alert('Could not decode audio file. Make sure it is a valid MP3, WAV, or OGG.');
+      }
+    },
+    [loadAudioFile]
+  );
+
+  // Import existing level JSON
+  const handleJsonImport = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target?.result as string) as LevelData;
+          if (parsed.formatVersion && parsed.song && Array.isArray(parsed.events)) {
+            setLevel(parsed);
+            handleStop();
+          } else {
+            alert('Invalid beatmap JSON format.');
+          }
+        } catch {
+          alert('Failed to parse JSON file.');
+        }
+      };
+      reader.readAsText(file);
+    },
+    [handleStop]
+  );
+
+  // Export level data to downloadable JSON
+  const handleExport = useCallback(() => {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(level, null, 2));
     const dlAnchorElem = document.createElement('a');
     dlAnchorElem.setAttribute('href', dataStr);
     dlAnchorElem.setAttribute('download', `${level.song.title.toLowerCase().replace(/\s+/g, '_')}_level.json`);
     dlAnchorElem.click();
-  };
+  }, [level]);
+
+  // Quantize selected note or all notes to current grid snap
+  const handleQuantize = useCallback(() => {
+    const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
+    if (interval <= 0) return; // 'free' mode does not quantize
+
+    setLevel((prev) => {
+      const newEvents = prev.events
+        .map((event) => {
+          if (selectedEventId && event.id !== selectedEventId) return event;
+          const snappedTarget = snapTimeToGrid(event.targetTime, prev.timing.bpm, gridSubdivision);
+          let snappedDuration = event.duration;
+          if (event.duration !== undefined) {
+            snappedDuration = Math.max(interval, Math.round(event.duration / interval) * interval);
+          }
+          return {
+            ...event,
+            targetTime: snappedTarget,
+            duration: snappedDuration,
+            quantized: true,
+          };
+        })
+        .sort((a, b) => a.targetTime - b.targetTime);
+      return { ...prev, events: newEvents };
+    });
+  }, [level.timing.bpm, gridSubdivision, selectedEventId]);
 
   const selectedEvent = level.events.find((e) => e.id === selectedEventId) || null;
   const selectedNode = level.visual.nodes.find((n) => n.id === selectedNodeId) || null;
 
   return (
     <div className="relative z-10 min-h-screen w-full flex flex-col bg-[#0b0b12] text-white select-none">
-      {/* Top Header & Transport Controls */}
+      {/* Top Header & Transport / Audio / Import / Export Controls */}
       <EditorHeader
         bpm={level.timing.bpm}
         currentTime={currentTime}
         isPlaying={isPlaying}
+        isRecording={isRecording}
+        enableHitsounds={enableHitsounds}
         onTogglePlay={togglePlay}
+        onToggleRecord={toggleRecord}
+        onToggleHitsounds={toggleHitsounds}
         onStop={handleStop}
+        onLoadAudioFile={handleAudioLoad}
+        onImportJson={handleJsonImport}
         onExport={handleExport}
         onExit={() => {
           dispose();
@@ -136,6 +223,7 @@ export function EditorApp({ onExit }: { onExit: () => void }) {
         onChangeGridSubdivision={setGridSubdivision}
         pixelsPerSecond={pixelsPerSecond}
         onChangePixelsPerSecond={setPixelsPerSecond}
+        onQuantize={handleQuantize}
       />
 
       {/* Main Workspace Layout */}

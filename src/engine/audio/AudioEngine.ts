@@ -116,30 +116,88 @@ export class AudioEngine implements TimeSource {
   }
 
   /**
+   * Load audio from a URL, a File object, or an ArrayBuffer.
+   * Decodes into an AudioBuffer and returns the success status and duration in seconds.
+   */
+  async loadAudio(source: string | File | ArrayBuffer): Promise<{ success: boolean; duration: number }> {
+    if (!this.ctx) throw new Error('AudioEngine not initialized — call init() first');
+    try {
+      let arrayBuffer: ArrayBuffer;
+      if (source instanceof File) {
+        arrayBuffer = await source.arrayBuffer();
+      } else if (source instanceof ArrayBuffer) {
+        arrayBuffer = source;
+      } else {
+        const response = await fetch(source);
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || contentType.includes('text/html')) {
+          console.warn(`Audio source returned invalid status or HTML (${response.status}, ${contentType}).`);
+          this.useFile = false;
+          this.audioBuffer = null;
+          return { success: false, duration: 0 };
+        }
+        arrayBuffer = await response.arrayBuffer();
+      }
+
+      this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      this.useFile = true;
+      return { success: true, duration: this.audioBuffer.duration };
+    } catch (err) {
+      console.warn('Audio decoding failed, falling back to procedural synthesizer:', err);
+      this.useFile = false;
+      this.audioBuffer = null;
+      return { success: false, duration: 0 };
+    }
+  }
+
+  /**
    * Load an external audio file (mp3, wav, ogg, etc.) for playback.
    * Must be called after init(). The file is decoded into an AudioBuffer
    * and played through the same master gain → analyser chain.
    */
   async loadFile(url: string): Promise<boolean> {
-    if (!this.ctx) throw new Error('AudioEngine not initialized — call init() first');
+    const res = await this.loadAudio(url);
+    return res.success;
+  }
+
+  /**
+   * Play an immediate, low-latency synthesized hitsound (<5ms) for the given pad.
+   */
+  playHitsound(padId: string): void {
+    if (!this.ctx) return;
     try {
-      const response = await fetch(url);
-      const contentType = response.headers.get('content-type') || '';
-      if (!response.ok || contentType.includes('text/html')) {
-        console.warn(`Audio file not found or returned HTML (${response.status}, ${contentType}). Using procedural synthesizer.`);
-        this.useFile = false;
-        this.audioBuffer = null;
-        return false;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      let baseFreq = 440;
+      if (padId === 'pad_0') {
+        baseFreq = 130; // Kick punch
+        osc.frequency.setValueAtTime(baseFreq, now);
+        osc.frequency.exponentialRampToValueAtTime(45, now + 0.05);
+      } else if (padId === 'pad_1') {
+        baseFreq = 260; // Snare snap
+        osc.frequency.setValueAtTime(baseFreq, now);
+      } else if (padId === 'pad_2') {
+        baseFreq = 520; // Lead chime
+        osc.frequency.setValueAtTime(baseFreq, now);
+      } else if (padId === 'pad_3') {
+        baseFreq = 780; // High bell
+        osc.frequency.setValueAtTime(baseFreq, now);
+      } else {
+        osc.frequency.setValueAtTime(baseFreq, now);
       }
-      const arrayBuffer = await response.arrayBuffer();
-      this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-      this.useFile = true;
-      return true;
-    } catch (err) {
-      console.warn('Audio decoding failed, falling back to procedural synthesizer:', err);
-      this.useFile = false;
-      this.audioBuffer = null;
-      return false;
+
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } catch {
+      // AudioContext might be closed or suspended
     }
   }
 

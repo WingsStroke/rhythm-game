@@ -75,6 +75,17 @@ export interface Transport {
   loadFile(url: string): Promise<boolean>;
 
   /**
+   * Loads an audio source (URL, File, or ArrayBuffer).
+   * @returns success flag and audio duration in seconds.
+   */
+  loadAudio(source: string | File | ArrayBuffer): Promise<{ success: boolean; duration: number }>;
+
+  /**
+   * Plays an immediate low-latency synthesized hitsound for the given pad.
+   */
+  playHitsound(padId: string): void;
+
+  /**
    * Initializes the underlying audio context.
    * Must be called from a user gesture to satisfy browser autoplay policies.
    */
