@@ -97,6 +97,16 @@ export interface Transport {
   readonly isUsingFile: boolean;
 
   /**
+   * Current playback speed multiplier (e.g. 0.25, 0.5, 0.75, 1.0).
+   */
+  readonly playbackSpeed: number;
+
+  /**
+   * Sets playback speed multiplier.
+   */
+  setPlaybackSpeed(speed: number): void;
+
+  /**
    * Releases all resources and closes the audio context.
    */
   dispose(): void;

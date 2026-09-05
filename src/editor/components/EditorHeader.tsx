@@ -14,6 +14,7 @@ import {
   VolumeX,
   Undo2,
   Redo2,
+  Gauge,
 } from 'lucide-react';
 import { formatTime } from '../utils';
 
@@ -23,6 +24,8 @@ interface EditorHeaderProps {
   isPlaying: boolean;
   isRecording: boolean;
   enableHitsounds: boolean;
+  playbackSpeed?: number;
+  onChangePlaybackSpeed?: (speed: number) => void;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -44,6 +47,8 @@ export function EditorHeader({
   isPlaying,
   isRecording,
   enableHitsounds,
+  playbackSpeed = 1.0,
+  onChangePlaybackSpeed,
   canUndo = false,
   canRedo = false,
   onUndo,
@@ -149,6 +154,35 @@ export function EditorHeader({
           {enableHitsounds ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
           {enableHitsounds ? 'HITS' : 'MUTE'}
         </button>
+
+        {/* Playback Speed Selector */}
+        {onChangePlaybackSpeed && (
+          <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-0.5 rounded ml-1">
+            <span className="text-[10px] text-white/50 font-mono px-1.5 font-bold flex items-center gap-1">
+              <Gauge className="w-3 h-3 text-[#00e5ff]" />
+              SPEED:
+            </span>
+            {([0.25, 0.5, 0.75, 1.0] as const).map((speed) => {
+              const isCurrent = Math.abs(playbackSpeed - speed) < 0.01;
+              return (
+                <button
+                  key={speed}
+                  onClick={() => onChangePlaybackSpeed(speed)}
+                  title={`Set playback speed to ${speed}x for precision mapping`}
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                    isCurrent
+                      ? speed < 1.0
+                        ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 shadow-[0_0_8px_#ffaa0040]'
+                        : 'bg-[#00e5ff]/20 text-[#00e5ff] border border-[#00e5ff]/40 shadow-[0_0_8px_#00e5ff30]'
+                      : 'text-white/50 hover:text-white hover:bg-white/10 border border-transparent'
+                  }`}
+                >
+                  {speed}x
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Action Buttons: Audio, Import, Export, Exit */}

@@ -80,28 +80,59 @@ export class AudioEngine implements TimeSource {
 
   /**
    * Master clock in seconds. All gameplay, notes, and visuals reference this.
-   * Returns time elapsed since start() was called.
+   * Accurately tracks position even when playbackSpeed changes dynamically.
    */
   private startTime = 0;
   private pauseOffset = 0;
   private isResuming = false;
+  private _playbackSpeed = 1.0;
+  private baseSongTime = 0;
+  private lastSpeedChangeContextTime = 0;
+  private scheduledStartTime = 0;
 
   getTime(): number {
     if (!this.ctx) return 0;
-    
-    const timeSinceStart = this.ctx.currentTime - this.startTime;
-    
-    // Prevent time from reporting backwards during the scheduling delay
+
     if (this.isResuming) {
-      if (timeSinceStart >= this.pauseOffset) {
+      if (this.ctx.currentTime >= this.scheduledStartTime) {
         this.isResuming = false;
-        return timeSinceStart;
+        this.lastSpeedChangeContextTime = this.scheduledStartTime;
       } else {
         return this.pauseOffset; // Freeze the clock until the scheduled start
       }
     }
-    
-    return timeSinceStart;
+
+    if (!this.playing) {
+      return this.pauseOffset;
+    }
+
+    const elapsedCtx = this.ctx.currentTime - this.lastSpeedChangeContextTime;
+    return Math.max(0, this.baseSongTime + elapsedCtx * this._playbackSpeed);
+  }
+
+  get playbackSpeed(): number {
+    return this._playbackSpeed;
+  }
+
+  setPlaybackSpeed(speed: number): void {
+    const clamped = Math.max(0.1, Math.min(2.0, speed));
+    if (this._playbackSpeed === clamped) return;
+
+    if (this.playing && this.ctx) {
+      this.baseSongTime = this.getTime();
+      this.lastSpeedChangeContextTime = this.ctx.currentTime;
+      this._playbackSpeed = clamped;
+
+      if (this.bufferSource) {
+        try {
+          this.bufferSource.playbackRate.setValueAtTime(clamped, this.ctx.currentTime);
+        } catch {
+          // BufferSource might already be stopped
+        }
+      }
+    } else {
+      this._playbackSpeed = clamped;
+    }
   }
 
   get isPlaying(): boolean {
@@ -278,6 +309,9 @@ export class AudioEngine implements TimeSource {
     const delay = 0.04;
     const scheduledStart = this.ctx.currentTime + delay;
     this.startTime = scheduledStart - offset;
+    this.scheduledStartTime = scheduledStart;
+    this.baseSongTime = offset;
+    this.lastSpeedChangeContextTime = scheduledStart;
     
     this.pauseOffset = offset;
     this.isResuming = true;
@@ -295,9 +329,10 @@ export class AudioEngine implements TimeSource {
 
     this.bufferSource = this.ctx.createBufferSource();
     this.bufferSource.buffer = this.audioBuffer;
+    this.bufferSource.playbackRate.setValueAtTime(this._playbackSpeed, scheduledStart);
     this.bufferSource.connect(this.masterGain);
     this.bufferSource.start(scheduledStart, offset);
-    this.fileStartTime = this.startTime;
+    this.fileStartTime = this.scheduledStartTime;
 
     // Schedule beat callbacks based on BPM
     this.beatCount = Math.floor(offset / (60 / this.bpm));
@@ -317,8 +352,7 @@ export class AudioEngine implements TimeSource {
   private scheduleFileBeats = (): void => {
     if (!this.ctx || !this.playing) return;
     const beatLen = 60 / this.bpm;
-    const currentTime = this.ctx.currentTime;
-    const songTime = currentTime - this.fileStartTime;
+    const songTime = this.getTime();
 
     // Fire any beats that have passed since last check
     while (this.beatCount * beatLen <= songTime) {
@@ -326,7 +360,8 @@ export class AudioEngine implements TimeSource {
       this.beatCount++;
     }
 
-    this.beatTimer = window.setTimeout(this.scheduleFileBeats, 20);
+    const interval = Math.max(10, Math.floor(20 / this._playbackSpeed));
+    this.beatTimer = window.setTimeout(this.scheduleFileBeats, interval);
   };
 
   /** Start the procedural synthesizer (fallback when no file is loaded). */

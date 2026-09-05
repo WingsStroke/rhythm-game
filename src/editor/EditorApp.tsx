@@ -197,6 +197,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     isPlaying,
     isRecording,
     enableHitsounds,
+    playbackSpeed,
+    setPlaybackSpeed,
     currentTime,
     togglePlay,
     toggleRecord,
@@ -306,6 +308,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         isPlaying={isPlaying}
         isRecording={isRecording}
         enableHitsounds={enableHitsounds}
+        playbackSpeed={playbackSpeed}
+        onChangePlaybackSpeed={setPlaybackSpeed}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}

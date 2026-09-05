@@ -4,6 +4,7 @@ import { VisualEngine } from '../../engine/visual/VisualEngine';
 import { InputManager } from '../../engine/input/InputManager';
 import { GameplayEngine } from '../../engine/gameplay/GameplayEngine';
 import { GameplayEventBus } from '../../engine/gameplay/GameplayEventBus';
+import { SongRegistry } from '../../engine/content/SongRegistry';
 import { snapTimeToGrid, getSnapInterval } from '../Timeline';
 import type {
   LevelData,
@@ -35,6 +36,7 @@ export function useEditorEngine({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [enableHitsounds, setEnableHitsounds] = useState(true);
+  const [playbackSpeed, setPlaybackSpeedState] = useState(1.0);
   const [currentTime, setCurrentTime] = useState(0);
 
   const transportRef = useRef<AudioTransport | null>(null);
@@ -329,8 +331,14 @@ export function useEditorEngine({
       if (!transportRef.current) {
         transportRef.current = new AudioTransport();
         await transportRef.current.init();
-        if (level.song.url) {
-          await transportRef.current.loadFile(level.song.url);
+        transportRef.current.setPlaybackSpeed(playbackSpeed);
+
+        const songId = level.songId || level.song.id;
+        const cached = SongRegistry.getInstance().getAudioBuffer(songId);
+        if (cached) {
+          transportRef.current.loadAudioBuffer(cached);
+        } else if (level.song.url) {
+          await transportRef.current.loadFile(level.song.url, songId);
         }
       }
       transportRef.current.onBeat((beatIndex: number) => {
@@ -344,7 +352,12 @@ export function useEditorEngine({
         gameplayRef.current?.start(currentTime);
       }
     }
-  }, [isPlaying, currentTime, level.song.url, level.timing.bpm, activeTab]);
+  }, [isPlaying, currentTime, level.songId, level.song.id, level.song.url, level.timing.bpm, activeTab, playbackSpeed]);
+
+  const setPlaybackSpeed = useCallback((speed: number) => {
+    setPlaybackSpeedState(speed);
+    transportRef.current?.setPlaybackSpeed(speed);
+  }, []);
 
   const handleStop = useCallback(() => {
     transportRef.current?.stop();
@@ -391,6 +404,7 @@ export function useEditorEngine({
       if (!transportRef.current) {
         transportRef.current = new AudioTransport();
         await transportRef.current.init();
+        transportRef.current.setPlaybackSpeed(playbackSpeed);
       }
       const result = await transportRef.current.loadAudio(file, songId);
       if (result.success) {
@@ -402,7 +416,7 @@ export function useEditorEngine({
       }
       return result;
     },
-    []
+    [playbackSpeed]
   );
 
   const updateSceneNode = useCallback((node: SceneNodeData) => {
@@ -419,6 +433,8 @@ export function useEditorEngine({
     isPlaying,
     isRecording,
     enableHitsounds,
+    playbackSpeed,
+    setPlaybackSpeed,
     currentTime,
     setCurrentTime,
     togglePlay,

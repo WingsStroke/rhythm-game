@@ -105,13 +105,13 @@ Cuestiones logicas del gameplay y del motor que han quedado en segundo plano y r
 
 Herramientas avanzadas del editor necesarias para acelerar y facilitar la creacion de beatmaps complejos:
 
-- [ ] **[P0] Visualizacion de la Forma de Onda de Audio (Audio Waveform Display)**
+- [x] **[P0] Visualizacion de la Forma de Onda de Audio (Audio Waveform Display)**
   - Dibujar la grafica de la onda de audio directamente de fondo en la linea de tiempo.
   - Permite al creador alinear visualmente los golpes de bateria y transientes acusticos con el snapping de la rejilla.
 
-- [ ] [P0] Añadir el selector de Playback Speed
-  - Mostrar un botón para seleccionar la velocidad de reproducción de la música y del gameplay.
-  - Permite al creador ajustar notas, efectos y triggers de forma perfecta, sincronizándolas con la música.
+- [x] **[P0] Selector de Playback Speed**
+  - Mostrar un boton para seleccionar la velocidad de reproduccion de la musica y del gameplay (0.25x, 0.5x, 0.75x, 1.0x).
+  - Permite al creador ajustar notas, efectos y triggers de forma perfecta, sincronizandolas con la musica.
 
 - [ ] **[P1] Seleccion Multiple y Marquesina en Timeline**
   - Poder arrastrar un cuadro de seleccion para seleccionar decenas de notas y triggers a la vez.

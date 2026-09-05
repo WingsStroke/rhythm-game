@@ -45,6 +45,14 @@ export class AudioTransport implements Transport {
     return this.audio.isUsingFile;
   }
 
+  get playbackSpeed(): number {
+    return this.audio.playbackSpeed;
+  }
+
+  setPlaybackSpeed(speed: number): void {
+    this.audio.setPlaybackSpeed(speed);
+  }
+
   async init(): Promise<void> {
     await this.audio.init();
 

@@ -1,6 +1,8 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import type { LevelData, PadId, PadEvent, PadBehavior, TriggerData, TriggerActionType } from '../engine/types';
-import { Zap, Repeat, Clock } from 'lucide-react';
+import { SongRegistry } from '../engine/content/SongRegistry';
+import { WaveformCanvas } from './components/WaveformCanvas';
+import { Zap, Repeat, Clock, Activity } from 'lucide-react';
 
 export type EditorTool = 'select' | 'pen' | 'eraser';
 export type GridSubdivision = '1/1' | '1/2' | '1/4' | '1/8' | '1/16' | 'free';
@@ -97,6 +99,11 @@ export function Timeline({
   const totalBeats = Math.floor(totalDuration / beatDuration);
   const totalBars = Math.ceil(totalBeats / 4);
   const widthPx = Math.max(1200, totalDuration * pixelsPerSecond);
+
+  const audioBuffer = useMemo(
+    () => SongRegistry.getInstance().getAudioBuffer(level.songId || level.song.id),
+    [level.songId, level.song.id]
+  );
 
   const triggers = level.visual?.triggers || [];
 
@@ -378,6 +385,17 @@ export function Timeline({
             <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIME</span>
           </div>
 
+          {/* Audio Waveform Header */}
+          <div className="h-12 border-b border-white/10 bg-black/90 flex flex-col justify-center px-3.5 shadow-sm flex-shrink-0">
+            <div className="flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-[#00e5ff]" />
+              <span className="font-mono text-xs font-bold text-[#00e5ff] tracking-wider">AUDIO</span>
+            </div>
+            <span className="text-[10px] text-white/40 font-mono mt-0.5 truncate">
+              {audioBuffer ? 'Waveform' : 'Synthetic'}
+            </span>
+          </div>
+
           {/* Pad Track Labels (flex-1 to distribute vertical space generously, min-h-[68px] for responsive windowed mode) */}
           <div className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[280px]">
             {level.pads.map((pad) => (
@@ -495,6 +513,22 @@ export function Timeline({
                 />
               )
             )}
+          </div>
+
+          {/* Audio Waveform Track Lane */}
+          <div
+            className="h-12 border-b border-white/10 bg-black/40 relative overflow-hidden flex-shrink-0 cursor-crosshair group hover:bg-black/60 transition-colors"
+            onPointerDown={handleRulerPointerDown}
+            title="Audio Waveform — Click to seek playhead"
+          >
+            <WaveformCanvas
+              audioBuffer={audioBuffer}
+              widthPx={widthPx}
+              height={48}
+              pixelsPerSecond={pixelsPerSecond}
+              currentTime={currentTime}
+              bpm={level.timing.bpm}
+            />
           </div>
 
           {/* Note Track Lanes (flex-1 to consume remaining vertical space smoothly, min-h-[68px] for responsiveness) */}
