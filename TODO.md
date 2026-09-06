@@ -231,3 +231,19 @@ Ideas y conceptos complementarios para evaluar durante el desarrollo:
 5. **Politica de Git:**
    - Cada conjunto de cambios funcionales debe confirmarse en git inmediatamente tras verificar `npx tsc -b`.
    - `git push` y `npm run dev` nunca deben ejecutarse mediante agentes automatizados; son controlados por el propietario del repositorio.
+
+## 10. Visualizadores de Espectro de Audio (Audio Spectrum & Decorative Vectors)
+- [ ] **Procesamiento y Balística Espectral:**
+  - [ ] Agrupar datos FFT del `AnalyserNode` en bandas logarítmicas (32, 48 o 64 bandas) cubriendo sub-graves, medios y agudos en escala musical.
+  - [ ] Integrar balística asimétrica (attack instantáneo con decay exponencial suave) para evitar parpadeo errático en pantalla.
+- [ ] **Integración en SceneGraph como `SceneNode`:**
+  - [ ] Crear el tipo de nodo declarativo (`'spectrum_bars'` y `'spectrum_wave'`) configurable desde `level.visual.nodes`.
+  - [ ] Restringir su renderizado a capas decorativas (`bgLayer` o `sceneLayer`) respetando la jerarquía estricta de 7 capas (`zIndex`).
+  - [ ] Soporte para transformaciones nativas heredadas (posición X/Y, rotación, escala, pivote y opacidad).
+- [ ] **Renderizado Eficiente en PixiJS (WebGL):**
+  - [ ] Modo barras: Geometría instanciada / `SimpleMesh` batcheado en un solo draw call.
+  - [ ] Modo onda / cinta: Interpolación suave de puntos mediante `SimpleRope` o curvas Bézier.
+  - [ ] Configuración de modos de fusión (`blendMode: 'add'` / `'screen'`) para efectos de brillo neón de bajo contraste.
+- [ ] **Control por Triggers y Editor:**
+  - [ ] Exponer propiedades en `EditorPropertiesPanel` (número de barras, grosor, color base, sensibilidad).
+  - [ ] Permitir que los triggers modulen dinámicamente la escala, tinte de color o activación del espectro en drops y transiciones.
