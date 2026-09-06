@@ -9,6 +9,7 @@ import type {
   PadInputEvent,
 } from '../types';
 import type { GameplayEventBus } from './GameplayEventBus';
+import { audioTimeToSongTime } from '../time/timeUtils';
 
 /**
  * GameplayEngine — pure gameplay logic, no rendering.
@@ -67,7 +68,7 @@ export class GameplayEngine {
   }
 
   private getSongTime(): number {
-    return this.getTime() - this.songOffset;
+    return audioTimeToSongTime(this.getTime(), this.songOffset);
   }
 
   reset(): void {
@@ -166,7 +167,7 @@ export class GameplayEngine {
    */
   handleInput(inputEvent: PadInputEvent): void {
     const { pad, pressed, time: rawTime } = inputEvent;
-    const time = rawTime - this.songOffset;
+    const time = audioTimeToSongTime(rawTime, this.songOffset);
 
     if (pressed) {
       this.pressedPads.add(pad);

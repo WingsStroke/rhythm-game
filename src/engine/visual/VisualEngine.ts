@@ -21,6 +21,7 @@ import { TriggerDispatcher } from './TriggerDispatcher';
 import { ParticlePool } from './ParticlePool';
 import { NotePool } from './NotePool';
 import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
+import { audioTimeToSongTime } from '../time/timeUtils';
 
 /**
  * VisualEngine — modular and reactive presentation engine using PixiJS v8.
@@ -852,7 +853,7 @@ export class VisualEngine {
 
     // 6. Compute song timing with calibration offset
     const songOffset = this.level.timing?.offset ?? 0;
-    const songTime = audioTime - songOffset;
+    const songTime = audioTimeToSongTime(audioTime, songOffset);
 
     // 7. Cleanup events that fell past the pads
     if (this.notePool) {

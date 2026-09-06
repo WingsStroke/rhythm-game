@@ -9,6 +9,7 @@ import { SongPadsModal } from './components/SongPadsModal';
 import { useEditorEngine } from './hooks/useEditorEngine';
 import { useEditorShortcuts } from './hooks/useEditorShortcuts';
 import { useEditorHistory } from './hooks/useEditorHistory';
+import { useAutoSave } from './hooks/useAutoSave';
 import { INITIAL_LEVEL } from './constants';
 import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData } from '../engine/types';
 import { LevelValidator } from '../engine/content/LevelValidator';
@@ -37,6 +38,27 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const [activeTab, setActiveTab] = useState<EditorTab>('timeline');
   const [isSongPadsModalOpen, setIsSongPadsModalOpen] = useState(false);
   const [audioFileName, setAudioFileName] = useState<string>('');
+
+  const {
+    isDraftAvailable,
+    draftTimestamp,
+    draftAudioFileName,
+    restoreDraft,
+    discardDraft,
+  } = useAutoSave({
+    level,
+    audioFileName,
+  });
+
+  const handleRestoreSession = useCallback(() => {
+    const restored = restoreDraft();
+    if (restored) {
+      resetHistory(restored.level);
+      if (restored.audioFileName) {
+        setAudioFileName(restored.audioFileName);
+      }
+    }
+  }, [restoreDraft, resetHistory]);
 
   // Authoring tools state
   const [activeTool, setActiveTool] = useState<EditorTool>('select');
@@ -381,6 +403,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     activeTab,
     creationBehavior,
     gridSubdivision,
+    selectedTriggerId,
     onSelectNode: (id) => selectNode(id),
     onRecordEvent: handleAddEvent,
   });
@@ -690,6 +713,36 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         }}
       />
 
+      {/* Auto-Save Recovery Floating Banner */}
+      {isDraftAvailable && (
+        <div className="bg-gradient-to-r from-cyan-950/90 via-[#0b0b18]/95 to-cyan-950/90 border-b border-[#00e5ff]/40 px-4 py-2 flex items-center justify-between z-40 text-xs shadow-lg backdrop-blur-md">
+          <div className="flex items-center gap-2 text-cyan-200">
+            <span className="w-2 h-2 rounded-full bg-[#00e5ff] animate-ping" />
+            <span className="font-mono font-medium">
+              A previous unsaved session draft was found
+              {draftTimestamp ? ` (${Math.max(1, Math.round((Date.now() - draftTimestamp) / 60000))} min ago)` : ''}
+              {draftAudioFileName ? ` for "${draftAudioFileName}"` : ''}.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRestoreSession}
+              className="px-3 py-1 bg-[#00e5ff] text-black font-mono font-bold rounded hover:bg-cyan-300 transition-colors shadow-sm cursor-pointer"
+            >
+              Restore Session
+            </button>
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="px-3 py-1 bg-white/10 text-white/70 hover:text-white font-mono rounded hover:bg-white/20 transition-colors cursor-pointer"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )} 
+      
       {/* Authoring Toolbar */}
       <EditorToolbar
         activeTool={activeTool}

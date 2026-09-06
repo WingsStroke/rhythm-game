@@ -454,6 +454,12 @@ SceneNodeData fields:
 - Playhead-Anchored Dynamic Zoom: Smooth scaling preserving the playhead position in the viewport across mouse wheel, toolbar buttons, slider, and keyboard shortcuts (`Ctrl + =` / `Ctrl + -`).
 - Batch Editing & Productivity Suite: Marquee drag-to-select, clipboard engine (Copy `Ctrl+C`, Cut `Ctrl+X`, Paste `Ctrl+V`, Duplicate `Ctrl+D`, Select All `Ctrl+A`), and atomic batch deletion.
 - UI Declutter & SongPadsModal: Gear toggle button with staggered cascaded menu, dedicated `SongPadsModal` settings tabs, full-height `SceneOutliner`, and global `F5` / `Ctrl+Enter` Playtest shortcut.
+- Centralized Temporal Mathematics (`timeUtils.ts`): Single source of truth for audioTime, songTime, timelineTime, leadIn, offset, and timeline pixel positions across engine and editor.
+- Stable NotePool Identity: String-based `event.id` indexing for pooled graphics objects, preserving stable allocations across undo/redo and object clones.
+- Auto-Save & Recovery Suite: Debounced `useAutoSave` hook persisting drafts to `localStorage` with non-intrusive floating recovery banner.
+- Decoupled Keybinding Remapper: `Keybindings.ts` and interactive pad remapping in `SongPadsModal` supporting non-alphabetic keys.
+- Explicit Trigger Creation: Deprecation and elimination of blind fallback to `triggers[0]`; visual `UNASSIGNED` warning badge for unlinked triggers.
+- LOOP Semantic Freeze: Formal freeze on `loop` code expansion pending gameplay design validation on real tracks.
 
 ### Planned (not yet implemented)
 

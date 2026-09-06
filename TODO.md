@@ -81,9 +81,9 @@ Cuestiones logicas del gameplay y del motor que han quedado en segundo plano y r
   - Jugadores con auriculares Bluetooth o monitores de diferente tasa de refresco experimentan desfases de entre 20ms y 150ms.
   - *Accion:* Crear una pantalla de calibracion accesible desde Settings con un metronomo sonoro interactivo donde el usuario presione una tecla al ritmo durante 8 compases para calcular automaticamente el `audioOffset` y `visualOffset` local.
 
-- [ ] **[P1] Remapeo Dinamico de Controles (Keybinding Remapper)**
-  - Las teclas estan actualmente fijas a A/S/D/F.
-  - *Accion:* Implementar selector interactivo de bindings (e.g. D/F/J/K, teclado numerico o flechas) guardado en `localStorage`.
+- [x] **[P1] Remapeo Dinamico de Controles (Keybinding Remapper)**
+  - Las teclas físicas del jugador están completamente desacopladas de la configuración del nivel (`Keybindings.ts`).
+  - Mapeo dinámico y persistente en `localStorage` (`wings_stroke_keybindings`) con soporte para teclas no alfabéticas (Espacio, Flechas, Dígitos, etc.) y remapeo interactivo en `SongPadsModal`.
 
 - [ ] **[P2] Modificadores de Juego (Gameplay Modifiers)**
   - Permitir a los jugadores personalizar el desafio antes de iniciar:
@@ -163,6 +163,24 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
   - Reubicacion de PLAYTEST en el menu de ajustes (con atajo global F5 / Ctrl+Enter).
   - Nuevo modal centralizado `SongPadsModal` para configuracion de pista (metadata, BPM, duracion, offset, lead-in, fade in/out) y matriz de pads (color, atajo de teclado, canal de audio, rol semantico).
   - Limpieza de la barra lateral izquierda (`EditorSidebarLeft`), dedicada al 100% al `SceneOutliner`.
+
+- [x] **[P0] Centralizacion de Conversiones Temporales (timeUtils.ts)**
+  - Módulo matemático unificado para `audioTimeToSongTime`, `songTimeToAudioTime`, `timelineTimeToSongTime`, `songTimeToTimelineX` y `timelineXToSongTime`.
+  - Erradicación de fórmulas manuales duplicadas entre GameplayEngine, VisualEngine, Timeline y useEditorEngine.
+
+- [x] **[P0] Estabilidad de Identidad en NotePool (event.id)**
+  - Migración de la clave de almacenamiento interno de instancias de objetos a `event.id: string`, garantizando persistencia estable del pool ante clones, undo/redo y re-renders.
+
+- [x] **[P1] Auto-Guardado y Recuperacion de Sesion (useAutoSave.ts)**
+  - Persistencia debounced (1200ms) de borradores en `localStorage` (`wings_stroke_editor_draft`).
+  - Banner superior glassmórfico de recuperación ante recargas accidentales con opciones de Restaurar y Descartar.
+
+- [x] **[P1] Asignacion Explicita de Triggers en Grabacion y Timeline**
+  - Eliminación de la asignación ciega implícita a `triggers[0]`.
+  - Soporte de eventos trigger sin asignar con distintivo visual ámbar `UNASSIGNED` y selección explícita.
+
+- [x] **[P2] Congelacion Formal de Semantica LOOP**
+  - Congelación de ampliaciones de código para `loop` hasta contar con validación y especificación de diseño de gameplay en pistas reales.
 
 - [ ] **[P1] Perfiles de Calidad Grafica Adaptativa**
   - Selector en ajustes: *Baja, Media, Alta, Ultra*.

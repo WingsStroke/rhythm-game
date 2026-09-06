@@ -23,7 +23,7 @@ export class NotePool {
   private container: Container;
   private pool: PooledNote[] = [];
   private freeList: PooledNote[] = [];
-  private eventMap: Map<PadEvent, PooledNote> = new Map();
+  private eventMap: Map<string, PooledNote> = new Map();
 
   constructor(container: Container, capacity = 150) {
     this.container = container;
@@ -53,11 +53,16 @@ export class NotePool {
 
   /**
    * Borrows a note from the pool for a given PadEvent and sets its tint.
+   * Keyed by event.id for stable identity across clones and re-renders.
    * O(1) operation using the pre-allocated freeList stack.
    */
   public acquire(event: PadEvent, color: number): PooledNote | null {
-    const existing = this.eventMap.get(event);
-    if (existing) return existing;
+    const existing = this.eventMap.get(event.id);
+    if (existing) {
+      existing.event = event;
+      existing.gfx.tint = color;
+      return existing;
+    }
 
     let item = this.freeList.pop();
 
@@ -78,29 +83,32 @@ export class NotePool {
     item.event = event;
     item.gfx.tint = color;
     item.gfx.visible = true;
-    this.eventMap.set(event, item);
+    this.eventMap.set(event.id, item);
     return item;
   }
 
   /**
    * Returns whether an event currently has an active note checked out.
    */
-  public has(event: PadEvent): boolean {
-    return this.eventMap.has(event);
+  public has(eventOrId: PadEvent | string): boolean {
+    const id = typeof eventOrId === 'string' ? eventOrId : eventOrId.id;
+    return this.eventMap.has(id);
   }
 
   /**
    * Releases a note associated with an event back to the pool.
+   * Accepts either PadEvent or event.id string.
    * O(1) operation returning the note to the freeList stack.
    */
-  public release(event: PadEvent): void {
-    const item = this.eventMap.get(event);
+  public release(eventOrId: PadEvent | string): void {
+    const id = typeof eventOrId === 'string' ? eventOrId : eventOrId.id;
+    const item = this.eventMap.get(id);
     if (!item) return;
 
     item.active = false;
     item.event = null;
     item.gfx.visible = false;
-    this.eventMap.delete(event);
+    this.eventMap.delete(id);
     this.freeList.push(item);
   }
 

@@ -135,6 +135,7 @@ export interface LevelData {
     difficulty: string;
     author: string;
   };
+  /** Canonical audio asset ID matching SongRegistry cache and song.id. */
   songId?: string;
   song: SongData;
   pads: PadConfig[];

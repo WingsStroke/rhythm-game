@@ -15,6 +15,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import type { LevelData, PadConfig, PadId, ModulationChannel } from '../../engine/types';
+import { formatKeyCode, loadUserKeybindings, saveUserKeybindings } from '../../engine/input/Keybindings';
 
 interface SongPadsModalProps {
   isOpen: boolean;
@@ -537,18 +538,32 @@ export function SongPadsModal({
                         </div>
                       </div>
 
-                      {/* Key Hint Badge */}
-                      <div className="flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded-md border border-white/10">
-                        <Keyboard className="w-3 h-3 text-[#00e5ff]" />
+                      {/* Key Hint Badge / Interactive Remapper */}
+                      <div className="flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded-md border border-white/10 focus-within:border-[#00e5ff] transition-colors">
+                        <Keyboard className="w-3 h-3 text-[#00e5ff] flex-shrink-0" />
                         <input
                           type="text"
-                          maxLength={1}
                           value={pad.keyHint || ''}
-                          onChange={(e) =>
-                            updatePadField(pad.id, { keyHint: e.target.value.toUpperCase() })
-                          }
-                          className="w-4 bg-transparent text-xs font-mono font-bold text-white text-center outline-none uppercase"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab') return;
+                            e.preventDefault();
+                            if (e.key === 'Backspace' || e.key === 'Delete') {
+                              updatePadField(pad.id, { keyHint: '' });
+                              return;
+                            }
+                            const display = formatKeyCode(e.code);
+                            updatePadField(pad.id, { keyHint: display });
+                            const current = loadUserKeybindings(level.pads);
+                            for (const [k, v] of Object.entries(current)) {
+                              if (v === pad.id) delete current[k];
+                            }
+                            current[e.code] = pad.id;
+                            saveUserKeybindings(current);
+                          }}
+                          onChange={() => {}}
+                          className="min-w-[28px] max-w-[64px] bg-transparent text-xs font-mono font-bold text-white text-center outline-none uppercase cursor-pointer selection:bg-transparent"
                           placeholder="?"
+                          title="Click and press any key to rebind this pad"
                         />
                       </div>
                     </div>

@@ -5,6 +5,13 @@ import { WaveformCanvas } from './components/WaveformCanvas';
 import { Zap, Repeat, Volume2, VolumeX, Clock } from 'lucide-react';
 
 import { getSnapInterval, snapTimeToGrid, type GridSubdivision } from './utils';
+import {
+  getSongOrigin,
+  timelineTimeToSongTime,
+  songTimeToTimelineTime,
+  timelineXToSongTime,
+  timelineXToTimelineTime,
+} from '../engine/time/timeUtils';
 
 export type { GridSubdivision };
 export type EditorTool = 'select' | 'pen' | 'eraser';
@@ -175,6 +182,7 @@ const PadTracksLane = React.memo(function PadTracksLane({
                 );
               }
               if (event.behavior === 'trigger') {
+                const hasAssignedTrigger = Boolean(event.triggerId);
                 return (
                   <div
                     key={event.id}
@@ -183,14 +191,24 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center gap-1.5 px-2.5 border-2 z-20 cursor-grab active:cursor-grabbing transition-all ${
                       isSelected
                         ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffea00]'
-                        : 'border-yellow-400/80 bg-yellow-500/25 hover:scale-105'
+                        : hasAssignedTrigger
+                        ? 'border-yellow-400/80 bg-yellow-500/25 hover:scale-105'
+                        : 'border-amber-500/90 bg-amber-600/30 hover:scale-105'
                     }`}
                     style={{ left: x }}
                     onPointerDown={(e) => onEventMove(e, event)}
                   >
-                    <Zap className="w-3.5 h-3.5 -rotate-45 text-yellow-300 font-bold pointer-events-none" />
-                    <span className="text-[11px] font-mono font-bold text-yellow-300 pointer-events-none">
-                      {event.triggerId}
+                    <Zap
+                      className={`w-3.5 h-3.5 -rotate-45 font-bold pointer-events-none ${
+                        hasAssignedTrigger ? 'text-yellow-300' : 'text-amber-400'
+                      }`}
+                    />
+                    <span
+                      className={`text-[11px] font-mono font-bold pointer-events-none ${
+                        hasAssignedTrigger ? 'text-yellow-300' : 'text-amber-300'
+                      }`}
+                    >
+                      {event.triggerId || 'UNASSIGNED'}
                     </span>
                   </div>
                 );
@@ -467,7 +485,7 @@ export function Timeline({
   const totalDuration = level.song.duration || 120;
   const offset = level.timing?.offset ?? 0;
   const leadIn = level.timing?.leadIn ?? 0;
-  const songOrigin = leadIn + offset;
+  const songOrigin = getSongOrigin(leadIn, offset);
   const fadeIn = level.timing?.fadeIn ?? 0;
   const fadeOut = level.timing?.fadeOut ?? 0;
   const totalTimelineDuration = totalDuration + leadIn;
@@ -512,7 +530,7 @@ export function Timeline({
   const autoScrollRaf = useRef<number | null>(null);
   const getAudioTimeFromClickX = useCallback(
     (clickX: number) => {
-      const rawTime = Math.max(0, clickX / pixelsPerSecond);
+      const rawTime = timelineXToTimelineTime(clickX, pixelsPerSecond);
       if (rawTime < songOrigin) {
         if (gridSubdivision === 'free') {
           return rawTime;
@@ -522,11 +540,11 @@ export function Timeline({
         const stepsBefore = Math.round((songOrigin - rawTime) / step);
         return Math.max(0, songOrigin - stepsBefore * step);
       }
-      const rawSongTime = rawTime - songOrigin;
+      const rawSongTime = timelineTimeToSongTime(rawTime, leadIn, offset);
       const snappedSongTime = snapTimeToGrid(rawSongTime, level.timing.bpm, gridSubdivision);
-      return snappedSongTime + songOrigin;
+      return songTimeToTimelineTime(snappedSongTime, leadIn, offset);
     },
-    [pixelsPerSecond, songOrigin, gridSubdivision, level.timing.bpm, beatDuration]
+    [pixelsPerSecond, songOrigin, leadIn, offset, gridSubdivision, level.timing.bpm, beatDuration]
   );
 
   const startAutoScroller = useCallback(() => {
@@ -610,8 +628,7 @@ export function Timeline({
     if (activeTool === 'pen') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const rawTimelineTime = Math.max(0, clickX / pixelsPerSecond);
-      const rawSongTime = rawTimelineTime - songOrigin;
+      const rawSongTime = timelineXToSongTime(clickX, pixelsPerSecond, leadIn, offset);
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), level.timing.bpm, gridSubdivision);
 
       const newEvent: PadEvent = {
@@ -620,13 +637,13 @@ export function Timeline({
         targetTime: snappedTime,
         behavior: creationBehavior,
         duration: creationBehavior === 'hold' ? beatDuration * 2 : creationBehavior === 'loop' ? beatDuration * 4 : undefined,
-        triggerId: creationBehavior === 'trigger' ? triggers[0]?.id || 'trigger_1' : undefined,
+        triggerId: creationBehavior === 'trigger' ? (selectedTriggerId || undefined) : undefined,
       };
       onAddEvent(newEvent);
       onSelectEvent(newEvent);
       onSelectTrigger?.(null);
     }
-  }, [dragState, activeTool, pixelsPerSecond, songOrigin, level.timing.bpm, gridSubdivision, creationBehavior, beatDuration, triggers, onAddEvent, onSelectEvent, onSelectTrigger]);
+  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, creationBehavior, beatDuration, selectedTriggerId, onAddEvent, onSelectEvent, onSelectTrigger]);
 
   const handleTriggerTrackClick = useCallback((e: React.MouseEvent) => {
     if (dragState) return;
@@ -635,8 +652,7 @@ export function Timeline({
     if (activeTool === 'pen') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const rawTimelineTime = Math.max(0, clickX / pixelsPerSecond);
-      const rawSongTime = rawTimelineTime - songOrigin;
+      const rawSongTime = timelineXToSongTime(clickX, pixelsPerSecond, leadIn, offset);
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), level.timing.bpm, gridSubdivision);
 
       const newTrigger: TriggerData = {
@@ -652,7 +668,7 @@ export function Timeline({
       onSelectTrigger?.(newTrigger);
       onSelectEvent(null);
     }
-  }, [dragState, activeTool, pixelsPerSecond, songOrigin, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, onAddTrigger, onSelectTrigger, onSelectEvent]);
+  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, onAddTrigger, onSelectTrigger, onSelectEvent]);
 
   const handleCanvasPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;

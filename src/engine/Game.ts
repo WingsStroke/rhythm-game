@@ -4,8 +4,9 @@ import { GameplayEngine } from './gameplay/GameplayEngine';
 import { GameplayEventBus } from './gameplay/GameplayEventBus';
 import { VisualEngine } from './visual/VisualEngine';
 import { SongRegistry } from './content/SongRegistry';
+import { loadUserKeybindings, type KeybindingMap } from './input/Keybindings';
 
-import type { LevelData, PlayerState, PadId, AudioBands } from './types';
+import type { LevelData, PlayerState, AudioBands } from './types';
 import type { Ticker } from 'pixi.js';
 
 /**
@@ -174,13 +175,8 @@ export class Game {
     }
   }
 
-  private setupInput(): void {
-    const map: Record<string, PadId> = {};
-    for (const pad of this.level.pads) {
-      if (pad.keyHint) {
-        map[`Key${pad.keyHint}`] = pad.id;
-      }
-    }
+  private setupInput(customKeybindings?: KeybindingMap): void {
+    const map = customKeybindings || loadUserKeybindings(this.level.pads);
     this.input.setKeyMap(map);
     this.input.setHandler((event) => {
       if (this._isPaused) return;

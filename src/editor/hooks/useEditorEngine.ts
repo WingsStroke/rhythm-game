@@ -6,6 +6,7 @@ import { GameplayEngine } from '../../engine/gameplay/GameplayEngine';
 import { GameplayEventBus } from '../../engine/gameplay/GameplayEventBus';
 import { SongRegistry } from '../../engine/content/SongRegistry';
 import { snapTimeToGrid, getSnapInterval, type GridSubdivision } from '../utils';
+import { loadUserKeybindings, type KeybindingMap } from '../../engine/input/Keybindings';
 import type {
   LevelData,
   PadId,
@@ -14,12 +15,15 @@ import type {
   PadEvent,
   PadBehavior,
 } from '../../engine/types';
+import { timelineTimeToSongTime } from '../../engine/time/timeUtils';
 
 interface UseEditorEngineOptions {
   level: LevelData;
   activeTab: 'timeline' | 'preview';
   creationBehavior: PadBehavior;
   gridSubdivision: GridSubdivision;
+  selectedTriggerId?: string | null;
+  customKeybindings?: KeybindingMap;
   onSelectNode?: (nodeId: string | null) => void;
   onRecordEvent?: (event: PadEvent) => void;
 }
@@ -29,6 +33,8 @@ export function useEditorEngine({
   activeTab,
   creationBehavior,
   gridSubdivision,
+  selectedTriggerId,
+  customKeybindings,
   onSelectNode,
   onRecordEvent,
 }: UseEditorEngineOptions) {
@@ -59,6 +65,12 @@ export function useEditorEngine({
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
 
+  const selectedTriggerIdRef = useRef(selectedTriggerId);
+  selectedTriggerIdRef.current = selectedTriggerId;
+
+  const customKeybindingsRef = useRef(customKeybindings);
+  customKeybindingsRef.current = customKeybindings;
+
   const enableHitsoundsRef = useRef(enableHitsounds);
   enableHitsoundsRef.current = enableHitsounds;
 
@@ -87,12 +99,7 @@ export function useEditorEngine({
     );
     inputRef.current = input;
 
-    const map: Record<string, PadId> = {};
-    for (const pad of levelRef.current.pads) {
-      if (pad.keyHint) {
-        map[`Key${pad.keyHint.toUpperCase()}`] = pad.id;
-      }
-    }
+    const map = customKeybindingsRef.current || loadUserKeybindings(levelRef.current.pads);
     input.setKeyMap(map);
 
     input.onPadPress = (padId) => {
@@ -107,9 +114,8 @@ export function useEditorEngine({
       // 3. Live recording logic when recording and playback are active
       if (isRecordingRef.current && isPlayingRef.current) {
         const leadIn = levelRef.current.timing?.leadIn ?? 0;
-        const audioTime = currentTimeRef.current - leadIn;
         const songOffset = levelRef.current.timing?.offset ?? 0;
-        const songTime = Math.max(0, audioTime - songOffset);
+        const songTime = Math.max(0, timelineTimeToSongTime(currentTimeRef.current, leadIn, songOffset));
         const beh = creationBehaviorRef.current;
         const currentBpm = levelRef.current.timing.bpm;
         const sub = gridSubdivisionRef.current;
@@ -131,7 +137,7 @@ export function useEditorEngine({
             targetTime: snappedTime,
             behavior: beh,
             duration: defaultDuration,
-            triggerId: beh === 'trigger' ? levelRef.current.visual.triggers[0]?.id || 'trigger_1' : undefined,
+            triggerId: beh === 'trigger' ? (selectedTriggerIdRef.current || undefined) : undefined,
             quantized: sub !== 'free',
           };
           onRecordEventRef.current?.(newEvent);
@@ -148,9 +154,8 @@ export function useEditorEngine({
         if (hold) {
           activeRecordHolds.current.delete(padId);
           const leadIn = levelRef.current.timing?.leadIn ?? 0;
-          const audioTime = currentTimeRef.current - leadIn;
           const songOffset = levelRef.current.timing?.offset ?? 0;
-          const releaseTime = Math.max(0, audioTime - songOffset);
+          const releaseTime = Math.max(0, timelineTimeToSongTime(currentTimeRef.current, leadIn, songOffset));
           const rawDuration = Math.max(0.05, releaseTime - hold.startTime);
           const currentBpm = levelRef.current.timing.bpm;
           const sub = gridSubdivisionRef.current;
@@ -283,18 +288,13 @@ export function useEditorEngine({
     }
   }, [level.visual]);
 
-  // Sync keyMap when level.pads changes
+  // Sync keyMap when level.pads or customKeybindings changes
   useEffect(() => {
     if (inputRef.current) {
-      const map: Record<string, PadId> = {};
-      for (const pad of level.pads) {
-        if (pad.keyHint) {
-          map[`Key${pad.keyHint.toUpperCase()}`] = pad.id;
-        }
-      }
+      const map = customKeybindings || loadUserKeybindings(level.pads);
       inputRef.current.setKeyMap(map);
     }
-  }, [level.pads]);
+  }, [level.pads, customKeybindings]);
 
   // Sync timing offset in real-time when level.timing changes
   useEffect(() => {
