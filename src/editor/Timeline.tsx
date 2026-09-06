@@ -385,8 +385,13 @@ export function Timeline({
   // Memoized Ruler Ticks that dynamically adapt to the active snap gridSubdivision
   const rulerTicks = useMemo(() => {
     const ticks: React.ReactNode[] = [];
+    const bpm = level.timing.bpm || 120;
+    const interval = getSnapInterval(bpm, gridSubdivision);
+    const step = interval > 0 ? interval : beatDuration;
+    const totalSteps = Math.floor(totalDuration / step);
+    const stepsPerBar = Math.round((4 * beatDuration) / step);
 
-    // 1. Measure / Bar Markers (Always present)
+    // 1. Measure / Bar Markers (m.1, m.2, ...)
     for (let barIdx = 0; barIdx <= totalBars; barIdx++) {
       const barTime = barIdx * 4 * beatDuration;
       ticks.push(
@@ -401,123 +406,46 @@ export function Timeline({
       );
     }
 
-    // 2. Quarter Beat Ticks (1/4)
-    for (let beatIdx = 1; beatIdx <= totalBeats; beatIdx++) {
-      if (beatIdx % 4 === 0) continue; // Skip bar lines
-      const isHalfBar = beatIdx % 2 === 0;
-      const tickHeight = gridSubdivision === '1/1' ? 'h-2' : isHalfBar ? 'h-3.5' : 'h-3';
-      const tickOpacity =
-        gridSubdivision === '1/1'
-          ? 'border-white/10'
-          : gridSubdivision === '1/2' && isHalfBar
-          ? 'border-white/40'
-          : 'border-white/25';
-
-      ticks.push(
-        <div
-          key={`ruler-beat-${beatIdx}`}
-          className={`absolute bottom-0 ${tickHeight} border-l ${tickOpacity} pointer-events-none`}
-          style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
-        />
-      );
-    }
-
-    // 3. Sub-beat Ticks (1/8th and 1/16th)
-    if (gridSubdivision === '1/8' || gridSubdivision === '1/16') {
-      const factor = gridSubdivision === '1/16' ? 4 : 2;
-      const totalSteps = totalBeats * factor;
-      const stepDuration = beatDuration / factor;
-
-      for (let subIdx = 1; subIdx <= totalSteps; subIdx++) {
-        if (subIdx % factor === 0) continue; // Skip full beats
-
-        const isEighth = gridSubdivision === '1/16' && subIdx % 2 === 0;
-        const tickClass =
-          gridSubdivision === '1/8'
-            ? 'h-2 border-l border-[#00e5ff]/40'
-            : isEighth
-            ? 'h-2 border-l border-white/30'
-            : 'h-1.5 border-l border-[#00e5ff]/40';
-
+    // 2. Intermediate Snap Ticks in Ruler (skipping bar positions)
+    if (stepsPerBar > 1) {
+      for (let i = 1; i <= totalSteps; i++) {
+        if (i % stepsPerBar === 0) continue; // Skip bar markers already drawn
+        const time = i * step;
         ticks.push(
           <div
-            key={`ruler-sub-${subIdx}`}
-            className={`absolute bottom-0 pointer-events-none ${tickClass}`}
-            style={{ left: subIdx * stepDuration * pixelsPerSecond }}
+            key={`ruler-sub-${i}`}
+            className="absolute bottom-0 h-2 border-l border-white/20 pointer-events-none"
+            style={{ left: time * pixelsPerSecond }}
           />
         );
       }
     }
 
     return ticks;
-  }, [totalBars, totalBeats, beatDuration, pixelsPerSecond, gridSubdivision]);
+  }, [totalBars, totalDuration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm]);
 
-  // Memoized Background Grid Lines spanning full height that dynamically adapt to gridSubdivision
+  // Memoized Background Grid Lines that dynamically adapt directly to the selected snap
+  // All lines have the exact same low, notable opacity (border-white/10) with zero harsh contrasting lines
   const backgroundGridLines = useMemo(() => {
+    const bpm = level.timing.bpm || 120;
+    const interval = getSnapInterval(bpm, gridSubdivision);
+    const step = interval > 0 ? interval : beatDuration; // fallback to 1/4 beat in 'free' mode
+    const totalSteps = Math.floor(totalDuration / step);
     const lines: React.ReactNode[] = [];
 
-    // 1. Measure / Bar Lines
-    for (let barIdx = 0; barIdx <= totalBars; barIdx++) {
+    for (let i = 0; i <= totalSteps; i++) {
+      const time = i * step;
       lines.push(
         <div
-          key={`grid-bar-${barIdx}`}
-          className="absolute top-0 bottom-0 border-l border-white/25 pointer-events-none"
-          style={{ left: barIdx * 4 * beatDuration * pixelsPerSecond }}
+          key={`grid-snap-${i}`}
+          className="absolute top-0 bottom-0 border-l border-white/10 pointer-events-none"
+          style={{ left: time * pixelsPerSecond }}
         />
       );
-    }
-
-    // 2. Quarter Beat Lines (1/4)
-    for (let beatIdx = 1; beatIdx <= totalBeats; beatIdx++) {
-      if (beatIdx % 4 === 0) continue; // Skip bar lines
-      const isHalfBar = beatIdx % 2 === 0;
-      const lineClass =
-        gridSubdivision === '1/1'
-          ? 'border-white/5'
-          : gridSubdivision === '1/2' && isHalfBar
-          ? 'border-white/20'
-          : isHalfBar
-          ? 'border-white/15'
-          : 'border-white/10';
-
-      lines.push(
-        <div
-          key={`grid-beat-${beatIdx}`}
-          className={`absolute top-0 bottom-0 border-l ${lineClass} pointer-events-none`}
-          style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
-        />
-      );
-    }
-
-    // 3. Sub-beat Lines (1/8th and 1/16th)
-    if (gridSubdivision === '1/8' || gridSubdivision === '1/16') {
-      const factor = gridSubdivision === '1/16' ? 4 : 2;
-      const totalSteps = totalBeats * factor;
-      const stepDuration = beatDuration / factor;
-
-      for (let subIdx = 1; subIdx <= totalSteps; subIdx++) {
-        if (subIdx % factor === 0) continue; // Skip full beats
-
-        const isEighth = gridSubdivision === '1/16' && subIdx % 2 === 0;
-        const lineClass =
-          gridSubdivision === '1/8'
-            ? 'border-l border-[#00e5ff]/20'
-            : isEighth
-            ? 'border-l border-white/12'
-            : 'border-l border-[#00e5ff]/20';
-
-        lines.push(
-          <div
-            key={`grid-sub-${subIdx}`}
-            className={`absolute top-0 bottom-0 pointer-events-none ${lineClass}`}
-            style={{ left: subIdx * stepDuration * pixelsPerSecond }}
-          />
-        );
-      }
     }
 
     return lines;
-  }, [totalBars, totalBeats, beatDuration, pixelsPerSecond, gridSubdivision]);
+  }, [totalDuration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm]);
 
   return (
     <div className="flex-1 w-full h-full min-h-0 flex overflow-hidden relative select-none bg-[#09090f]">
