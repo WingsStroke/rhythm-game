@@ -101,35 +101,36 @@ Cuestiones logicas del gameplay y del motor que han quedado en segundo plano y r
 
 ---
 
-## 3. Pendientes del Editor de Niveles (Herramientas y Workflow)
+## 3. Pendientes del Editor de Niveles: Bloque de Edicion por Lotes (Siguiente Paso Inmediato)
 
-Herramientas avanzadas del editor necesarias para acelerar y facilitar la creacion de beatmaps complejos:
+Suite de herramientas de productividad y edicion por lotes requerida para desbloquear la creacion ergonomica de beatmaps reales:
 
 - [x] **[P0] Visualizacion de la Forma de Onda de Audio (Audio Waveform Display)**
   - Dibujar la grafica de la onda de audio directamente de fondo en la linea de tiempo.
   - Permite al creador alinear visualmente los golpes de bateria y transientes acusticos con el snapping de la rejilla.
 
 - [x] **[P0] Selector de Playback Speed**
-  - Mostrar un boton para seleccionar la velocidad de reproduccion de la musica y del gameplay (0.25x, 0.5x, 0.75x, 1.0x).
-  - Permite al creador ajustar notas, efectos y triggers de forma perfecta, sincronizandolas con la musica.
+  - Input numerico estilizado (0.25x a 4.0x) para desacelerar o acelerar la reproduccion durante el mapeo de precision sin cortes de audio.
 
-- [ ] **[P1] Seleccion Multiple y Marquesina en Timeline**
-  - Poder arrastrar un cuadro de seleccion para seleccionar decenas de notas y triggers a la vez.
-  - Soporte para mover bloques enteros de notas hacia adelante o atras en el tiempo.
+- [-] **[P0] Bloque de Edicion por Lotes y Productividad (Batch Editing Suite)**
+  - [ ] **1. Seleccion Multiple y Marquesina (Drag-to-Select):**
+    - Migrar el estado en `useEditorEngine.ts` de IDs unicos a conjuntos (`selectedEventIds: Set<string>` y `selectedTriggerIds: Set<string>`).
+    - Rectangulo de seleccion elastico translucido en `Timeline.tsx` activado con herramienta de seleccion (V) sobre areas libres, interceptando notas y triggers mediante AABB.
+    - Modificadores de teclado: `Ctrl + Clic` (conmutar seleccion individual de elemento) y `Shift + Clic` (seleccion continua de rango temporal).
+    - Desplazamiento simultaneo de todo el lote seleccionado cuantizado a la rejilla al arrastrar cualquier elemento del grupo.
+  - [ ] **2. Portapapeles y Duplicacion (Clipboard Engine):**
+    - Copiar, cortar y pegar (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`): Almacenamiento en memoria con distancias temporales relativas al evento mas temprano; pegado cuantizado estampado en el cabezal de reproduccion (`currentTime`).
+    - Duplicacion rapida (`Ctrl+D` / `Alt + Arrastre`): Clonacion instantanea del bloque seleccionado colocada inmediatamente a continuacion.
+    - Borrado colectivo (`Supr` / `Backspace`): Eliminacion atomica de todo el lote seleccionado en una sola transaccion de historial (`useEditorHistory` / `Ctrl+Z`).
+  - [ ] **3. Zoom Horizontal Interactivo con Pivote (Dynamic pixelsPerSecond):**
+    - Control interactivo mediante atajo `Ctrl + Rueda del raton` en la linea de tiempo y deslizador continuo en barra de herramientas.
+    - Rango operativo expandido: desde escala macro (~40 px/s para vision panoramica de la cancion completa) hasta escala quirurgica (~350 px/s para microtransientes en 1/16 y 1/32).
+    - Zoom centrado en el cursor: Conservacion matematica del tiempo bajo el puntero del raton al escalar (`newScrollLeft = T_cursor * newPxPerSec - X_cursor`), evitando saltos y perdida de contexto visual.
 
-- [ ] **[P2] Copiar, Cortar y Pegar Bloques de Notas (Ctrl+C, Ctrl+X, Ctrl+V)**
-  - Copiar compases completos y pegarlos en la posicion actual del cabezal de reproduccion con un clic.
+- [ ] **[P3] Guardado Automatico en localStorage (Auto-Save Recovery)**
+  - Guardar el estado del nivel cada 30 segundos en el almacenamiento local para prevenir perdida accidental de trabajo.
 
-- [ ] **[P3] Zoom Horizontal y Vertical en Timeline**
-  - Atajos `Ctrl + Rueda del raton` o slider visual para acercar compases en pasajes rapidos (1/16, 1/32) o alejar para ver la cancion completa.
-
-- [ ] **[P4] Guardado Automatico en localStorage (Auto-Save Recovery)**
-  - Guardar el estado del nivel cada 30 segundos en el almacenamiento local para que, si el usuario cierra el navegador por error, no pierda su trabajo.
-
-- [ ] **[P5] Duplicacion Rapida con Arrastre (Alt + Drag / Ctrl+D)**
-  - Clonar una nota o trigger seleccionado simplemente manteniendolo presionado mientras se arrastra.
-
-- [ ] **[P6] Pistas de Automatizacion de BPM y Cambios de Compas**
+- [ ] **[P4] Pistas de Automatizacion de BPM y Cambios de Compas**
   - Soporte para canciones con cambios de tempo (tempo ramps) o firmas de compas variables (3/4, 6/8).
 
 ---
