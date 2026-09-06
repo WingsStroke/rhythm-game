@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
-import { Timeline, type EditorTool, type GridSubdivision } from './Timeline';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import { Timeline, type EditorTool } from './Timeline';
+import { snapTimeToGrid, getSnapInterval, type GridSubdivision } from './utils';
 import { EditorHeader } from './components/EditorHeader';
 import { EditorToolbar } from './components/EditorToolbar';
 import { EditorSidebarLeft } from './components/EditorSidebarLeft';
@@ -41,23 +42,47 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const [pixelsPerSecond, setPixelsPerSecond] = useState<number>(120);
   const [showWaveform, setShowWaveform] = useState<boolean>(true);
 
-  // Mutually exclusive selection state
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
+  // Multi-selection state
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
+  const [selectedTriggerIds, setSelectedTriggerIds] = useState<Set<string>>(new Set());
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
+  // Single active items for inspector (when single item is selected, or primary pivot)
+  const selectedEventId = useMemo(
+    () => (selectedEventIds.size === 1 ? Array.from(selectedEventIds)[0] : null),
+    [selectedEventIds]
+  );
+  const selectedTriggerId = useMemo(
+    () => (selectedTriggerIds.size === 1 ? Array.from(selectedTriggerIds)[0] : null),
+    [selectedTriggerIds]
+  );
+
+  const selectedEvents = useMemo(
+    () => level.events.filter((e) => selectedEventIds.has(e.id)),
+    [level.events, selectedEventIds]
+  );
+
+  const selectedTriggers = useMemo(
+    () => (level.visual?.triggers || []).filter((t) => selectedTriggerIds.has(t.id)),
+    [level.visual?.triggers, selectedTriggerIds]
+  );
+
   const selectEvent = useCallback((id: string | null) => {
-    setSelectedEventId(id);
-    if (id) {
-      setSelectedTriggerId(null);
+    if (!id) {
+      setSelectedEventIds(new Set());
+    } else {
+      setSelectedEventIds(new Set([id]));
+      setSelectedTriggerIds(new Set());
       setSelectedNodeId(null);
     }
   }, []);
 
   const selectTrigger = useCallback((id: string | null) => {
-    setSelectedTriggerId(id);
-    if (id) {
-      setSelectedEventId(null);
+    if (!id) {
+      setSelectedTriggerIds(new Set());
+    } else {
+      setSelectedTriggerIds(new Set([id]));
+      setSelectedEventIds(new Set());
       setSelectedNodeId(null);
     }
   }, []);
@@ -65,10 +90,95 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const selectNode = useCallback((id: string | null) => {
     setSelectedNodeId(id);
     if (id) {
-      setSelectedEventId(null);
-      setSelectedTriggerId(null);
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
     }
   }, []);
+
+  const selectEventsBatch = useCallback((ids: Set<string>, additive: boolean = false) => {
+    setSelectedEventIds((prev) => {
+      if (!additive) return new Set(ids);
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    if (ids.size > 0 && !additive) {
+      setSelectedTriggerIds(new Set());
+      setSelectedNodeId(null);
+    }
+  }, []);
+
+  const selectTriggersBatch = useCallback((ids: Set<string>, additive: boolean = false) => {
+    setSelectedTriggerIds((prev) => {
+      if (!additive) return new Set(ids);
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    if (ids.size > 0 && !additive) {
+      setSelectedEventIds(new Set());
+      setSelectedNodeId(null);
+    }
+  }, []);
+
+  const toggleEventSelection = useCallback((id: string, multi: boolean = true) => {
+    setSelectedEventIds((prev) => {
+      const next = multi ? new Set(prev) : new Set<string>();
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setSelectedTriggerIds(new Set());
+    setSelectedNodeId(null);
+  }, []);
+
+  const toggleTriggerSelection = useCallback((id: string, multi: boolean = true) => {
+    setSelectedTriggerIds((prev) => {
+      const next = multi ? new Set(prev) : new Set<string>();
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setSelectedEventIds(new Set());
+    setSelectedNodeId(null);
+  }, []);
+
+  const selectEventRange = useCallback((targetId: string) => {
+    if (selectedEventIds.size === 0) {
+      setSelectedEventIds(new Set([targetId]));
+      return;
+    }
+    const lastSelectedId = Array.from(selectedEventIds)[selectedEventIds.size - 1];
+    const sortedEvents = [...level.events].sort((a, b) => a.targetTime - b.targetTime);
+    const idxA = sortedEvents.findIndex((e) => e.id === lastSelectedId);
+    const idxB = sortedEvents.findIndex((e) => e.id === targetId);
+    if (idxA === -1 || idxB === -1) {
+      setSelectedEventIds(new Set([targetId]));
+      return;
+    }
+    const minIdx = Math.min(idxA, idxB);
+    const maxIdx = Math.max(idxA, idxB);
+    const rangeIds = new Set(selectedEventIds);
+    for (let i = minIdx; i <= maxIdx; i++) {
+      rangeIds.add(sortedEvents[i].id);
+    }
+    setSelectedEventIds(rangeIds);
+  }, [level.events, selectedEventIds]);
+
+  const handleSelectAll = useCallback(() => {
+    if (activeTab === 'timeline') {
+      const allEventIds = new Set(level.events.map((e) => e.id));
+      setSelectedEventIds(allEventIds);
+      setSelectedTriggerIds(new Set());
+      setSelectedNodeId(null);
+    }
+  }, [activeTab, level.events]);
 
   // 1. PadEvent mutations
   const handleAddEvent = useCallback((newEvent: PadEvent) => {
@@ -88,12 +198,26 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
   }, [setLevel]);
 
+  const handleUpdateEventsBatch = useCallback((updatedEvents: PadEvent[]) => {
+    setLevel((prev) => {
+      const map = new Map(updatedEvents.map((e) => [e.id, e]));
+      const newEvents = prev.events
+        .map((e) => map.get(e.id) || e)
+        .sort((a, b) => a.targetTime - b.targetTime);
+      return { ...prev, events: newEvents };
+    });
+  }, [setLevel]);
+
   const handleRemoveEvent = useCallback((id: string) => {
     setLevel((prev) => ({
       ...prev,
       events: prev.events.filter((e) => e.id !== id),
     }));
-    setSelectedEventId((prevId) => (prevId === id ? null : prevId));
+    setSelectedEventIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }, [setLevel]);
 
   // 2. TriggerData mutations
@@ -128,6 +252,23 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
   }, [setLevel]);
 
+  const handleUpdateTriggersBatch = useCallback((updatedTriggers: TriggerData[]) => {
+    setLevel((prev) => {
+      const map = new Map(updatedTriggers.map((t) => [t.id, t]));
+      const currentTriggers = prev.visual?.triggers || [];
+      const newTriggers = currentTriggers
+        .map((t) => map.get(t.id) || t)
+        .sort((a, b) => a.time - b.time);
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          triggers: newTriggers,
+        },
+      };
+    });
+  }, [setLevel]);
+
   const handleRemoveTrigger = useCallback((id: string) => {
     setLevel((prev) => ({
       ...prev,
@@ -136,7 +277,11 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         triggers: (prev.visual?.triggers || []).filter((t) => t.id !== id),
       },
     }));
-    setSelectedTriggerId((prevId) => (prevId === id ? null : prevId));
+    setSelectedTriggerIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }, [setLevel]);
 
   // 3. SceneNode mutations
@@ -192,6 +337,26 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     setSelectedNodeId((prevId) => (prevId === id ? null : prevId));
   }, [setLevel]);
 
+  const handleRemoveBatch = useCallback((eventIds?: Set<string>, triggerIds?: Set<string>) => {
+    const eIds = eventIds ?? selectedEventIds;
+    const tIds = triggerIds ?? selectedTriggerIds;
+
+    if (eIds.size > 0 || tIds.size > 0) {
+      setLevel((prev) => ({
+        ...prev,
+        events: eIds.size > 0 ? prev.events.filter((e) => !eIds.has(e.id)) : prev.events,
+        visual: {
+          ...prev.visual,
+          triggers: tIds.size > 0 ? (prev.visual?.triggers || []).filter((t) => !tIds.has(t.id)) : (prev.visual?.triggers || []),
+        },
+      }));
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
+    } else if (selectedNodeId) {
+      handleRemoveNode(selectedNodeId);
+    }
+  }, [selectedEventIds, selectedTriggerIds, selectedNodeId, setLevel, handleRemoveNode]);
+
   // Modular Engine hook
   const {
     canvasContainerRef,
@@ -217,26 +382,182 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     onRecordEvent: handleAddEvent,
   });
 
+  // Clipboard Engine
+  interface ClipboardData {
+    type: 'events' | 'triggers';
+    events?: PadEvent[];
+    triggers?: TriggerData[];
+    baseTime: number;
+  }
+  const clipboardRef = useRef<ClipboardData | null>(null);
+
+  const handleCopy = useCallback(() => {
+    if (selectedEventIds.size > 0) {
+      const selected = level.events.filter((e) => selectedEventIds.has(e.id));
+      if (selected.length === 0) return;
+      const baseTime = Math.min(...selected.map((e) => e.targetTime));
+      clipboardRef.current = {
+        type: 'events',
+        events: selected.map((e) => ({ ...e })),
+        baseTime,
+      };
+    } else if (selectedTriggerIds.size > 0) {
+      const selected = (level.visual?.triggers || []).filter((t) => selectedTriggerIds.has(t.id));
+      if (selected.length === 0) return;
+      const baseTime = Math.min(...selected.map((t) => t.time));
+      clipboardRef.current = {
+        type: 'triggers',
+        triggers: selected.map((t) => ({ ...t })),
+        baseTime,
+      };
+    }
+  }, [selectedEventIds, selectedTriggerIds, level.events, level.visual?.triggers]);
+
+  const handleCut = useCallback(() => {
+    handleCopy();
+    handleRemoveBatch();
+  }, [handleCopy, handleRemoveBatch]);
+
+  const handlePaste = useCallback(() => {
+    if (!clipboardRef.current) return;
+    const snappedPlayhead = snapTimeToGrid(currentTime, level.timing.bpm, gridSubdivision);
+
+    if (clipboardRef.current.type === 'events' && clipboardRef.current.events) {
+      const baseTime = clipboardRef.current.baseTime;
+      const newIds = new Set<string>();
+      const pastedEvents: PadEvent[] = clipboardRef.current.events.map((e) => {
+        const newId = crypto.randomUUID();
+        newIds.add(newId);
+        const delta = e.targetTime - baseTime;
+        const targetTime = Number((snappedPlayhead + delta).toFixed(4));
+        return {
+          ...e,
+          id: newId,
+          targetTime,
+        };
+      });
+
+      setLevel((prev) => {
+        const newEvents = [...prev.events, ...pastedEvents].sort((a, b) => a.targetTime - b.targetTime);
+        return { ...prev, events: newEvents };
+      });
+      setSelectedEventIds(newIds);
+      setSelectedTriggerIds(new Set());
+      setSelectedNodeId(null);
+    } else if (clipboardRef.current.type === 'triggers' && clipboardRef.current.triggers) {
+      const baseTime = clipboardRef.current.baseTime;
+      const newIds = new Set<string>();
+      const pastedTriggers: TriggerData[] = clipboardRef.current.triggers.map((t) => {
+        const newId = `trig_${Math.floor(1000 + Math.random() * 9000)}`;
+        newIds.add(newId);
+        const delta = t.time - baseTime;
+        const time = Number((snappedPlayhead + delta).toFixed(4));
+        return {
+          ...t,
+          id: newId,
+          time,
+        };
+      });
+
+      setLevel((prev) => {
+        const currentTriggers = prev.visual?.triggers || [];
+        const newTriggers = [...currentTriggers, ...pastedTriggers].sort((a, b) => a.time - b.time);
+        return {
+          ...prev,
+          visual: {
+            ...prev.visual,
+            triggers: newTriggers,
+          },
+        };
+      });
+      setSelectedTriggerIds(newIds);
+      setSelectedEventIds(new Set());
+      setSelectedNodeId(null);
+    }
+  }, [currentTime, gridSubdivision, level.timing.bpm, setLevel]);
+
+  const handleDuplicate = useCallback(() => {
+    if (selectedEventIds.size > 0) {
+      const selected = level.events.filter((e) => selectedEventIds.has(e.id));
+      if (selected.length === 0) return;
+      const minTime = Math.min(...selected.map((e) => e.targetTime));
+      const maxTime = Math.max(...selected.map((e) => e.targetTime + (e.duration || 0)));
+      const blockSpan = maxTime - minTime;
+      const beatDuration = 60 / level.timing.bpm;
+      const snapInterval = getSnapInterval(level.timing.bpm, gridSubdivision);
+      const minShift = snapInterval > 0 ? snapInterval : beatDuration;
+      const shift = Math.max(minShift, snapTimeToGrid(blockSpan || minShift, level.timing.bpm, gridSubdivision));
+
+      const newIds = new Set<string>();
+      const duplicatedEvents: PadEvent[] = selected.map((e) => {
+        const newId = crypto.randomUUID();
+        newIds.add(newId);
+        return {
+          ...e,
+          id: newId,
+          targetTime: Number((e.targetTime + shift).toFixed(4)),
+        };
+      });
+
+      setLevel((prev) => {
+        const newEvents = [...prev.events, ...duplicatedEvents].sort((a, b) => a.targetTime - b.targetTime);
+        return { ...prev, events: newEvents };
+      });
+      setSelectedEventIds(newIds);
+    } else if (selectedTriggerIds.size > 0) {
+      const selected = (level.visual?.triggers || []).filter((t) => selectedTriggerIds.has(t.id));
+      if (selected.length === 0) return;
+      const minTime = Math.min(...selected.map((t) => t.time));
+      const maxTime = Math.max(...selected.map((t) => t.time + (t.duration || 0)));
+      const blockSpan = maxTime - minTime;
+      const beatDuration = 60 / level.timing.bpm;
+      const snapInterval = getSnapInterval(level.timing.bpm, gridSubdivision);
+      const minShift = snapInterval > 0 ? snapInterval : beatDuration;
+      const shift = Math.max(minShift, snapTimeToGrid(blockSpan || minShift, level.timing.bpm, gridSubdivision));
+
+      const newIds = new Set<string>();
+      const duplicatedTriggers: TriggerData[] = selected.map((t) => {
+        const newId = `trig_${Math.floor(1000 + Math.random() * 9000)}`;
+        newIds.add(newId);
+        return {
+          ...t,
+          id: newId,
+          time: Number((t.time + shift).toFixed(4)),
+        };
+      });
+
+      setLevel((prev) => {
+        const currentTriggers = prev.visual?.triggers || [];
+        const newTriggers = [...currentTriggers, ...duplicatedTriggers].sort((a, b) => a.time - b.time);
+        return {
+          ...prev,
+          visual: {
+            ...prev.visual,
+            triggers: newTriggers,
+          },
+        };
+      });
+      setSelectedTriggerIds(newIds);
+    }
+  }, [selectedEventIds, selectedTriggerIds, level.events, level.visual?.triggers, level.timing.bpm, gridSubdivision, setLevel]);
+
   // Keyboard shortcuts hook with Undo/Redo & Delete handling
   useEditorShortcuts({
     activeTab,
     isRecording,
-    canDelete: Boolean(selectedEventId || selectedTriggerId || selectedNodeId),
+    canDelete: Boolean(selectedEventIds.size > 0 || selectedTriggerIds.size > 0 || selectedNodeId),
     onSelectTool: setActiveTool,
-    onDeleteSelected: () => {
-      if (selectedEventId) {
-        handleRemoveEvent(selectedEventId);
-      } else if (selectedTriggerId) {
-        handleRemoveTrigger(selectedTriggerId);
-      } else if (selectedNodeId) {
-        handleRemoveNode(selectedNodeId);
-      }
-    },
+    onDeleteSelected: () => handleRemoveBatch(),
     onTogglePlay: togglePlay,
     onToggleRecord: toggleRecord,
     onToggleWaveform: () => setShowWaveform((prev) => !prev),
     onUndo: undo,
     onRedo: redo,
+    onCopy: handleCopy,
+    onCut: handleCut,
+    onPaste: handlePaste,
+    onDuplicate: handleDuplicate,
+    onSelectAll: handleSelectAll,
   });
 
   // Load external audio file into editor
@@ -412,16 +733,26 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 pixelsPerSecond={pixelsPerSecond}
                 showWaveform={showWaveform}
                 selectedEventId={selectedEventId}
+                selectedEventIds={selectedEventIds}
                 selectedTriggerId={selectedTriggerId}
+                selectedTriggerIds={selectedTriggerIds}
                 onSelectEvent={(evt) => selectEvent(evt?.id || null)}
+                onSelectEvents={selectEventsBatch}
                 onSelectTrigger={(trig) => selectTrigger(trig?.id || null)}
+                onSelectTriggers={selectTriggersBatch}
+                onToggleEventSelection={toggleEventSelection}
+                onToggleTriggerSelection={toggleTriggerSelection}
+                onSelectEventRange={selectEventRange}
                 onSeek={handleSeek}
                 onAddEvent={handleAddEvent}
                 onUpdateEvent={handleUpdateEvent}
+                onUpdateEventsBatch={handleUpdateEventsBatch}
                 onRemoveEvent={handleRemoveEvent}
                 onAddTrigger={handleAddTrigger}
                 onUpdateTrigger={handleUpdateTrigger}
+                onUpdateTriggersBatch={handleUpdateTriggersBatch}
                 onRemoveTrigger={handleRemoveTrigger}
+                onChangePixelsPerSecond={setPixelsPerSecond}
               />
             </div>
 
@@ -436,13 +767,17 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         {/* Right Sidebar: Contextual Properties Panel (Events, Triggers, Nodes) */}
         <EditorPropertiesPanel
           selectedEvent={selectedEvent}
+          selectedEvents={selectedEvents}
           selectedTrigger={selectedTrigger}
+          selectedTriggers={selectedTriggers}
           selectedNode={selectedNode}
           nodes={level.visual?.nodes || []}
           pads={level.pads}
           activeTab={activeTab}
           onUpdateEvent={handleUpdateEvent}
+          onUpdateEventsBatch={handleUpdateEventsBatch}
           onRemoveEvent={handleRemoveEvent}
+          onRemoveBatch={handleRemoveBatch}
           onUpdateTrigger={handleUpdateTrigger}
           onRemoveTrigger={handleRemoveTrigger}
           onUpdateNode={handleUpdateNode}

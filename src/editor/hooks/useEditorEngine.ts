@@ -5,7 +5,7 @@ import { InputManager } from '../../engine/input/InputManager';
 import { GameplayEngine } from '../../engine/gameplay/GameplayEngine';
 import { GameplayEventBus } from '../../engine/gameplay/GameplayEventBus';
 import { SongRegistry } from '../../engine/content/SongRegistry';
-import { snapTimeToGrid, getSnapInterval } from '../Timeline';
+import { snapTimeToGrid, getSnapInterval, type GridSubdivision } from '../utils';
 import type {
   LevelData,
   PadId,
@@ -14,7 +14,6 @@ import type {
   PadEvent,
   PadBehavior,
 } from '../../engine/types';
-import type { GridSubdivision } from '../Timeline';
 
 interface UseEditorEngineOptions {
   level: LevelData;

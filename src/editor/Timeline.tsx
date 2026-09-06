@@ -4,8 +4,10 @@ import { SongRegistry } from '../engine/content/SongRegistry';
 import { WaveformCanvas } from './components/WaveformCanvas';
 import { Zap, Repeat, Clock } from 'lucide-react';
 
+import { getSnapInterval, snapTimeToGrid, type GridSubdivision } from './utils';
+
+export type { GridSubdivision };
 export type EditorTool = 'select' | 'pen' | 'eraser';
-export type GridSubdivision = '1/1' | '1/2' | '1/4' | '1/8' | '1/16' | 'free';
 
 interface TimelineProps {
   level: LevelData;
@@ -16,48 +18,27 @@ interface TimelineProps {
   gridSubdivision: GridSubdivision;
   pixelsPerSecond: number;
   showWaveform?: boolean;
-  selectedEventId: string | null;
+  selectedEventId?: string | null;
+  selectedEventIds?: Set<string>;
   selectedTriggerId?: string | null;
+  selectedTriggerIds?: Set<string>;
   onSelectEvent: (event: PadEvent | null) => void;
+  onSelectEvents?: (ids: Set<string>, additive?: boolean) => void;
   onSelectTrigger?: (trigger: TriggerData | null) => void;
+  onSelectTriggers?: (ids: Set<string>, additive?: boolean) => void;
+  onToggleEventSelection?: (id: string, multi: boolean) => void;
+  onToggleTriggerSelection?: (id: string, multi: boolean) => void;
+  onSelectEventRange?: (targetId: string) => void;
   onSeek?: (time: number) => void;
   onAddEvent: (event: PadEvent) => void;
   onUpdateEvent: (event: PadEvent) => void;
+  onUpdateEventsBatch?: (events: PadEvent[]) => void;
   onRemoveEvent: (id: string) => void;
   onAddTrigger?: (trigger: TriggerData) => void;
   onUpdateTrigger?: (trigger: TriggerData) => void;
+  onUpdateTriggersBatch?: (triggers: TriggerData[]) => void;
   onRemoveTrigger?: (id: string) => void;
-}
-
-/**
- * Calculates the time interval in seconds for a given grid subdivision.
- */
-export function getSnapInterval(bpm: number, subdivision: GridSubdivision): number {
-  const beatDuration = 60 / bpm;
-  switch (subdivision) {
-    case '1/1':
-      return beatDuration * 4;
-    case '1/2':
-      return beatDuration * 2;
-    case '1/4':
-      return beatDuration;
-    case '1/8':
-      return beatDuration / 2;
-    case '1/16':
-      return beatDuration / 4;
-    case 'free':
-    default:
-      return 0;
-  }
-}
-
-/**
- * Snaps a raw time in seconds to the nearest subdivision.
- */
-export function snapTimeToGrid(rawTime: number, bpm: number, subdivision: GridSubdivision): number {
-  const interval = getSnapInterval(bpm, subdivision);
-  if (interval <= 0) return Math.max(0, rawTime);
-  return Math.max(0, Math.round(rawTime / interval) * interval);
+  onChangePixelsPerSecond?: (fnOrValue: number | ((prev: number) => number)) => void;
 }
 
 export function Timeline({
@@ -70,23 +51,44 @@ export function Timeline({
   pixelsPerSecond,
   showWaveform = true,
   selectedEventId,
+  selectedEventIds,
   selectedTriggerId,
+  selectedTriggerIds,
   onSelectEvent,
+  onSelectEvents,
   onSelectTrigger,
+  onSelectTriggers,
+  onToggleEventSelection,
+  onToggleTriggerSelection,
+  onSelectEventRange,
   onSeek,
   onAddEvent,
   onUpdateEvent,
+  onUpdateEventsBatch,
   onRemoveEvent,
   onAddTrigger,
   onUpdateTrigger,
+  onUpdateTriggersBatch,
   onRemoveTrigger,
+  onChangePixelsPerSecond,
 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const innerCanvasRef = useRef<HTMLDivElement>(null);
   const leftHeadersRef = useRef<HTMLDivElement>(null);
   const rulerTrackRef = useRef<HTMLDivElement>(null);
   const padTracksRef = useRef<HTMLDivElement>(null);
   const isDraggingPlayhead = useRef(false);
   const [padAreaHeight, setPadAreaHeight] = useState(280);
+
+  const effectiveEventIds = useMemo(
+    () => selectedEventIds ?? (selectedEventId ? new Set([selectedEventId]) : new Set<string>()),
+    [selectedEventIds, selectedEventId]
+  );
+
+  const effectiveTriggerIds = useMemo(
+    () => selectedTriggerIds ?? (selectedTriggerId ? new Set([selectedTriggerId]) : new Set<string>()),
+    [selectedTriggerIds, selectedTriggerId]
+  );
 
   useEffect(() => {
     const el = padTracksRef.current;
@@ -101,14 +103,54 @@ export function Timeline({
   }, []);
 
   const [dragState, setDragState] = useState<{
-    targetType: 'event' | 'trigger';
+    targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers';
     mode: 'move' | 'resize';
     event?: PadEvent;
     trigger?: TriggerData;
+    origEvents?: PadEvent[];
+    origTriggers?: TriggerData[];
     startX: number;
-    origTargetTime: number;
-    origDuration: number;
+    origTargetTime?: number;
+    origDuration?: number;
   } | null>(null);
+
+  const [marquee, setMarquee] = useState<{
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    isAdditive: boolean;
+  } | null>(null);
+
+  // Native wheel listener for smooth horizontal zoom centered on cursor pivot
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onChangePixelsPerSecond) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const currentScrollLeft = container.scrollLeft;
+        const timeUnderCursor = (currentScrollLeft + mouseX) / pixelsPerSecond;
+
+        const zoomDelta = e.deltaY < 0 ? 15 : -15;
+        const newPixelsPerSecond = Math.max(40, Math.min(350, pixelsPerSecond + zoomDelta));
+        if (newPixelsPerSecond === pixelsPerSecond) return;
+
+        onChangePixelsPerSecond(newPixelsPerSecond);
+
+        requestAnimationFrame(() => {
+          const newScrollLeft = timeUnderCursor * newPixelsPerSecond - mouseX;
+          container.scrollLeft = Math.max(0, newScrollLeft);
+        });
+      }
+    };
+
+    container.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleNativeWheel);
+  }, [pixelsPerSecond, onChangePixelsPerSecond]);
 
   const beatDuration = 60 / level.timing.bpm;
   const totalDuration = level.song.duration || 120;
@@ -221,12 +263,12 @@ export function Timeline({
     if (dragState) return;
     if ((e.target as HTMLElement).closest('[data-event-item]')) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const rawTime = Math.max(0, clickX / pixelsPerSecond);
-    const snappedTime = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
-
     if (activeTool === 'pen') {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const rawTime = Math.max(0, clickX / pixelsPerSecond);
+      const snappedTime = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
+
       const newEvent: PadEvent = {
         id: crypto.randomUUID(),
         padId,
@@ -238,9 +280,6 @@ export function Timeline({
       onAddEvent(newEvent);
       onSelectEvent(newEvent);
       onSelectTrigger?.(null);
-    } else {
-      onSelectEvent(null);
-      onSelectTrigger?.(null);
     }
   };
 
@@ -248,12 +287,12 @@ export function Timeline({
     if (dragState) return;
     if ((e.target as HTMLElement).closest('[data-trigger-item]')) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const rawTime = Math.max(0, clickX / pixelsPerSecond);
-    const snappedTime = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
-
     if (activeTool === 'pen') {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const rawTime = Math.max(0, clickX / pixelsPerSecond);
+      const snappedTime = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
+
       const newTrigger: TriggerData = {
         id: `trig_${Math.floor(1000 + Math.random() * 9000)}`,
         time: snappedTime,
@@ -266,26 +305,86 @@ export function Timeline({
       onAddTrigger?.(newTrigger);
       onSelectTrigger?.(newTrigger);
       onSelectEvent(null);
-    } else {
-      onSelectTrigger?.(null);
-      onSelectEvent(null);
+    }
+  };
+
+  const handleCanvasPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-event-item], [data-trigger-item], [data-ruler]')) return;
+
+    if (activeTool === 'select') {
+      const isAdditive = e.shiftKey || e.ctrlKey || e.metaKey;
+      if (!isAdditive) {
+        onSelectEvent(null);
+        onSelectTrigger?.(null);
+        onSelectEvents?.(new Set(), false);
+        onSelectTriggers?.(new Set(), false);
+      }
+
+      if (innerCanvasRef.current) {
+        const canvasRect = innerCanvasRef.current.getBoundingClientRect();
+        const startX = e.clientX - canvasRect.left;
+        const startY = e.clientY - canvasRect.top;
+        setMarquee({
+          startX,
+          startY,
+          currentX: startX,
+          currentY: startY,
+          isAdditive,
+        });
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }
     }
   };
 
   const startEventMove = (e: React.PointerEvent, event: PadEvent) => {
     e.stopPropagation();
-    if (activeTool === 'eraser') { onRemoveEvent(event.id); return; }
-    onSelectEvent(event);
-    onSelectTrigger?.(null);
+    if (activeTool === 'eraser') {
+      onRemoveEvent(event.id);
+      return;
+    }
+
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+
+    if (isShift && onSelectEventRange) {
+      onSelectEventRange(event.id);
+      return;
+    }
+
+    if (isCtrlOrMeta) {
+      onToggleEventSelection?.(event.id, true);
+      return;
+    }
+
+    const isAlreadySelected = effectiveEventIds.has(event.id);
+    if (!isAlreadySelected) {
+      onSelectEvent(event);
+      onSelectTrigger?.(null);
+    }
+
     if (activeTool === 'select') {
-      setDragState({
-        targetType: 'event',
-        mode: 'move',
-        event,
-        startX: e.clientX,
-        origTargetTime: event.targetTime,
-        origDuration: event.duration || beatDuration,
-      });
+      if (isAlreadySelected && effectiveEventIds.size > 1) {
+        const selectedEventsList = level.events.filter((ev) => effectiveEventIds.has(ev.id));
+        setDragState({
+          targetType: 'batch_events',
+          mode: 'move',
+          event,
+          origEvents: selectedEventsList,
+          startX: e.clientX,
+          origTargetTime: event.targetTime,
+        });
+      } else {
+        setDragState({
+          targetType: 'event',
+          mode: 'move',
+          event,
+          startX: e.clientX,
+          origTargetTime: event.targetTime,
+          origDuration: event.duration || beatDuration,
+        });
+      }
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
   };
@@ -307,18 +406,44 @@ export function Timeline({
 
   const startTriggerMove = (e: React.PointerEvent, trigger: TriggerData) => {
     e.stopPropagation();
-    if (activeTool === 'eraser') { onRemoveTrigger?.(trigger.id); return; }
-    onSelectTrigger?.(trigger);
-    onSelectEvent(null);
+    if (activeTool === 'eraser') {
+      onRemoveTrigger?.(trigger.id);
+      return;
+    }
+
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+    if (isCtrlOrMeta) {
+      onToggleTriggerSelection?.(trigger.id, true);
+      return;
+    }
+
+    const isAlreadySelected = effectiveTriggerIds.has(trigger.id);
+    if (!isAlreadySelected) {
+      onSelectTrigger?.(trigger);
+      onSelectEvent(null);
+    }
+
     if (activeTool === 'select') {
-      setDragState({
-        targetType: 'trigger',
-        mode: 'move',
-        trigger,
-        startX: e.clientX,
-        origTargetTime: trigger.time,
-        origDuration: trigger.duration || beatDuration,
-      });
+      if (isAlreadySelected && effectiveTriggerIds.size > 1) {
+        const selectedTriggersList = triggers.filter((tr) => effectiveTriggerIds.has(tr.id));
+        setDragState({
+          targetType: 'batch_triggers',
+          mode: 'move',
+          trigger,
+          origTriggers: selectedTriggersList,
+          startX: e.clientX,
+          origTargetTime: trigger.time,
+        });
+      } else {
+        setDragState({
+          targetType: 'trigger',
+          mode: 'move',
+          trigger,
+          startX: e.clientX,
+          origTargetTime: trigger.time,
+          origDuration: trigger.duration || beatDuration,
+        });
+      }
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
   };
@@ -340,35 +465,126 @@ export function Timeline({
   };
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (marquee && innerCanvasRef.current) {
+      const canvasRect = innerCanvasRef.current.getBoundingClientRect();
+      const currentX = e.clientX - canvasRect.left;
+      const currentY = e.clientY - canvasRect.top;
+      setMarquee((prev) => (prev ? { ...prev, currentX, currentY } : null));
+
+      const minX = Math.min(marquee.startX, currentX);
+      const maxX = Math.max(marquee.startX, currentX);
+      const minY = Math.min(marquee.startY, currentY);
+      const maxY = Math.max(marquee.startY, currentY);
+
+      const eventEls = innerCanvasRef.current.querySelectorAll<HTMLElement>('[data-event-id]');
+      const hitEventIds = new Set<string>();
+      eventEls.forEach((el) => {
+        const elRect = el.getBoundingClientRect();
+        const elX1 = elRect.left - canvasRect.left;
+        const elX2 = elRect.right - canvasRect.left;
+        const elY1 = elRect.top - canvasRect.top;
+        const elY2 = elRect.bottom - canvasRect.top;
+        if (elX1 < maxX && elX2 > minX && elY1 < maxY && elY2 > minY) {
+          const id = el.getAttribute('data-event-id');
+          if (id) hitEventIds.add(id);
+        }
+      });
+
+      const triggerEls = innerCanvasRef.current.querySelectorAll<HTMLElement>('[data-trigger-id]');
+      const hitTriggerIds = new Set<string>();
+      triggerEls.forEach((el) => {
+        const elRect = el.getBoundingClientRect();
+        const elX1 = elRect.left - canvasRect.left;
+        const elX2 = elRect.right - canvasRect.left;
+        const elY1 = elRect.top - canvasRect.top;
+        const elY2 = elRect.bottom - canvasRect.top;
+        if (elX1 < maxX && elX2 > minX && elY1 < maxY && elY2 > minY) {
+          const id = el.getAttribute('data-trigger-id');
+          if (id) hitTriggerIds.add(id);
+        }
+      });
+
+      onSelectEvents?.(hitEventIds, marquee.isAdditive);
+      onSelectTriggers?.(hitTriggerIds, marquee.isAdditive);
+      return;
+    }
+
     if (!dragState) return;
     const deltaX = e.clientX - dragState.startX;
     const deltaTime = deltaX / pixelsPerSecond;
 
     if (dragState.targetType === 'event' && dragState.event) {
       if (dragState.mode === 'move') {
-        const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime + deltaTime), level.timing.bpm, gridSubdivision);
+        const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
         if (snapped !== dragState.event.targetTime) onUpdateEvent({ ...dragState.event, targetTime: snapped });
       } else {
         const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
-        const snapped = interval > 0 ? Math.max(interval, Math.round(Math.max(0.05, dragState.origDuration + deltaTime) / interval) * interval) : Math.max(0.05, dragState.origDuration + deltaTime);
+        const snapped = interval > 0 ? Math.max(interval, Math.round(Math.max(0.05, dragState.origDuration! + deltaTime) / interval) * interval) : Math.max(0.05, dragState.origDuration! + deltaTime);
         if (snapped !== dragState.event.duration) onUpdateEvent({ ...dragState.event, duration: snapped });
       }
+    } else if (dragState.targetType === 'batch_events' && dragState.origEvents && dragState.event) {
+      const snappedPivot = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
+      const deltaSnap = snappedPivot - dragState.origTargetTime!;
+      const minTime = Math.min(...dragState.origEvents.map((ev) => ev.targetTime));
+      const validDelta = (minTime + deltaSnap < 0) ? -minTime : deltaSnap;
+      const updated = dragState.origEvents.map((ev) => ({
+        ...ev,
+        targetTime: Math.max(0, Number((ev.targetTime + validDelta).toFixed(4))),
+      }));
+      onUpdateEventsBatch?.(updated);
     } else if (dragState.targetType === 'trigger' && dragState.trigger) {
       if (dragState.mode === 'move') {
-        const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime + deltaTime), level.timing.bpm, gridSubdivision);
+        const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
         if (snapped !== dragState.trigger.time) onUpdateTrigger?.({ ...dragState.trigger, time: snapped });
       } else {
         const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
-        const snapped = interval > 0 ? Math.max(0, Math.round(Math.max(0, dragState.origDuration + deltaTime) / interval) * interval) : Math.max(0, dragState.origDuration + deltaTime);
+        const snapped = interval > 0 ? Math.max(interval, Math.round(Math.max(0, dragState.origDuration! + deltaTime) / interval) * interval) : Math.max(0, dragState.origDuration! + deltaTime);
         if (snapped !== dragState.trigger.duration) onUpdateTrigger?.({ ...dragState.trigger, duration: snapped });
       }
+    } else if (dragState.targetType === 'batch_triggers' && dragState.origTriggers && dragState.trigger) {
+      const snappedPivot = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
+      const deltaSnap = snappedPivot - dragState.origTargetTime!;
+      const minTime = Math.min(...dragState.origTriggers.map((tr) => tr.time));
+      const validDelta = (minTime + deltaSnap < 0) ? -minTime : deltaSnap;
+      const updated = dragState.origTriggers.map((tr) => ({
+        ...tr,
+        time: Math.max(0, Number((tr.time + validDelta).toFixed(4))),
+      }));
+      onUpdateTriggersBatch?.(updated);
     }
-  }, [dragState, pixelsPerSecond, level.timing.bpm, gridSubdivision, onUpdateEvent, onUpdateTrigger]);
+  }, [
+    marquee,
+    dragState,
+    pixelsPerSecond,
+    level.timing.bpm,
+    gridSubdivision,
+    onSelectEvents,
+    onSelectTriggers,
+    onUpdateEvent,
+    onUpdateEventsBatch,
+    onUpdateTrigger,
+    onUpdateTriggersBatch,
+  ]);
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (dragState) {
-      // releasePointerCapture may throw if the pointer was already released; safe to ignore.
+    if (marquee) {
       try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* intentional no-op */ }
+      setMarquee(null);
+      return;
+    }
+    if (dragState) {
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* intentional no-op */ }
+      if (dragState.targetType === 'batch_events' && Math.abs(e.clientX - dragState.startX) < 3 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (dragState.event) {
+          onSelectEvent(dragState.event);
+          onSelectTrigger?.(null);
+        }
+      } else if (dragState.targetType === 'batch_triggers' && Math.abs(e.clientX - dragState.startX) < 3 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (dragState.trigger) {
+          onSelectTrigger?.(dragState.trigger);
+          onSelectEvent(null);
+        }
+      }
       setDragState(null);
     }
   };
@@ -526,13 +742,19 @@ export function Timeline({
         }}
       >
         <div
+          ref={innerCanvasRef}
           style={{ width: widthPx }}
           className="min-h-full flex flex-col relative bg-[#09090f]"
+          onPointerDown={handleCanvasPointerDown}
         >
           {/* Sticky Time Ruler */}
-          <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/90 backdrop-blur-md flex flex-shrink-0">
+          <div
+            data-ruler="true"
+            className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/90 backdrop-blur-md flex flex-shrink-0"
+          >
             <div
               ref={rulerTrackRef}
+              data-ruler="true"
               className="relative flex-1 cursor-crosshair overflow-hidden"
               style={{ width: widthPx, minWidth: widthPx }}
               onPointerDown={handleRulerPointerDown}
@@ -579,7 +801,7 @@ export function Timeline({
                   onClick={(e) => handleTrackClick(e, pad.id)}
                 >
                   {trackEvents.map((event) => {
-                    const isSelected = event.id === selectedEventId;
+                    const isSelected = effectiveEventIds.has(event.id);
                     const x = event.targetTime * pixelsPerSecond;
                     const width = Math.max(16, (event.duration ?? beatDuration) * pixelsPerSecond);
 
@@ -588,6 +810,7 @@ export function Timeline({
                         <div
                           key={event.id}
                           data-event-item="true"
+                          data-event-id={event.id}
                           className={`absolute top-1/2 -translate-y-1/2 w-5 h-12 rounded-lg transition-all z-20 cursor-grab active:cursor-grabbing ${
                             isSelected
                               ? 'ring-2 ring-white scale-105 shadow-[0_0_20px_#ffffff]'
@@ -611,6 +834,7 @@ export function Timeline({
                         <div
                           key={event.id}
                           data-event-item="true"
+                          data-event-id={event.id}
                           className={`absolute top-1/2 -translate-y-1/2 h-12 rounded-lg border-2 flex items-center transition-all z-20 cursor-grab active:cursor-grabbing ${
                             isSelected
                               ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffffff]'
@@ -651,6 +875,7 @@ export function Timeline({
                         <div
                           key={event.id}
                           data-event-item="true"
+                          data-event-id={event.id}
                           className={`absolute top-1/2 -translate-y-1/2 h-12 rounded-lg border-2 border-dashed flex items-center transition-all z-20 cursor-grab active:cursor-grabbing ${
                             isSelected
                               ? 'ring-2 ring-white border-solid shadow-[0_0_20px_#ffffff]'
@@ -691,6 +916,7 @@ export function Timeline({
                         <div
                           key={event.id}
                           data-event-item="true"
+                          data-event-id={event.id}
                           className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center gap-1.5 px-2.5 border-2 z-20 cursor-grab active:cursor-grabbing transition-all ${
                             isSelected
                               ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffea00]'
@@ -732,6 +958,7 @@ export function Timeline({
             onClick={handleTriggerTrackClick}
           >
             {triggers.map((trigger) => {
+              const isSelected = effectiveTriggerIds.has(trigger.id);
               const x = trigger.time * pixelsPerSecond;
               const width = Math.max(32, (trigger.duration || 0) * pixelsPerSecond);
               const color = getTriggerColor(trigger.action);
@@ -739,8 +966,9 @@ export function Timeline({
                 <div
                   key={trigger.id}
                   data-trigger-item="true"
+                  data-trigger-id={trigger.id}
                   className={`absolute top-1/2 -translate-y-1/2 h-16 rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all ${
-                    selectedTriggerId === trigger.id
+                    isSelected
                       ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
                       : 'hover:brightness-110'
                   }`}
@@ -777,6 +1005,20 @@ export function Timeline({
               );
             })}
           </div>
+
+          {/* Marquee Selection Rectangle */}
+          {marquee && (
+            <div
+              className="absolute border border-[#00e5ff] bg-[#00e5ff]/15 pointer-events-none z-50 rounded-sm"
+              style={{
+                left: Math.min(marquee.startX, marquee.currentX),
+                top: Math.min(marquee.startY, marquee.currentY),
+                width: Math.abs(marquee.currentX - marquee.startX),
+                height: Math.abs(marquee.currentY - marquee.startY),
+                boxShadow: '0 0 12px rgba(0, 229, 255, 0.25)',
+              }}
+            />
+          )}
 
           {/* Playhead */}
           <div

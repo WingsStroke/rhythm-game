@@ -11,7 +11,7 @@ interface EditorToolbarProps {
   gridSubdivision: GridSubdivision;
   onChangeGridSubdivision: (subdivision: GridSubdivision) => void;
   pixelsPerSecond: number;
-  onChangePixelsPerSecond: (fn: (prev: number) => number) => void;
+  onChangePixelsPerSecond: (fnOrValue: number | ((prev: number) => number)) => void;
   showWaveform?: boolean;
   onToggleWaveform?: () => void;
 }
@@ -28,6 +28,14 @@ export function EditorToolbar({
   showWaveform = true,
   onToggleWaveform,
 }: EditorToolbarProps) {
+  const setZoom = (val: number | ((prev: number) => number)) => {
+    if (typeof val === 'function') {
+      onChangePixelsPerSecond((prev: number) => Math.max(40, Math.min(350, val(prev))));
+    } else {
+      onChangePixelsPerSecond(Math.max(40, Math.min(350, val)));
+    }
+  };
+
   return (
     <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-4 gap-2 shrink-0 select-none overflow-x-auto overflow-y-hidden">
       {/* Tool Mode Buttons */}
@@ -123,20 +131,30 @@ export function EditorToolbar({
         )}
 
         {/* Zoom controls */}
-        <div className="flex items-center gap-1.5 border-l border-white/10 pl-4">
+        <div className="flex items-center gap-2 border-l border-white/10 pl-4">
           <span className="text-[11px] text-white/40 uppercase font-mono">Zoom:</span>
           <button
-            onClick={() => onChangePixelsPerSecond((p) => Math.max(60, p - 20))}
-            className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-            title="Zoom out"
+            onClick={() => setZoom((p) => Math.max(40, p - 20))}
+            className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+            title="Zoom out (Ctrl + Wheel Down)"
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
-          <span className="text-xs font-mono text-white/60 w-12 text-center">{pixelsPerSecond}px/s</span>
+          <input
+            type="range"
+            min="40"
+            max="350"
+            step="5"
+            value={pixelsPerSecond}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="w-16 h-1.5 accent-[#00e5ff] bg-white/10 rounded-lg cursor-pointer appearance-none"
+            title={`Zoom scale: ${pixelsPerSecond}px/s (Ctrl + Mouse Wheel)`}
+          />
+          <span className="text-xs font-mono text-white/60 w-14 text-center">{pixelsPerSecond}px/s</span>
           <button
-            onClick={() => onChangePixelsPerSecond((p) => Math.min(260, p + 20))}
-            className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-            title="Zoom in"
+            onClick={() => setZoom((p) => Math.min(350, p + 20))}
+            className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+            title="Zoom in (Ctrl + Wheel Up)"
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>

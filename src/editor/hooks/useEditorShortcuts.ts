@@ -12,6 +12,11 @@ interface UseEditorShortcutsOptions {
   onToggleWaveform?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
+  onCopy?: () => void;
+  onCut?: () => void;
+  onPaste?: () => void;
+  onDuplicate?: () => void;
+  onSelectAll?: () => void;
 }
 
 export function useEditorShortcuts({
@@ -25,6 +30,11 @@ export function useEditorShortcuts({
   onToggleWaveform,
   onUndo,
   onRedo,
+  onCopy,
+  onCut,
+  onPaste,
+  onDuplicate,
+  onSelectAll,
 }: UseEditorShortcutsOptions) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -48,6 +58,33 @@ export function useEditorShortcuts({
         return;
       }
 
+      // Clipboard shortcuts: Copy (Ctrl+C), Cut (Ctrl+X), Paste (Ctrl+V), Duplicate (Ctrl+D), Select All (Ctrl+A)
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
+        e.preventDefault();
+        onCopy?.();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyX') {
+        e.preventDefault();
+        onCut?.();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
+        e.preventDefault();
+        onPaste?.();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyD') {
+        e.preventDefault();
+        onDuplicate?.();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyA') {
+        e.preventDefault();
+        onSelectAll?.();
+        return;
+      }
+
       // Record shortcut (R)
       if (e.code === 'KeyR') {
         e.preventDefault();
@@ -62,7 +99,7 @@ export function useEditorShortcuts({
         return;
       }
 
-      // Delete / Backspace shortcut for any selected item (event, trigger, or node)
+      // Delete / Backspace shortcut for any selected items (events, triggers, or nodes)
       if (e.code === 'Delete' || e.code === 'Backspace') {
         if (canDelete && !isRecording) {
           e.preventDefault();
@@ -93,5 +130,21 @@ export function useEditorShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canDelete, onTogglePlay, onToggleRecord, onToggleWaveform, onSelectTool, onDeleteSelected, onUndo, onRedo, activeTab, isRecording]);
+  }, [
+    canDelete,
+    onTogglePlay,
+    onToggleRecord,
+    onToggleWaveform,
+    onSelectTool,
+    onDeleteSelected,
+    onUndo,
+    onRedo,
+    onCopy,
+    onCut,
+    onPaste,
+    onDuplicate,
+    onSelectAll,
+    activeTab,
+    isRecording,
+  ]);
 }

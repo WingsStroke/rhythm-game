@@ -112,17 +112,17 @@ Suite de herramientas de productividad y edicion por lotes requerida para desblo
 - [x] **[P0] Selector de Playback Speed**
   - Input numerico estilizado (0.25x a 4.0x) para desacelerar o acelerar la reproduccion durante el mapeo de precision sin cortes de audio.
 
-- [-] **[P0] Bloque de Edicion por Lotes y Productividad (Batch Editing Suite)**
-  - [ ] **1. Seleccion Multiple y Marquesina (Drag-to-Select):**
-    - Migrar el estado en `useEditorEngine.ts` de IDs unicos a conjuntos (`selectedEventIds: Set<string>` y `selectedTriggerIds: Set<string>`).
+- [x] **[P0] Bloque de Edicion por Lotes y Productividad (Batch Editing Suite)**
+  - [x] **1. Seleccion Multiple y Marquesina (Drag-to-Select):**
+    - Migrar el estado en `EditorApp.tsx` y componentes de IDs unicos a conjuntos (`selectedEventIds: Set<string>` y `selectedTriggerIds: Set<string>`).
     - Rectangulo de seleccion elastico translucido en `Timeline.tsx` activado con herramienta de seleccion (V) sobre areas libres, interceptando notas y triggers mediante AABB.
     - Modificadores de teclado: `Ctrl + Clic` (conmutar seleccion individual de elemento) y `Shift + Clic` (seleccion continua de rango temporal).
     - Desplazamiento simultaneo de todo el lote seleccionado cuantizado a la rejilla al arrastrar cualquier elemento del grupo.
-  - [ ] **2. Portapapeles y Duplicacion (Clipboard Engine):**
+  - [x] **2. Portapapeles y Duplicacion (Clipboard Engine):**
     - Copiar, cortar y pegar (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`): Almacenamiento en memoria con distancias temporales relativas al evento mas temprano; pegado cuantizado estampado en el cabezal de reproduccion (`currentTime`).
     - Duplicacion rapida (`Ctrl+D` / `Alt + Arrastre`): Clonacion instantanea del bloque seleccionado colocada inmediatamente a continuacion.
     - Borrado colectivo (`Supr` / `Backspace`): Eliminacion atomica de todo el lote seleccionado en una sola transaccion de historial (`useEditorHistory` / `Ctrl+Z`).
-  - [ ] **3. Zoom Horizontal Interactivo con Pivote (Dynamic pixelsPerSecond):**
+  - [x] **3. Zoom Horizontal Interactivo con Pivote (Dynamic pixelsPerSecond):**
     - Control interactivo mediante atajo `Ctrl + Rueda del raton` en la linea de tiempo y deslizador continuo en barra de herramientas.
     - Rango operativo expandido: desde escala macro (~40 px/s para vision panoramica de la cancion completa) hasta escala quirurgica (~350 px/s para microtransientes en 1/16 y 1/32).
     - Zoom centrado en el cursor: Conservacion matematica del tiempo bajo el puntero del raton al escalar (`newScrollLeft = T_cursor * newPxPerSec - X_cursor`), evitando saltos y perdida de contexto visual.

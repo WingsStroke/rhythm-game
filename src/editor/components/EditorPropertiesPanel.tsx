@@ -14,13 +14,17 @@ import type {
 
 interface EditorPropertiesPanelProps {
   selectedEvent: PadEvent | null;
+  selectedEvents?: PadEvent[];
   selectedNode: SceneNodeData | null;
   selectedTrigger: TriggerData | null;
+  selectedTriggers?: TriggerData[];
   nodes: SceneNodeData[];
   pads: PadConfig[];
   activeTab: 'timeline' | 'preview';
   onUpdateEvent: (event: PadEvent) => void;
+  onUpdateEventsBatch?: (events: PadEvent[]) => void;
   onRemoveEvent: (id: string) => void;
+  onRemoveBatch?: (eventIds: Set<string>, triggerIds: Set<string>) => void;
   onUpdateNode: (updates: Partial<SceneNodeData>) => void;
   onRemoveNode?: (id: string) => void;
   onUpdateTrigger: (trigger: TriggerData) => void;
@@ -47,13 +51,17 @@ function toValidHexColor(val: unknown, fallback = '#00e5ff'): string {
 
 export function EditorPropertiesPanel({
   selectedEvent,
+  selectedEvents,
   selectedNode,
   selectedTrigger,
+  selectedTriggers,
   nodes,
   pads,
   activeTab,
   onUpdateEvent,
+  onUpdateEventsBatch,
   onRemoveEvent,
+  onRemoveBatch,
   onUpdateNode,
   onRemoveNode,
   onUpdateTrigger,
@@ -61,8 +69,100 @@ export function EditorPropertiesPanel({
 }: EditorPropertiesPanelProps) {
   return (
     <aside className="w-72 border-l border-white/10 bg-black/20 p-4 shrink-0 flex flex-col h-full min-h-0 overflow-y-auto select-none custom-scrollbar">
-      {/* 1. PAD EVENT PROPERTIES */}
-      {selectedEvent ? (
+      {/* 1. BATCH NOTES SELECTION */}
+      {selectedEvents && selectedEvents.length > 1 ? (
+        <div className="flex flex-col gap-4 text-xs">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+            <span className="font-bold uppercase tracking-wider text-[#00e5ff] flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" /> Batch Selection
+            </span>
+            <span className="px-2 py-0.5 rounded bg-[#00e5ff]/20 text-[#00e5ff] font-mono text-[10px] font-bold border border-[#00e5ff]/40">
+              {selectedEvents.length} Notes
+            </span>
+          </div>
+
+          {/* Batch Behavior change */}
+          <div className="flex flex-col gap-1 text-white/70">
+            <span>Change Behavior (All)</span>
+            <div className="grid grid-cols-2 gap-1.5 mt-1">
+              {(['tap', 'hold', 'loop', 'trigger'] as const).map((b) => (
+                <button
+                  key={b}
+                  onClick={() => {
+                    const updated = selectedEvents.map((ev) => ({
+                      ...ev,
+                      behavior: b,
+                      duration: b === 'hold' || b === 'loop' ? (ev.duration || 0.5) : undefined,
+                    }));
+                    onUpdateEventsBatch?.(updated);
+                  }}
+                  className="px-2 py-1 rounded bg-white/5 hover:bg-white/15 text-white/80 font-mono uppercase text-[10px] font-semibold border border-white/10 text-center transition-colors cursor-pointer"
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Batch Pad reassignment */}
+          <label className="flex flex-col gap-1 text-white/70">
+            Assign to Pad (All)
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                const targetPadId = e.target.value as PadId;
+                if (!targetPadId) return;
+                const updated = selectedEvents.map((ev) => ({
+                  ...ev,
+                  padId: targetPadId,
+                }));
+                onUpdateEventsBatch?.(updated);
+                e.target.value = '';
+              }}
+              className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#00e5ff] font-mono cursor-pointer"
+            >
+              <option value="" disabled>-- Select Pad --</option>
+              {pads.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label} ({p.role || p.keyHint})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {/* Batch Delete Button */}
+          <button
+            onClick={() => {
+              const ids = new Set(selectedEvents.map((e) => e.id));
+              onRemoveBatch?.(ids, new Set());
+            }}
+            className="mt-2 w-full py-2 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold flex items-center justify-center gap-1.5 border border-red-500/30 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Delete {selectedEvents.length} Notes (Del)
+          </button>
+        </div>
+      ) : selectedTriggers && selectedTriggers.length > 1 ? (
+        <div className="flex flex-col gap-4 text-xs">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+            <span className="font-bold uppercase tracking-wider text-[#00e5ff] flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" /> Batch Selection
+            </span>
+            <span className="px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 font-mono text-[10px] font-bold border border-violet-500/40">
+              {selectedTriggers.length} Triggers
+            </span>
+          </div>
+
+          <button
+            onClick={() => {
+              const ids = new Set(selectedTriggers.map((t) => t.id));
+              onRemoveBatch?.(new Set(), ids);
+            }}
+            className="mt-2 w-full py-2 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold flex items-center justify-center gap-1.5 border border-red-500/30 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Delete {selectedTriggers.length} Triggers (Del)
+          </button>
+        </div>
+      ) : selectedEvent ? (
         <div className="flex flex-col gap-4 text-xs">
           <div className="flex items-center justify-between pb-2 border-b border-white/10">
             <span className="font-bold uppercase tracking-wider text-[#00e5ff] flex items-center gap-1.5">
