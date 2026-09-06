@@ -69,7 +69,7 @@ export function EditorHeader({
 }: EditorHeaderProps) {
   const [localSpeed, setLocalSpeed] = useState<string>(playbackSpeed.toString());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLocalSpeed(playbackSpeed.toString());
@@ -79,9 +79,12 @@ export function EditorHeader({
   useEffect(() => {
     if (!isSettingsOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsSettingsOpen(false);
+      // If clicking inside containerRef (which contains both the gear button and dropdown),
+      // let the button's own onClick toggle the state instead of closing prematurely.
+      if (containerRef.current && containerRef.current.contains(e.target as Node)) {
+        return;
       }
+      setIsSettingsOpen(false);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -97,7 +100,7 @@ export function EditorHeader({
   }, [isSettingsOpen]);
 
   return (
-    <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 gap-3 bg-black/50 shrink-0 select-none overflow-x-auto overflow-y-visible relative z-30">
+    <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 gap-3 bg-black/50 shrink-0 select-none relative z-50 overflow-visible">
       <style>{`
         @keyframes headerMenuStagger {
           0% {
@@ -247,7 +250,7 @@ export function EditorHeader({
       </div>
 
       {/* Top-Right Settings Gear & Actions Menu */}
-      <div className="relative shrink-0 flex items-center">
+      <div ref={containerRef} className="relative shrink-0 flex items-center">
         <button
           onClick={() => setIsSettingsOpen((prev) => !prev)}
           title="Settings & Actions"
@@ -264,8 +267,7 @@ export function EditorHeader({
         {/* Dropdown Floating Menu with Staggered Cascading Animation */}
         {isSettingsOpen && (
           <div
-            ref={menuRef}
-            className="absolute right-0 top-full mt-2 w-64 bg-[#0c0d16]/95 backdrop-blur-md border border-[#25283c] rounded-xl shadow-2xl p-1.5 z-50 flex flex-col gap-0.5"
+            className="absolute right-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9)] p-1.5 z-50 flex flex-col gap-0.5 pointer-events-auto"
           >
             {/* 1. Playtest Action */}
             {onPlaytest && (
