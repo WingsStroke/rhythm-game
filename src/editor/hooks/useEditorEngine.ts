@@ -77,9 +77,6 @@ export function useEditorEngine({
   const playbackSpeedRef = useRef(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
 
-  // Active pre-roll timer reference: { startPerfTime, startTimelineTime }
-  const preRollRef = useRef<{ startPerfTime: number; startTimelineTime: number } | null>(null);
-
   const onRecordEventRef = useRef(onRecordEvent);
   onRecordEventRef.current = onRecordEvent;
 
@@ -316,37 +313,15 @@ export function useEditorEngine({
       let t = currentTimeRef.current;
       const currentLeadIn = levelRef.current.timing?.leadIn ?? 0;
 
-      if (isPlayingRef.current) {
-        if (preRollRef.current) {
-          const elapsed =
-            ((performance.now() - preRollRef.current.startPerfTime) / 1000) * playbackSpeedRef.current;
-          t = preRollRef.current.startTimelineTime + elapsed;
-
-          if (t >= currentLeadIn) {
-            // Pre-roll complete! Cleanly start audio playback from beginning (offset 0)
-            preRollRef.current = null;
-            t = currentLeadIn;
-
-            if (transportRef.current) {
-              const envelope = {
-                fadeIn: levelRef.current.timing?.fadeIn ?? 0,
-                fadeOut: levelRef.current.timing?.fadeOut ?? 0,
-                totalDuration: levelRef.current.song.duration,
-              };
-              transportRef.current.play(levelRef.current.timing.bpm, 0, envelope);
-            }
-          }
-          setCurrentTime(t);
-          currentTimeRef.current = t;
-        } else if (transportRef.current && transportRef.current.state === 'playing') {
-          const audioTime = transportRef.current.getTime();
-          t = currentLeadIn + audioTime;
-          setCurrentTime(t);
-          currentTimeRef.current = t;
-        }
+      if (isPlayingRef.current && transportRef.current && transportRef.current.state === 'playing') {
+        const audioTime = transportRef.current.getTime();
+        t = currentLeadIn + audioTime;
+        setCurrentTime(t);
+        currentTimeRef.current = t;
       }
 
       const audioTime = t - currentLeadIn;
+      const isPreRolling = audioTime < 0;
 
       if (activeTab === 'preview') {
         if (isPlayingRef.current && gameplayRef.current) {
@@ -354,7 +329,7 @@ export function useEditorEngine({
         }
         if (visualRef.current) {
           const bands: AudioBands =
-            isPlayingRef.current && !preRollRef.current && transportRef.current
+            isPlayingRef.current && !isPreRolling && transportRef.current
               ? transportRef.current.getAudioBands()
               : {
                   bass: 0,
@@ -375,7 +350,6 @@ export function useEditorEngine({
 
   const togglePlay = useCallback(async () => {
     if (isPlaying) {
-      preRollRef.current = null;
       transportRef.current?.pause();
       setIsPlaying(false);
       setIsRecording(false);
@@ -412,23 +386,15 @@ export function useEditorEngine({
       };
 
       if (currentTimelineTime < currentLeadIn) {
-        // Start in pre-roll: silent preparation, keep audio transport paused
-        preRollRef.current = {
-          startPerfTime: performance.now(),
-          startTimelineTime: currentTimelineTime,
-        };
-        setIsPlaying(true);
-        if (activeTab === 'preview') {
-          gameplayRef.current?.start(audioTime);
-        }
+        // Pre-schedule audio with the exact remaining lead-in time
+        const remainingLeadIn = currentLeadIn - currentTimelineTime;
+        await transportRef.current.play(level.timing.bpm, 0, envelope, remainingLeadIn);
       } else {
-        // Start within song audio: play audio from calculated audio offset
-        preRollRef.current = null;
-        await transportRef.current.play(level.timing.bpm, Math.max(0, audioTime), envelope);
-        setIsPlaying(true);
-        if (activeTab === 'preview') {
-          gameplayRef.current?.start(audioTime);
-        }
+        await transportRef.current.play(level.timing.bpm, Math.max(0, audioTime), envelope, 0);
+      }
+      setIsPlaying(true);
+      if (activeTab === 'preview') {
+        gameplayRef.current?.start(audioTime);
       }
     }
   }, [
@@ -448,17 +414,10 @@ export function useEditorEngine({
     const clamped = Math.max(0.25, Math.min(4.0, Number(speed.toFixed(2))));
     setPlaybackSpeedState(clamped);
     playbackSpeedRef.current = clamped;
-    if (preRollRef.current) {
-      preRollRef.current = {
-        startPerfTime: performance.now(),
-        startTimelineTime: currentTimeRef.current,
-      };
-    }
     transportRef.current?.setPlaybackSpeed(clamped);
   }, []);
 
   const handleStop = useCallback(() => {
-    preRollRef.current = null;
     transportRef.current?.stop();
     setIsPlaying(false);
     setIsRecording(false);
@@ -479,27 +438,11 @@ export function useEditorEngine({
     const currentLeadIn = levelRef.current.timing?.leadIn ?? 0;
     const audioTime = clampedTime - currentLeadIn;
 
+    transportRef.current?.seek(audioTime);
+    visualRef.current?.seek(audioTime);
     if (isPlayingRef.current) {
-      if (clampedTime < currentLeadIn) {
-        // Seeking into pre-roll while playing: pause audio transport and resume pre-roll clock
-        transportRef.current?.pause();
-        preRollRef.current = {
-          startPerfTime: performance.now(),
-          startTimelineTime: clampedTime,
-        };
-        visualRef.current?.seek(audioTime);
-        gameplayRef.current?.start(audioTime);
-      } else {
-        // Seeking into audio while playing: cancel pre-roll and seek audio transport directly
-        preRollRef.current = null;
-        transportRef.current?.seek(audioTime);
-        visualRef.current?.seek(audioTime);
-        gameplayRef.current?.start(audioTime);
-      }
+      gameplayRef.current?.start(audioTime);
     } else {
-      preRollRef.current = null;
-      transportRef.current?.seek(Math.max(0, audioTime));
-      visualRef.current?.seek(audioTime);
       gameplayRef.current?.reset();
     }
   }, []);
@@ -528,7 +471,6 @@ export function useEditorEngine({
       }
       const result = await transportRef.current.loadAudio(file, songId);
       if (result.success) {
-        preRollRef.current = null;
         setIsPlaying(false);
         setIsRecording(false);
         setCurrentTime(0);

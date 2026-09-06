@@ -108,7 +108,7 @@ export class AudioEngine implements TimeSource {
     }
 
     const elapsedCtx = this.ctx.currentTime - this.lastSpeedChangeContextTime;
-    return Math.max(0, this.baseSongTime + elapsedCtx * this._playbackSpeed);
+    return this.baseSongTime + elapsedCtx * this._playbackSpeed;
   }
 
   get playbackSpeed(): number {
@@ -297,7 +297,7 @@ export class AudioEngine implements TimeSource {
    * Start playback. If an audio file was loaded via loadFile(), plays that
    * file. Otherwise, starts the procedural synthesizer.
    */
-  start(bpm: number, offset: number = 0, envelope?: AudioEnvelope): void {
+  start(bpm: number, offset: number = 0, envelope?: AudioEnvelope, leadIn: number = 0): void {
     if (!this.ctx || !this.masterGain) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
 
@@ -308,18 +308,30 @@ export class AudioEngine implements TimeSource {
 
     this.bpm = bpm;
     this.playing = true;
-    
-    // 40ms scheduling delay gives the OS/audio-hardware enough time to buffer.
-    // Without this, the first few frames might be dropped, causing a perceived stutter.
-    const delay = 0.04;
-    const scheduledStart = this.ctx.currentTime + delay;
-    this.startTime = scheduledStart - offset;
-    this.scheduledStartTime = scheduledStart;
-    this.baseSongTime = offset;
-    this.lastSpeedChangeContextTime = scheduledStart;
-    
-    this.pauseOffset = offset;
-    this.isResuming = true;
+
+    let scheduledStart: number;
+    if (leadIn > 0) {
+      // Hardware clock pre-scheduling: schedule audio buffer in advance.
+      // Audio starts playing seamlessly at scheduledStart without main-thread stutter.
+      scheduledStart = this.ctx.currentTime + (leadIn / this._playbackSpeed);
+      this.startTime = scheduledStart - offset;
+      this.scheduledStartTime = scheduledStart;
+      this.baseSongTime = offset;
+      this.lastSpeedChangeContextTime = scheduledStart;
+      this.pauseOffset = offset - leadIn;
+      this.isResuming = false;
+    } else {
+      // 40ms scheduling delay gives the OS/audio-hardware enough time to buffer.
+      // Without this, the first few frames might be dropped, causing a perceived stutter.
+      const delay = 0.04;
+      scheduledStart = this.ctx.currentTime + delay;
+      this.startTime = scheduledStart - offset;
+      this.scheduledStartTime = scheduledStart;
+      this.baseSongTime = offset;
+      this.lastSpeedChangeContextTime = scheduledStart;
+      this.pauseOffset = offset;
+      this.isResuming = true;
+    }
 
     // Apply Fade In / Fade Out volume curves on masterGain
     try {
@@ -329,10 +341,16 @@ export class AudioEngine implements TimeSource {
       if (fadeIn > 0 && offset < fadeIn) {
         const progress = Math.max(0, offset / fadeIn);
         startGain = Math.max(0.0001, TARGET_GAIN * progress);
+        if (leadIn > 0) {
+          this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+        }
         this.masterGain.gain.setValueAtTime(startGain, scheduledStart);
         const remainingFadeIn = (fadeIn - offset) / this._playbackSpeed;
         this.masterGain.gain.linearRampToValueAtTime(TARGET_GAIN, scheduledStart + remainingFadeIn);
       } else {
+        if (leadIn > 0) {
+          this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+        }
         this.masterGain.gain.setValueAtTime(TARGET_GAIN, scheduledStart);
       }
 

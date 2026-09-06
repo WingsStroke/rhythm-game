@@ -544,6 +544,14 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     }
   }, [selectedEventIds, selectedTriggerIds, level.events, level.visual?.triggers, level.timing.bpm, gridSubdivision, setLevel]);
 
+  const handleZoomIn = useCallback(() => {
+    setPixelsPerSecond((prev) => Math.min(350, prev + 20));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setPixelsPerSecond((prev) => Math.max(40, prev - 20));
+  }, []);
+
   // Keyboard shortcuts hook with Undo/Redo & Delete handling
   useEditorShortcuts({
     activeTab,
@@ -561,6 +569,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     onPaste: handlePaste,
     onDuplicate: handleDuplicate,
     onSelectAll: handleSelectAll,
+    onZoomIn: handleZoomIn,
+    onZoomOut: handleZoomOut,
   });
 
   // Load external audio file into editor

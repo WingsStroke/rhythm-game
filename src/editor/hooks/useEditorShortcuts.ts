@@ -17,6 +17,8 @@ interface UseEditorShortcutsOptions {
   onPaste?: () => void;
   onDuplicate?: () => void;
   onSelectAll?: () => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
 }
 
 export function useEditorShortcuts({
@@ -35,6 +37,8 @@ export function useEditorShortcuts({
   onPaste,
   onDuplicate,
   onSelectAll,
+  onZoomIn,
+  onZoomOut,
 }: UseEditorShortcutsOptions) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -82,6 +86,18 @@ export function useEditorShortcuts({
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyA') {
         e.preventDefault();
         onSelectAll?.();
+        return;
+      }
+
+      // Zoom shortcuts: Zoom In (Ctrl + '+' / '='), Zoom Out (Ctrl + '-')
+      if ((e.ctrlKey || e.metaKey) && (e.code === 'Equal' || e.code === 'NumpadAdd' || e.key === '+' || e.key === '=')) {
+        e.preventDefault();
+        onZoomIn?.();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.key === '-')) {
+        e.preventDefault();
+        onZoomOut?.();
         return;
       }
 
@@ -144,6 +160,8 @@ export function useEditorShortcuts({
     onPaste,
     onDuplicate,
     onSelectAll,
+    onZoomIn,
+    onZoomOut,
     activeTab,
     isRecording,
   ]);

@@ -36,8 +36,9 @@ export interface Transport {
    * @param bpm      Tempo in beats per minute. Required when starting from stopped.
    * @param offset   Playback start position in seconds. Defaults to 0.
    * @param envelope Optional volume envelope (fadeIn, fadeOut, totalDuration).
+   * @param leadIn   Optional pre-roll preparation in seconds to pre-schedule audio playback.
    */
-  play(bpm?: number, offset?: number, envelope?: AudioEnvelope): Promise<void>;
+  play(bpm?: number, offset?: number, envelope?: AudioEnvelope, leadIn?: number): Promise<void>;
 
   /**
    * Pauses playback, preserving the current position.

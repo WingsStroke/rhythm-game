@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import type { LevelData, PadId, PadEvent, PadBehavior, TriggerData, TriggerActionType } from '../engine/types';
 import { SongRegistry } from '../engine/content/SongRegistry';
 import { WaveformCanvas } from './components/WaveformCanvas';
-import { Zap, Repeat, Clock } from 'lucide-react';
+import { Zap, Repeat, Clock, Volume2, VolumeX } from 'lucide-react';
 
 import { getSnapInterval, snapTimeToGrid, type GridSubdivision } from './utils';
 
@@ -122,7 +122,38 @@ export function Timeline({
     isAdditive: boolean;
   } | null>(null);
 
-  // Native wheel listener for smooth horizontal zoom centered on cursor pivot
+  // Track previous pixelsPerSecond to smoothly preserve playhead position during any zoom change
+  const prevPpsRef = useRef(pixelsPerSecond);
+  const currentTimeRef = useRef(currentTime);
+  currentTimeRef.current = currentTime;
+
+  useEffect(() => {
+    const prevPps = prevPpsRef.current;
+    prevPpsRef.current = pixelsPerSecond;
+
+    if (prevPps === pixelsPerSecond) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Center zoom pivot on the active playhead
+    const playheadTime = currentTimeRef.current;
+    const oldPlayheadPx = playheadTime * prevPps;
+    const currentScroll = container.scrollLeft;
+    const viewWidth = container.clientWidth;
+    const playheadOffsetInView = oldPlayheadPx - currentScroll;
+
+    let targetScroll: number;
+    // If playhead was inside the visible viewport, preserve its exact relative screen position; otherwise center it
+    if (playheadOffsetInView >= 0 && playheadOffsetInView <= viewWidth) {
+      targetScroll = playheadTime * pixelsPerSecond - playheadOffsetInView;
+    } else {
+      targetScroll = playheadTime * pixelsPerSecond - viewWidth / 2;
+    }
+
+    container.scrollLeft = Math.max(0, targetScroll);
+  }, [pixelsPerSecond]);
+
+  // Native wheel listener for smooth horizontal zoom centered on playhead pivot
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !onChangePixelsPerSecond) return;
@@ -130,21 +161,11 @@ export function Timeline({
     const handleNativeWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        const rect = container.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const currentScrollLeft = container.scrollLeft;
-        const timeUnderCursor = (currentScrollLeft + mouseX) / pixelsPerSecond;
-
         const zoomDelta = e.deltaY < 0 ? 15 : -15;
         const newPixelsPerSecond = Math.max(40, Math.min(350, pixelsPerSecond + zoomDelta));
         if (newPixelsPerSecond === pixelsPerSecond) return;
 
         onChangePixelsPerSecond(newPixelsPerSecond);
-
-        requestAnimationFrame(() => {
-          const newScrollLeft = timeUnderCursor * newPixelsPerSecond - mouseX;
-          container.scrollLeft = Math.max(0, newScrollLeft);
-        });
       }
     };
 
@@ -910,42 +931,144 @@ export function Timeline({
               </div>
             )}
 
-            {/* Fade In Shading & Volume Curve Overlay */}
+            {/* Fade In Audio Envelope & Volume Curve Overlay (Premiere Pro / CapCut style) */}
             {fadeIn > 0 && (
               <div
-                className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-r border-[#00e5ff]/50 bg-gradient-to-r from-black/85 via-black/40 to-transparent"
+                className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-r border-[#00e5ff]/50 border-dashed"
                 style={{
                   left: leadIn * pixelsPerSecond,
-                  width: Math.max(12, fadeIn * pixelsPerSecond),
+                  width: Math.max(16, fadeIn * pixelsPerSecond),
                 }}
               >
-                <div className="flex items-center gap-1.5 px-2 pt-1 z-10">
-                  <span className="font-mono text-[9px] font-bold text-[#00e5ff] uppercase tracking-wider bg-black/75 px-1.5 py-0.5 rounded border border-[#00e5ff]/40 shadow-sm">
-                    Fade In {fadeIn.toFixed(1)}s
-                  </span>
+                {/* Floating Glassmorphic Badge */}
+                <div className="flex items-center gap-1.5 px-2 pt-1.5 z-20">
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-black/85 backdrop-blur-md border border-[#00e5ff]/60 shadow-[0_0_12px_rgba(0,229,255,0.3)]">
+                    <Volume2 className="w-3 h-3 text-[#00e5ff]" />
+                    <span className="font-mono text-[9px] font-bold text-[#00e5ff] uppercase tracking-wider">
+                      Fade In {fadeIn.toFixed(1)}s
+                    </span>
+                  </div>
                 </div>
-                <svg className="w-full h-full absolute inset-0 pointer-events-none opacity-40" preserveAspectRatio="none" viewBox="0 0 100 100">
-                  <line x1="0" y1="100" x2="100" y2="0" stroke="#00e5ff" strokeWidth="2" strokeDasharray="3 3" />
+
+                {/* Acoustic Logarithmic Loudness Curve & Attenuation Mask */}
+                <svg
+                  className="w-full h-full absolute inset-0 pointer-events-none"
+                  preserveAspectRatio="none"
+                  viewBox="0 0 100 100"
+                >
+                  <defs>
+                    <linearGradient id="fadeInGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#00e5ff" stopOpacity="0.04" />
+                      <stop offset="70%" stopColor="#00e5ff" stopOpacity="0.18" />
+                      <stop offset="100%" stopColor="#00e5ff" stopOpacity="0.35" />
+                    </linearGradient>
+                    <pattern id="fadeHatchIn" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                      <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255, 255, 255, 0.04)" strokeWidth="1" />
+                    </pattern>
+                  </defs>
+                  {/* Attenuated / Muted region above the curve */}
+                  <path
+                    d="M 0,0 L 100,0 L 100,0 C 65,30 35,85 0,100 Z"
+                    fill="rgba(0, 0, 0, 0.55)"
+                  />
+                  <path
+                    d="M 0,0 L 100,0 L 100,0 C 65,30 35,85 0,100 Z"
+                    fill="url(#fadeHatchIn)"
+                  />
+                  {/* Active gain area below the curve */}
+                  <path
+                    d="M 0,100 C 35,85 65,30 100,0 L 100,100 L 0,100 Z"
+                    fill="url(#fadeInGradient)"
+                  />
+                  {/* Glowing Acoustic Bézier Volume Curve */}
+                  <path
+                    d="M 0,100 C 35,85 65,30 100,0"
+                    fill="none"
+                    stroke="#00e5ff"
+                    strokeWidth="2.5"
+                    style={{ filter: 'drop-shadow(0 0 5px rgba(0, 229, 255, 0.85))' }}
+                  />
+                  {/* Fade Handle Pip (Anchor Point at 100% volume) */}
+                  <circle
+                    cx="100"
+                    cy="2"
+                    r="4.5"
+                    fill="#ffffff"
+                    stroke="#00e5ff"
+                    strokeWidth="2"
+                    style={{ filter: 'drop-shadow(0 0 4px #00e5ff)' }}
+                  />
                 </svg>
               </div>
             )}
 
-            {/* Fade Out Shading & Volume Curve Overlay */}
+            {/* Fade Out Audio Envelope & Volume Curve Overlay (Premiere Pro / CapCut style) */}
             {fadeOut > 0 && totalDuration > fadeOut && (
               <div
-                className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-l border-pink-500/50 bg-gradient-to-l from-black/85 via-black/40 to-transparent"
+                className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-l border-pink-500/50 border-dashed"
                 style={{
                   left: (leadIn + totalDuration - fadeOut) * pixelsPerSecond,
-                  width: Math.max(12, fadeOut * pixelsPerSecond),
+                  width: Math.max(16, fadeOut * pixelsPerSecond),
                 }}
               >
-                <div className="flex items-center justify-end gap-1.5 px-2 pt-1 z-10">
-                  <span className="font-mono text-[9px] font-bold text-pink-400 uppercase tracking-wider bg-black/75 px-1.5 py-0.5 rounded border border-pink-500/40 shadow-sm">
-                    Fade Out {fadeOut.toFixed(1)}s
-                  </span>
+                {/* Floating Glassmorphic Badge */}
+                <div className="flex items-center justify-end gap-1.5 px-2 pt-1.5 z-20">
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-black/85 backdrop-blur-md border border-pink-500/60 shadow-[0_0_12px_rgba(255,45,111,0.3)]">
+                    <VolumeX className="w-3 h-3 text-pink-400" />
+                    <span className="font-mono text-[9px] font-bold text-pink-400 uppercase tracking-wider">
+                      Fade Out {fadeOut.toFixed(1)}s
+                    </span>
+                  </div>
                 </div>
-                <svg className="w-full h-full absolute inset-0 pointer-events-none opacity-40" preserveAspectRatio="none" viewBox="0 0 100 100">
-                  <line x1="0" y1="0" x2="100" y2="100" stroke="#ff2d6f" strokeWidth="2" strokeDasharray="3 3" />
+
+                {/* Acoustic Logarithmic Loudness Curve & Attenuation Mask */}
+                <svg
+                  className="w-full h-full absolute inset-0 pointer-events-none"
+                  preserveAspectRatio="none"
+                  viewBox="0 0 100 100"
+                >
+                  <defs>
+                    <linearGradient id="fadeOutGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#ff2d6f" stopOpacity="0.35" />
+                      <stop offset="30%" stopColor="#ff2d6f" stopOpacity="0.18" />
+                      <stop offset="100%" stopColor="#ff2d6f" stopOpacity="0.04" />
+                    </linearGradient>
+                    <pattern id="fadeHatchOut" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                      <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255, 255, 255, 0.04)" strokeWidth="1" />
+                    </pattern>
+                  </defs>
+                  {/* Attenuated / Muted region above the curve */}
+                  <path
+                    d="M 0,0 L 100,0 L 100,100 C 65,70 35,15 0,0 Z"
+                    fill="rgba(0, 0, 0, 0.55)"
+                  />
+                  <path
+                    d="M 0,0 L 100,0 L 100,100 C 65,70 35,15 0,0 Z"
+                    fill="url(#fadeHatchOut)"
+                  />
+                  {/* Active gain area below the curve */}
+                  <path
+                    d="M 0,0 C 35,15 65,70 100,100 L 0,100 Z"
+                    fill="url(#fadeOutGradient)"
+                  />
+                  {/* Glowing Acoustic Bézier Volume Curve */}
+                  <path
+                    d="M 0,0 C 35,15 65,70 100,100"
+                    fill="none"
+                    stroke="#ff2d6f"
+                    strokeWidth="2.5"
+                    style={{ filter: 'drop-shadow(0 0 5px rgba(255, 45, 111, 0.85))' }}
+                  />
+                  {/* Fade Handle Pip (Anchor Point at start of fade) */}
+                  <circle
+                    cx="0"
+                    cy="2"
+                    r="4.5"
+                    fill="#ffffff"
+                    stroke="#ff2d6f"
+                    strokeWidth="2"
+                    style={{ filter: 'drop-shadow(0 0 4px #ff2d6f)' }}
+                  />
                 </svg>
               </div>
             )}

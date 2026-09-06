@@ -38,8 +38,6 @@ export class Game {
   public onTimeUpdate: ((currentTime: number, duration: number) => void) | null = null;
 
   private isPreRolling = false;
-  private preRollRemaining = 0;
-  private preRollStartPerformanceTime = 0;
 
   get songSource(): 'file' | 'procedural' {
     return this.transport.isUsingFile ? 'file' : 'procedural';
@@ -66,11 +64,6 @@ export class Game {
   }
 
   private getCurrentGameTime(): number {
-    if (this.isPreRolling) {
-      const elapsedSec = (performance.now() - this.preRollStartPerformanceTime) / 1000;
-      const leadIn = this.level.timing?.leadIn ?? 0;
-      return elapsedSec - leadIn;
-    }
     return this.transport.getTime();
   }
 
@@ -128,12 +121,11 @@ export class Game {
 
     if (leadIn > 0) {
       this.isPreRolling = true;
-      this.preRollRemaining = leadIn;
-      this.preRollStartPerformanceTime = performance.now();
       this.gameplay.start(-leadIn);
+      await this.transport.play(this.level.song.bpm, 0, envelope, leadIn);
     } else {
       this.isPreRolling = false;
-      this.gameplay.start();
+      this.gameplay.start(0);
       await this.transport.play(this.level.song.bpm, 0, envelope);
     }
 
@@ -145,23 +137,14 @@ export class Game {
   pause(): void {
     if (!this.running || this._isPaused) return;
     this._isPaused = true;
-    if (this.isPreRolling) {
-      this.preRollRemaining = Math.max(0, -this.getCurrentGameTime());
-    } else {
-      this.transport.pause();
-    }
+    this.transport.pause();
     this.onPauseChange?.(true);
   }
 
   async resume(): Promise<void> {
     if (!this.running || !this._isPaused) return;
     this._isPaused = false;
-    if (this.isPreRolling) {
-      const leadIn = this.level.timing?.leadIn ?? 0;
-      this.preRollStartPerformanceTime = performance.now() - (leadIn - this.preRollRemaining) * 1000;
-    } else {
-      await this.transport.play();
-    }
+    await this.transport.play();
     this.onPauseChange?.(false);
   }
 
@@ -182,9 +165,8 @@ export class Game {
 
     if (leadIn > 0) {
       this.isPreRolling = true;
-      this.preRollRemaining = leadIn;
-      this.preRollStartPerformanceTime = performance.now();
       this.gameplay.start(-leadIn);
+      await this.transport.play(this.level.song.bpm, 0, envelope, leadIn);
     } else {
       this.isPreRolling = false;
       this.gameplay.start(0);
@@ -234,20 +216,8 @@ export class Game {
   private frameUpdate(): void {
     if (!this.running || this._isPaused) return;
 
-    if (this.isPreRolling) {
-      const currentPreTime = this.getCurrentGameTime();
-      if (currentPreTime >= 0) {
-        this.isPreRolling = false;
-        const envelope = {
-          fadeIn: this.level.timing?.fadeIn ?? 0,
-          fadeOut: this.level.timing?.fadeOut ?? 0,
-          totalDuration: this.level.song.duration,
-        };
-        this.transport.play(this.level.song.bpm, 0, envelope);
-      }
-    }
-
     const gameTime = this.getCurrentGameTime();
+    this.isPreRolling = gameTime < 0;
     const bands: AudioBands = this.isPreRolling
       ? { bass: 0, mids: 0, treble: 0, amplitude: 0, freqData: new Uint8Array(0), waveData: new Uint8Array(0) }
       : this.transport.getAudioBands();

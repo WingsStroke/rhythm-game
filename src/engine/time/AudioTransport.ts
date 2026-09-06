@@ -98,21 +98,27 @@ export class AudioTransport implements Transport {
     return this.audio.getAudioBands();
   }
 
-  async play(bpm?: number, offset?: number, envelope?: AudioEnvelope): Promise<void> {
+  async play(bpm?: number, offset?: number, envelope?: AudioEnvelope, leadIn?: number): Promise<void> {
     if (bpm !== undefined) this._bpm = bpm;
     if (envelope !== undefined) this.currentEnvelope = envelope;
 
-    const startOffset = offset ?? (this._state === 'paused' ? this.pausedTime : 0);
+    let startOffset = offset ?? (this._state === 'paused' ? this.pausedTime : 0);
+    let effectiveLeadIn = leadIn ?? 0;
 
-    this.audio.start(this._bpm, startOffset, this.currentEnvelope);
+    if (startOffset < 0) {
+      effectiveLeadIn = -startOffset;
+      startOffset = 0;
+    }
+
+    this.audio.start(this._bpm, startOffset, this.currentEnvelope, effectiveLeadIn);
     this._setState('playing');
   }
 
   pause(): void {
     if (this._state !== 'playing') return;
 
-    // Capture and freeze current position before stopping audio
-    this.pausedTime = Math.max(0, this.audio.getTime());
+    // Capture and freeze current position before stopping audio (preserves negative time if in pre-roll)
+    this.pausedTime = this.audio.getTime();
     this.audio.stop();
     this._setState('paused');
   }
@@ -126,7 +132,6 @@ export class AudioTransport implements Transport {
   }
 
   seek(targetTime: number): void {
-    const clampedTime = Math.max(0, targetTime);
     const wasPlaying = this._state === 'playing';
 
     // Stop current audio output
@@ -134,14 +139,26 @@ export class AudioTransport implements Transport {
       this.audio.stop();
     }
 
-    if (wasPlaying) {
-      // Restart playback from new position immediately
-      this.audio.start(this._bpm, clampedTime, this.currentEnvelope);
-      this._setState('playing');
+    if (targetTime < 0) {
+      // Seeking into pre-roll: schedule audio start in remainingLeadIn seconds
+      const remainingLeadIn = -targetTime;
+      if (wasPlaying) {
+        this.audio.start(this._bpm, 0, this.currentEnvelope, remainingLeadIn);
+        this._setState('playing');
+      } else {
+        this.pausedTime = targetTime;
+        this._setState('paused');
+      }
     } else {
-      // Freeze position at the requested time without playing
-      this.pausedTime = clampedTime;
-      this._setState('paused');
+      if (wasPlaying) {
+        // Restart playback from new position immediately
+        this.audio.start(this._bpm, targetTime, this.currentEnvelope, 0);
+        this._setState('playing');
+      } else {
+        // Freeze position at the requested time without playing
+        this.pausedTime = targetTime;
+        this._setState('paused');
+      }
     }
   }
 
