@@ -102,14 +102,16 @@ export function useEditorEngine({
       // 3. Live recording logic when recording and playback are active
       if (isRecordingRef.current && isPlayingRef.current) {
         const t = transportRef.current?.getTime() ?? 0;
+        const songOffset = levelRef.current.timing?.offset ?? 0;
+        const songTime = Math.max(0, t - songOffset);
         const beh = creationBehaviorRef.current;
         const currentBpm = levelRef.current.timing.bpm;
         const sub = gridSubdivisionRef.current;
 
         if (beh === 'hold') {
-          activeRecordHolds.current.set(padId, { startTime: t, eventId: crypto.randomUUID() });
+          activeRecordHolds.current.set(padId, { startTime: songTime, eventId: crypto.randomUUID() });
         } else {
-          const snappedTime = sub !== 'free' ? snapTimeToGrid(t, currentBpm, sub) : t;
+          const snappedTime = sub !== 'free' ? snapTimeToGrid(songTime, currentBpm, sub) : songTime;
           let defaultDuration: number | undefined;
 
           if (beh === 'loop') {
@@ -139,7 +141,9 @@ export function useEditorEngine({
         const hold = activeRecordHolds.current.get(padId);
         if (hold) {
           activeRecordHolds.current.delete(padId);
-          const releaseTime = transportRef.current?.getTime() ?? hold.startTime;
+          const t = transportRef.current?.getTime() ?? 0;
+          const songOffset = levelRef.current.timing?.offset ?? 0;
+          const releaseTime = Math.max(0, t - songOffset);
           const rawDuration = Math.max(0.05, releaseTime - hold.startTime);
           const currentBpm = levelRef.current.timing.bpm;
           const sub = gridSubdivisionRef.current;

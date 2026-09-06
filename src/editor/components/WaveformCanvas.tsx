@@ -10,6 +10,7 @@ interface WaveformCanvasProps {
   pixelsPerSecond: number;
   currentTime: number;
   bpm: number;
+  offset?: number;
   opacity?: number;
 }
 
@@ -30,6 +31,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
   pixelsPerSecond,
   currentTime,
   bpm,
+  offset = 0,
   opacity,
 }) => {
   const fullWidth = totalWidth ?? widthPx ?? 1200;
@@ -147,9 +149,14 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
       const beatLen = 60 / bpm;
       const startX = Math.floor(renderLeft);
       const endX = Math.min(fullWidth, Math.ceil(renderLeft + visibleWidth));
+      const songOffset = offset ?? 0;
 
       for (let worldPx = startX; worldPx < endX; worldPx++) {
-        const t = worldPx / pixelsPerSecond;
+        const audioTime = worldPx / pixelsPerSecond;
+        if (audioTime < songOffset) {
+          continue;
+        }
+        const t = audioTime - songOffset;
         const inBeat = (t % beatLen) / beatLen; // 0..1 in current beat
         const barIndex = Math.floor(t / (beatLen * 4));
         const beatIndex = Math.floor((t % (beatLen * 4)) / beatLen);
@@ -181,6 +188,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     pixelsPerSecond,
     currentTime,
     bpm,
+    offset,
   ]);
 
   return (

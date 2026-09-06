@@ -154,8 +154,7 @@ export function Timeline({
 
   const beatDuration = 60 / level.timing.bpm;
   const totalDuration = level.song.duration || 120;
-  const totalBeats = Math.floor(totalDuration / beatDuration);
-  const totalBars = Math.ceil(totalBeats / 4);
+  const offset = level.timing?.offset ?? 0;
   const widthPx = Math.max(1200, totalDuration * pixelsPerSecond);
 
   const audioBuffer = useMemo(
@@ -178,6 +177,24 @@ export function Timeline({
 
   const scrubPointerX = useRef<number | null>(null);
   const autoScrollRaf = useRef<number | null>(null);
+  const getAudioTimeFromClickX = useCallback(
+    (clickX: number) => {
+      const rawTime = Math.max(0, clickX / pixelsPerSecond);
+      if (rawTime < offset) {
+        if (gridSubdivision === 'free') {
+          return rawTime;
+        }
+        const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
+        const step = interval > 0 ? interval : beatDuration;
+        const stepsBefore = Math.round((offset - rawTime) / step);
+        return Math.max(0, offset - stepsBefore * step);
+      }
+      const rawSongTime = rawTime - offset;
+      const snappedSongTime = snapTimeToGrid(rawSongTime, level.timing.bpm, gridSubdivision);
+      return snappedSongTime + offset;
+    },
+    [pixelsPerSecond, offset, gridSubdivision, level.timing.bpm, beatDuration]
+  );
 
   const startAutoScroller = useCallback(() => {
     if (autoScrollRaf.current !== null) return;
@@ -208,9 +225,7 @@ export function Timeline({
         if (container.scrollLeft !== prevScroll && onSeek && rulerTrackRef.current) {
           const trackRect = rulerTrackRef.current.getBoundingClientRect();
           const clickX = x - trackRect.left;
-          const rawTime = Math.max(0, clickX / pixelsPerSecond);
-          const time = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
-          onSeek(time);
+          onSeek(getAudioTimeFromClickX(clickX));
         }
       }
 
@@ -218,7 +233,7 @@ export function Timeline({
     };
 
     autoScrollRaf.current = requestAnimationFrame(tick);
-  }, [onSeek, pixelsPerSecond, level.timing.bpm, gridSubdivision]);
+  }, [onSeek, getAudioTimeFromClickX]);
 
   const stopAutoScroller = useCallback(() => {
     if (autoScrollRaf.current !== null) {
@@ -236,9 +251,7 @@ export function Timeline({
 
     const trackRect = rulerTrackRef.current.getBoundingClientRect();
     const clickX = e.clientX - trackRect.left;
-    const rawTime = Math.max(0, clickX / pixelsPerSecond);
-    const time = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
-    onSeek(time);
+    onSeek(getAudioTimeFromClickX(clickX));
     startAutoScroller();
   };
 
@@ -247,9 +260,7 @@ export function Timeline({
     scrubPointerX.current = e.clientX;
     const trackRect = rulerTrackRef.current.getBoundingClientRect();
     const clickX = e.clientX - trackRect.left;
-    const rawTime = Math.max(0, clickX / pixelsPerSecond);
-    const time = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
-    onSeek(time);
+    onSeek(getAudioTimeFromClickX(clickX));
   };
 
   const handleRulerPointerUp = (e: React.PointerEvent) => {
@@ -266,8 +277,9 @@ export function Timeline({
     if (activeTool === 'pen') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const rawTime = Math.max(0, clickX / pixelsPerSecond);
-      const snappedTime = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
+      const rawAudioTime = Math.max(0, clickX / pixelsPerSecond);
+      const rawSongTime = rawAudioTime - offset;
+      const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), level.timing.bpm, gridSubdivision);
 
       const newEvent: PadEvent = {
         id: crypto.randomUUID(),
@@ -290,8 +302,9 @@ export function Timeline({
     if (activeTool === 'pen') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const rawTime = Math.max(0, clickX / pixelsPerSecond);
-      const snappedTime = snapTimeToGrid(rawTime, level.timing.bpm, gridSubdivision);
+      const rawAudioTime = Math.max(0, clickX / pixelsPerSecond);
+      const rawSongTime = rawAudioTime - offset;
+      const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), level.timing.bpm, gridSubdivision);
 
       const newTrigger: TriggerData = {
         id: `trig_${Math.floor(1000 + Math.random() * 9000)}`,
@@ -598,35 +611,51 @@ export function Timeline({
     }
   };
 
-  // Memoized Ruler Ticks that dynamically adapt to the active snap gridSubdivision
+  // Memoized Ruler Ticks that dynamically adapt to the active snap gridSubdivision and timing offset
   const rulerTicks = useMemo(() => {
     const ticks: React.ReactNode[] = [];
     const bpm = level.timing.bpm || 120;
     const interval = getSnapInterval(bpm, gridSubdivision);
     const step = interval > 0 ? interval : beatDuration;
-    const totalSteps = Math.floor(totalDuration / step);
-    const stepsPerBar = Math.round((4 * beatDuration) / step);
+    const barDuration = 4 * beatDuration;
 
-    // 1. Measure / Bar Markers (m.1, m.2, ...)
-    for (let barIdx = 0; barIdx <= totalBars; barIdx++) {
-      const barTime = barIdx * 4 * beatDuration;
+    // 0. Initial audio start marker (if offset > 0)
+    if (offset > 0.01) {
+      ticks.push(
+        <div
+          key="ruler-audio-start"
+          className="absolute top-0 bottom-0 border-l border-white/20 flex flex-col justify-between pl-1 pointer-events-none"
+          style={{ left: 0 }}
+        >
+          <span className="font-mono text-[9px] text-white/40 font-bold">0.0s</span>
+          <span className="text-[8px] text-white/25 font-mono mb-0.5">start</span>
+        </div>
+      );
+    }
+
+    // 1. Measure / Bar Markers (m.1, m.2, ...) starting from offset
+    const maxBar = Math.floor((totalDuration - offset) / barDuration);
+    for (let barIdx = 0; barIdx <= maxBar; barIdx++) {
+      const barTime = offset + barIdx * barDuration;
       ticks.push(
         <div
           key={`ruler-bar-${barIdx}`}
-          className="absolute top-0 bottom-0 border-l-2 border-[#00e5ff]/40 flex flex-col justify-between pl-1 pointer-events-none"
+          className="absolute top-0 bottom-0 border-l-2 border-[#00e5ff]/50 flex flex-col justify-between pl-1 pointer-events-none"
           style={{ left: barTime * pixelsPerSecond }}
         >
-          <span className="font-mono text-[10px] font-bold text-[#00e5ff]/90">m.{barIdx + 1}</span>
-          <span className="text-[9px] text-white/40 font-mono mb-0.5">{barTime.toFixed(1)}s</span>
+          <span className="font-mono text-[10px] font-bold text-[#00e5ff]">m.{barIdx + 1}</span>
+          <span className="text-[9px] text-white/40 font-mono mb-0.5">{barTime.toFixed(2)}s</span>
         </div>
       );
     }
 
     // 2. Intermediate Snap Ticks in Ruler (skipping bar positions)
+    const totalSteps = Math.floor((totalDuration - offset) / step);
+    const stepsPerBar = Math.round(barDuration / step);
     if (stepsPerBar > 1) {
       for (let i = 1; i <= totalSteps; i++) {
         if (i % stepsPerBar === 0) continue; // Skip bar markers already drawn
-        const time = i * step;
+        const time = offset + i * step;
         ticks.push(
           <div
             key={`ruler-sub-${i}`}
@@ -637,20 +666,38 @@ export function Timeline({
       }
     }
 
-    return ticks;
-  }, [totalBars, totalDuration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm]);
+    // 3. Pre-offset intermediate ticks if offset > 0
+    if (offset > 0) {
+      const preSteps = Math.floor(offset / step);
+      for (let k = 1; k <= preSteps; k++) {
+        const time = offset - k * step;
+        if (time <= 0) break;
+        ticks.push(
+          <div
+            key={`ruler-sub-pre-${k}`}
+            className="absolute bottom-0 h-1.5 border-l border-white/10 pointer-events-none"
+            style={{ left: time * pixelsPerSecond }}
+          />
+        );
+      }
+    }
 
-  // Memoized Background Grid Lines that dynamically adapt directly to the selected snap
+    return ticks;
+  }, [totalDuration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm, offset]);
+
+  // Memoized Background Grid Lines that dynamically adapt directly to the selected snap and offset
   // All lines have the exact same low, notable opacity (border-white/10) with zero harsh contrasting lines
   const backgroundGridLines = useMemo(() => {
     const bpm = level.timing.bpm || 120;
     const interval = getSnapInterval(bpm, gridSubdivision);
     const step = interval > 0 ? interval : beatDuration; // fallback to 1/4 beat in 'free' mode
-    const totalSteps = Math.floor(totalDuration / step);
     const lines: React.ReactNode[] = [];
 
-    for (let i = 0; i <= totalSteps; i++) {
-      const time = i * step;
+    // Forward grid lines starting from offset
+    const totalStepsForward = Math.ceil((totalDuration - offset) / step);
+    for (let i = 0; i <= totalStepsForward; i++) {
+      const time = offset + i * step;
+      if (time > totalDuration) break;
       lines.push(
         <div
           key={`grid-snap-${i}`}
@@ -660,8 +707,24 @@ export function Timeline({
       );
     }
 
+    // Pre-offset grid lines from offset back down to 0
+    if (offset > 0) {
+      const preSteps = Math.ceil(offset / step);
+      for (let k = 1; k <= preSteps; k++) {
+        const time = offset - k * step;
+        if (time < 0) break;
+        lines.push(
+          <div
+            key={`grid-snap-pre-${k}`}
+            className="absolute top-0 bottom-0 border-l border-white/5 pointer-events-none"
+            style={{ left: time * pixelsPerSecond }}
+          />
+        );
+      }
+    }
+
     return lines;
-  }, [totalDuration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm]);
+  }, [totalDuration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm, offset]);
 
   return (
     <div className="flex-1 w-full h-full min-h-0 flex overflow-hidden relative select-none bg-[#09090f]">
@@ -786,6 +849,7 @@ export function Timeline({
                   pixelsPerSecond={pixelsPerSecond}
                   currentTime={currentTime}
                   bpm={level.timing.bpm}
+                  offset={offset}
                 />
               </div>
             )}
@@ -802,7 +866,7 @@ export function Timeline({
                 >
                   {trackEvents.map((event) => {
                     const isSelected = effectiveEventIds.has(event.id);
-                    const x = event.targetTime * pixelsPerSecond;
+                    const x = (event.targetTime + offset) * pixelsPerSecond;
                     const width = Math.max(16, (event.duration ?? beatDuration) * pixelsPerSecond);
 
                     if (event.behavior === 'tap') {
@@ -959,7 +1023,7 @@ export function Timeline({
           >
             {triggers.map((trigger) => {
               const isSelected = effectiveTriggerIds.has(trigger.id);
-              const x = trigger.time * pixelsPerSecond;
+              const x = (trigger.time + offset) * pixelsPerSecond;
               const width = Math.max(32, (trigger.duration || 0) * pixelsPerSecond);
               const color = getTriggerColor(trigger.action);
               return (
