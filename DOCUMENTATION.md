@@ -300,10 +300,10 @@ Root component of the editor. Assembles all panels and manages top-level UI stat
 ### src/editor/Timeline.tsx
 
 The primary authoring surface. Multi-track DAW-style timeline engineered under the UI optimization and responsive design principles:
-- **Decoupled Track Header Architecture & Synchronized Vertical Scrolling**: Dedicated left column (144px / `w-36`) displaying track headers (TIME, AUDIO waveform indicator, Pad labels with role & key indicators, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without ever overlaying notes. In windowed mode or on compact screens, its vertical scroll (`scrollTop`) is synchronized in real-time with the tracks canvas, with mouse wheel forwarding (`onWheel`) for intuitive dual-column navigation.
-- **Audio Waveform Display**: 48px timeline track lane directly below the time ruler backed by `WaveformCanvas` and `extractWaveformPeaks`. Renders downsampled amplitude envelope from in-memory cached `AudioBuffer` (with procedural synth envelope fallback in zero-asset mode), supporting seek-on-click for precise acoustic alignment of notes and triggers.
+- **Decoupled Track Header Architecture & Synchronized Vertical Scrolling**: Dedicated left column (144px / `w-36`) displaying track headers (TIME, Pad labels with role & key indicators, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without ever overlaying notes. In windowed mode or on compact screens, its vertical scroll (`scrollTop`) is synchronized in real-time with the tracks canvas, with mouse wheel forwarding (`onWheel`) for intuitive dual-column navigation.
+- **Background Audio Waveform Display**: High-resolution amplitude envelope rendered as an architectural background layer directly behind the four pad tracks via `WaveformCanvas` (virtualized viewport canvas rendering true PCM peaks from `AudioBuffer` or synthetic beat envelopes in zero-asset mode). By eliminating isolated 48px lanes, the waveform expands across 280px–450px+ of vertical height, making percussive transients (kicks, snares, and drops) sharply legible beneath authored notes.
 - **Adaptive Vertical Sizing & Windowed Responsiveness**: Uses an elastic flex distribution (`flex-1` with `min-h-[68px]` per pad track). On tall/full-screen displays, tracks expand smoothly to 110px–165px to fill empty vertical space; in windowed mode (non-fullscreen/reduced height), tracks compress adaptively down to 68px. If the total height exceeds the viewport, smooth vertical scrolling activates without ever clipping the Triggers section or FX Lane.
-- **Horizontally Scrollable Canvas**: Scrollable tracks container for ruler, waveform, beat/bar grid lines, notes (tap, hold, loop, trigger), scene triggers, and playhead starting at origin `t = 0`.
+- **Horizontally Scrollable Canvas**: Scrollable tracks container for ruler, beat/bar grid lines, notes (tap, hold, loop, trigger), scene triggers, and playhead starting at origin `t = 0`.
 - **Sticky Time Ruler**: Quantized ruler with seek-on-click, playhead drag, and edge auto-scrolling.
 
 Tools: Pen (insert), Select (move/resize via drag), Eraser (delete on click).
@@ -314,7 +314,7 @@ Top navigation bar: tab switching, transport controls, audio file loading, recor
 
 ### src/editor/components/EditorToolbar.tsx
 
-Tool palette: Select / Pen / Eraser, grid subdivision selector, zoom control. Features horizontal overflow protection for compact viewports.
+Tool palette: Select / Pen / Eraser, grid subdivision selector, zoom control, and **WAVE toggle button** (with `W` shortcut) for showing/hiding the background waveform watermark. Features horizontal overflow protection for compact viewports.
 
 ### src/editor/components/EditorSidebarLeft.tsx
 
@@ -415,7 +415,7 @@ SceneNodeData fields:
 - Deep level schema validation & sanitization (`LevelValidator`): Comprehensive structural and type validation for JSON imports and editor exports, ensuring format version compliance, chronological event ordering, and safe visual node indexing.
 - Unified Content Orchestrator (`ContentManager`): High-level preloading pipeline combining schema verification, asset caching, and multi-difficulty bundle creation.
 - Start Screen Content Suite: Interactive difficulty selection (Easy, Normal, Hard), real-time metadata inspector (BPM, duration, note count), in-memory RAM cache status badge, and formatted validation error alerts.
-- Audio Waveform Display: Dedicated timeline track displaying true PCM peak amplitude envelopes from cached `AudioBuffer` in RAM (with synthetic envelope fallback) for precise visual alignment of beats and triggers.
+- Audio Waveform Display: High-resolution background envelope rendered across the pad tracks via virtualized viewport canvas, displaying true PCM peaks or synthetic transients with toggleable visibility (`WAVE` / `W`) for intuitive visual alignment of beats and triggers.
 - Playback Speed Selector: Variable audio transport rate (0.25x, 0.5x, 0.75x, 1.0x) with continuous monotonic clock accumulation for fine-tuned rhythm mapping.
 - ParticlePool: pooled particle bursts on hit events.
 

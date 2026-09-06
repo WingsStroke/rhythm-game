@@ -39,6 +39,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const [creationBehavior, setCreationBehavior] = useState<PadBehavior>('tap');
   const [gridSubdivision, setGridSubdivision] = useState<GridSubdivision>('1/4');
   const [pixelsPerSecond, setPixelsPerSecond] = useState<number>(120);
+  const [showWaveform, setShowWaveform] = useState<boolean>(true);
 
   // Mutually exclusive selection state
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -233,6 +234,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     },
     onTogglePlay: togglePlay,
     onToggleRecord: toggleRecord,
+    onToggleWaveform: () => setShowWaveform((prev) => !prev),
     onUndo: undo,
     onRedo: redo,
   });
@@ -347,6 +349,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         onChangeGridSubdivision={setGridSubdivision}
         pixelsPerSecond={pixelsPerSecond}
         onChangePixelsPerSecond={setPixelsPerSecond}
+        showWaveform={showWaveform}
+        onToggleWaveform={() => setShowWaveform((prev) => !prev)}
       />
 
       {/* Main Workspace Layout */}
@@ -406,6 +410,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 creationBehavior={creationBehavior}
                 gridSubdivision={gridSubdivision}
                 pixelsPerSecond={pixelsPerSecond}
+                showWaveform={showWaveform}
                 selectedEventId={selectedEventId}
                 selectedTriggerId={selectedTriggerId}
                 onSelectEvent={(evt) => selectEvent(evt?.id || null)}

@@ -9,6 +9,7 @@ interface UseEditorShortcutsOptions {
   onDeleteSelected: () => void;
   onTogglePlay: () => void;
   onToggleRecord?: () => void;
+  onToggleWaveform?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
 }
@@ -21,6 +22,7 @@ export function useEditorShortcuts({
   onDeleteSelected,
   onTogglePlay,
   onToggleRecord,
+  onToggleWaveform,
   onUndo,
   onRedo,
 }: UseEditorShortcutsOptions) {
@@ -74,6 +76,12 @@ export function useEditorShortcuts({
         return;
       }
 
+      if (e.code === 'KeyW' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        onToggleWaveform?.();
+        return;
+      }
+
       if (e.code === 'KeyV') {
         onSelectTool('select');
       } else if (e.code === 'KeyB') {
@@ -85,5 +93,5 @@ export function useEditorShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canDelete, onTogglePlay, onToggleRecord, onSelectTool, onDeleteSelected, onUndo, onRedo, activeTab, isRecording]);
+  }, [canDelete, onTogglePlay, onToggleRecord, onToggleWaveform, onSelectTool, onDeleteSelected, onUndo, onRedo, activeTab, isRecording]);
 }

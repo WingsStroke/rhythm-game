@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, Pencil, Eraser, ZoomIn, ZoomOut } from 'lucide-react';
+import { MousePointer, Pencil, Eraser, ZoomIn, ZoomOut, Activity } from 'lucide-react';
 import type { EditorTool, GridSubdivision } from '../Timeline';
 import type { PadBehavior } from '../../engine/types';
 
@@ -12,6 +12,8 @@ interface EditorToolbarProps {
   onChangeGridSubdivision: (subdivision: GridSubdivision) => void;
   pixelsPerSecond: number;
   onChangePixelsPerSecond: (fn: (prev: number) => number) => void;
+  showWaveform?: boolean;
+  onToggleWaveform?: () => void;
 }
 
 export function EditorToolbar({
@@ -23,6 +25,8 @@ export function EditorToolbar({
   onChangeGridSubdivision,
   pixelsPerSecond,
   onChangePixelsPerSecond,
+  showWaveform = true,
+  onToggleWaveform,
 }: EditorToolbarProps) {
   return (
     <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-4 gap-2 shrink-0 select-none overflow-x-auto overflow-y-hidden">
@@ -101,6 +105,22 @@ export function EditorToolbar({
             <option value="free">Free (Off)</option>
           </select>
         </div>
+
+        {/* Waveform Background Toggle */}
+        {onToggleWaveform && (
+          <button
+            onClick={onToggleWaveform}
+            title="Toggle background audio waveform (W)"
+            className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+              showWaveform
+                ? 'bg-[#00e5ff]/20 text-[#00e5ff] border-[#00e5ff]/50 shadow-[0_0_8px_rgba(0,229,255,0.25)]'
+                : 'text-white/40 hover:text-white/80 hover:bg-white/5 border-white/10'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            WAVE
+          </button>
+        )}
 
         {/* Zoom controls */}
         <div className="flex items-center gap-1.5 border-l border-white/10 pl-4">

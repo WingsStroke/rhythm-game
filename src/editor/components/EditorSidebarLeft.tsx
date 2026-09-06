@@ -125,6 +125,7 @@ export function EditorSidebarLeft({
             <span>E - Eraser</span>
             <span>Del - Delete</span>
             <span>Space - Play / Pause</span>
+            <span>W - Toggle Waveform</span>
             <span>Ctrl+Z - Undo</span>
             <span>Ctrl+Y - Redo</span>
           </div>
