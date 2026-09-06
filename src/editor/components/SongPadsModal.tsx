@@ -15,7 +15,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import type { LevelData, PadConfig, PadId, ModulationChannel } from '../../engine/types';
-import { formatKeyCode, loadUserKeybindings, saveUserKeybindings } from '../../engine/input/Keybindings';
+import { formatKeyCode, getBoundKeyForPad, loadUserKeybindings } from '../../engine/input/Keybindings';
 
 interface SongPadsModalProps {
   isOpen: boolean;
@@ -68,6 +68,7 @@ export function SongPadsModal({
   const currentLeadIn = level.timing?.leadIn ?? 0;
   const currentFadeIn = level.timing?.fadeIn ?? 0;
   const currentFadeOut = level.timing?.fadeOut ?? 0;
+  const activeKeybindings = loadUserKeybindings();
 
   const setOffsetMs = (ms: number) => {
     const sec = Number((ms / 1000).toFixed(4));
@@ -538,34 +539,22 @@ export function SongPadsModal({
                         </div>
                       </div>
 
-                      {/* Key Hint Badge / Interactive Remapper */}
-                      <div className="flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded-md border border-white/10 focus-within:border-[#00e5ff] transition-colors">
-                        <Keyboard className="w-3 h-3 text-[#00e5ff] flex-shrink-0" />
-                        <input
-                          type="text"
-                          value={pad.keyHint || ''}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Tab') return;
-                            e.preventDefault();
-                            if (e.key === 'Backspace' || e.key === 'Delete') {
-                              updatePadField(pad.id, { keyHint: '' });
-                              return;
-                            }
-                            const display = formatKeyCode(e.code);
-                            updatePadField(pad.id, { keyHint: display });
-                            const current = loadUserKeybindings(level.pads);
-                            for (const [k, v] of Object.entries(current)) {
-                              if (v === pad.id) delete current[k];
-                            }
-                            current[e.code] = pad.id;
-                            saveUserKeybindings(current);
-                          }}
-                          onChange={() => {}}
-                          className="min-w-[28px] max-w-[64px] bg-transparent text-xs font-mono font-bold text-white text-center outline-none uppercase cursor-pointer selection:bg-transparent"
-                          placeholder="?"
-                          title="Click and press any key to rebind this pad"
-                        />
-                      </div>
+                      {/* Read-only Key Indicator */}
+                      {(() => {
+                        const boundKey = getBoundKeyForPad(activeKeybindings, pad.id);
+                        const displayKey = boundKey ? formatKeyCode(boundKey) : (pad.keyHint || '?');
+                        return (
+                          <div
+                            className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-md border border-white/10"
+                            title="Active player key for this pad. Player controls can be configured globally from the Main Menu."
+                          >
+                            <Keyboard className="w-3 h-3 text-[#00e5ff] flex-shrink-0" />
+                            <span className="min-w-[20px] text-xs font-mono font-bold text-white/90 text-center uppercase">
+                              {displayKey}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Pad Inputs */}

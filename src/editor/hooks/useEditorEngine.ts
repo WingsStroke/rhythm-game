@@ -178,6 +178,8 @@ export function useEditorEngine({
       }
     };
 
+    input.attach();
+
     return () => {
       input.detach();
       inputRef.current = null;

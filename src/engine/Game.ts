@@ -27,6 +27,7 @@ export class Game {
   private visual: VisualEngine;
   private level: LevelData;
   private container: HTMLElement;
+  private customKeybindings?: KeybindingMap;
   private running = false;
 
   private _isPaused = false;
@@ -68,9 +69,10 @@ export class Game {
     return this.transport.getTime();
   }
 
-  constructor(container: HTMLElement, level: LevelData) {
+  constructor(container: HTMLElement, level: LevelData, customKeybindings?: KeybindingMap) {
     this.container = container;
     this.level = level;
+    this.customKeybindings = customKeybindings;
     this.eventBus = new GameplayEventBus();
     this.transport = new AudioTransport();
     this.input = new InputManager(() => this.getCurrentGameTime());
@@ -176,7 +178,7 @@ export class Game {
   }
 
   private setupInput(customKeybindings?: KeybindingMap): void {
-    const map = customKeybindings || loadUserKeybindings(this.level.pads);
+    const map = customKeybindings || this.customKeybindings || loadUserKeybindings(this.level.pads);
     this.input.setKeyMap(map);
     this.input.setHandler((event) => {
       if (this._isPaused) return;
@@ -185,6 +187,7 @@ export class Game {
     this.input.onPadPress = (pad) => {
       if (this._isPaused) return;
       this.visual.pressPad(pad);
+      this.transport.playHitsound(pad);
     };
     this.input.onPadRelease = (pad) => {
       if (this._isPaused) return;

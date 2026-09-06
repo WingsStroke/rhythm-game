@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Game } from '../engine/Game';
 import type { LevelData, PlayerState } from '../engine/types';
+import type { KeybindingMap } from '../engine/input/Keybindings';
 import { GameHUD } from './components/GameHUD';
 import { PauseModal } from './components/PauseModal';
 import { ResultsModal } from './components/ResultsModal';
@@ -9,12 +10,14 @@ interface GameScreenProps {
   level: LevelData;
   onExit: () => void;
   exitLabel?: string;
+  customKeybindings?: KeybindingMap;
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
   level,
   onExit,
   exitLabel = 'MENU',
+  customKeybindings,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Game | null>(null);
@@ -36,7 +39,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       containerRef.current.innerHTML = '';
 
       try {
-        const game = new Game(containerRef.current, level);
+        const game = new Game(containerRef.current, level, customKeybindings);
         gameRef.current = game;
 
         game.onScoreUpdate = (state) => {
@@ -83,7 +86,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         gameRef.current = null;
       }
     };
-  }, [level]);
+  }, [level, customKeybindings]);
 
   // Handle Escape key for Pause toggle
   useEffect(() => {

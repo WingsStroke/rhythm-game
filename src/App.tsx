@@ -7,7 +7,14 @@ import { SongRegistry } from '@/engine/content/SongRegistry';
 import { EditorApp } from '@/editor/EditorApp';
 import { ErrorBoundary } from '@/editor/components/ErrorBoundary';
 import { GameScreen } from '@/game/GameScreen';
-import { Play, Upload, Edit3, Disc3, Activity, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Play, Upload, Edit3, Disc3, Activity, AlertTriangle, CheckCircle2, Keyboard } from 'lucide-react';
+import { KeybindingsModal } from '@/game/components/KeybindingsModal';
+import {
+  loadUserKeybindings,
+  formatKeyCode,
+  getBoundKeyForPad,
+  type KeybindingMap,
+} from '@/engine/input/Keybindings';
 
 type Screen = 'start' | 'playing' | 'editor';
 type DifficultyType = 'Easy' | 'Normal' | 'Hard';
@@ -21,6 +28,8 @@ export default function App() {
   const [editorLevel, setEditorLevel] = useState<LevelData | null>(null);
   const [playtestFromEditor, setPlaytestFromEditor] = useState(false);
   const [isAudioCached, setIsAudioCached] = useState(false);
+  const [isControlsModalOpen, setIsControlsModalOpen] = useState(false);
+  const [currentKeybindings, setCurrentKeybindings] = useState<KeybindingMap>(() => loadUserKeybindings());
 
   // Check if external audio file exists in public/audio/
   useEffect(() => {
@@ -105,6 +114,8 @@ export default function App() {
           onSelectDifficulty={setSelectedDifficulty}
           onStart={handleStartSelected}
           onOpenEditor={() => setScreen('editor')}
+          onOpenControls={() => setIsControlsModalOpen(true)}
+          keybindings={currentKeybindings}
           onLoadJson={handleLoadJsonLevel}
           hasSongFile={hasSongFile}
           isAudioCached={isAudioCached}
@@ -128,8 +139,16 @@ export default function App() {
           level={activeLevel}
           onExit={handleExitGame}
           exitLabel={playtestFromEditor ? 'EDITOR' : 'MENU'}
+          customKeybindings={currentKeybindings}
         />
       )}
+
+      {/* Global Controls Remapper Modal */}
+      <KeybindingsModal
+        isOpen={isControlsModalOpen}
+        onClose={() => setIsControlsModalOpen(false)}
+        onBindingsChange={(newBindings) => setCurrentKeybindings(newBindings)}
+      />
     </div>
   );
 }
@@ -142,6 +161,8 @@ interface StartScreenProps {
   onSelectDifficulty: (diff: DifficultyType) => void;
   onStart: () => void;
   onOpenEditor: () => void;
+  onOpenControls: () => void;
+  keybindings: KeybindingMap;
   onLoadJson: (file: File) => void;
   hasSongFile: boolean;
   isAudioCached: boolean;
@@ -155,6 +176,8 @@ function StartScreen({
   onSelectDifficulty,
   onStart,
   onOpenEditor,
+  onOpenControls,
+  keybindings,
   onLoadJson,
   hasSongFile,
   isAudioCached,
@@ -337,6 +360,15 @@ function StartScreen({
               <Edit3 className="w-4 h-4 text-[#ffcc00]" />
               <span>EDITOR</span>
             </button>
+
+            <button
+              onClick={onOpenControls}
+              className="py-4 px-5 bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold rounded-2xl border border-white/20 transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
+              title="Configure Keyboard Controls"
+            >
+              <Keyboard className="w-4 h-4 text-[#00e5ff]" />
+              <span>CONTROLS</span>
+            </button>
           </div>
 
           {/* Validation Error Feedback */}
@@ -364,24 +396,40 @@ function StartScreen({
 
           {/* Controls hint card */}
           <div className="text-sm text-white/50 mt-1 bg-white/5 border border-white/10 p-4 rounded-2xl backdrop-blur-sm w-full">
-            <p className="mb-2 text-white/80 font-medium text-xs">Controls — Press keys or click on pads:</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-white/80 font-medium text-xs font-mono">
+                Controls — Press keys or click on pads:
+              </p>
+              <button
+                onClick={onOpenControls}
+                className="text-[11px] font-mono text-[#00e5ff] hover:underline cursor-pointer flex items-center gap-1"
+                title="Open controls settings"
+              >
+                <Keyboard className="w-3 h-3" />
+                <span>Configure</span>
+              </button>
+            </div>
             <div className="grid grid-cols-4 gap-2 justify-center">
               {[
-                { key: 'A', label: 'Kick', color: '#ff2d6f' },
-                { key: 'S', label: 'Snare', color: '#00e5ff' },
-                { key: 'D', label: 'Lead', color: '#ffcc00' },
-                { key: 'F', label: 'Alt Lead', color: '#00ff9d' },
-              ].map((pad) => (
-                <div key={pad.key} className="flex flex-col items-center gap-1">
-                  <kbd
-                    className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg border-2 bg-black/40"
-                    style={{ borderColor: pad.color, color: pad.color, boxShadow: `0 0 12px ${pad.color}35` }}
-                  >
-                    {pad.key}
-                  </kbd>
-                  <span className="text-[10px] text-white/60 font-semibold">{pad.label}</span>
-                </div>
-              ))}
+                { id: 'pad_0', label: 'Kick', color: '#ff2d6f' },
+                { id: 'pad_1', label: 'Snare', color: '#00e5ff' },
+                { id: 'pad_2', label: 'Lead', color: '#ffcc00' },
+                { id: 'pad_3', label: 'Alt Lead', color: '#00ff9d' },
+              ].map((pad) => {
+                const boundCode = getBoundKeyForPad(keybindings, pad.id);
+                const displayKey = boundCode ? formatKeyCode(boundCode) : '?';
+                return (
+                  <div key={pad.id} className="flex flex-col items-center gap-1">
+                    <kbd
+                      className="w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg border-2 bg-black/40 font-mono"
+                      style={{ borderColor: pad.color, color: pad.color, boxShadow: `0 0 12px ${pad.color}35` }}
+                    >
+                      {displayKey}
+                    </kbd>
+                    <span className="text-[10px] text-white/60 font-semibold font-mono">{pad.label}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
