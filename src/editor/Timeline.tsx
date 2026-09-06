@@ -382,6 +382,143 @@ export function Timeline({
     }
   };
 
+  // Memoized Ruler Ticks that dynamically adapt to the active snap gridSubdivision
+  const rulerTicks = useMemo(() => {
+    const ticks: React.ReactNode[] = [];
+
+    // 1. Measure / Bar Markers (Always present)
+    for (let barIdx = 0; barIdx <= totalBars; barIdx++) {
+      const barTime = barIdx * 4 * beatDuration;
+      ticks.push(
+        <div
+          key={`ruler-bar-${barIdx}`}
+          className="absolute top-0 bottom-0 border-l-2 border-[#00e5ff]/40 flex flex-col justify-between pl-1 pointer-events-none"
+          style={{ left: barTime * pixelsPerSecond }}
+        >
+          <span className="font-mono text-[10px] font-bold text-[#00e5ff]/90">m.{barIdx + 1}</span>
+          <span className="text-[9px] text-white/40 font-mono mb-0.5">{barTime.toFixed(1)}s</span>
+        </div>
+      );
+    }
+
+    // 2. Quarter Beat Ticks (1/4)
+    for (let beatIdx = 1; beatIdx <= totalBeats; beatIdx++) {
+      if (beatIdx % 4 === 0) continue; // Skip bar lines
+      const isHalfBar = beatIdx % 2 === 0;
+      const tickHeight = gridSubdivision === '1/1' ? 'h-2' : isHalfBar ? 'h-3.5' : 'h-3';
+      const tickOpacity =
+        gridSubdivision === '1/1'
+          ? 'border-white/10'
+          : gridSubdivision === '1/2' && isHalfBar
+          ? 'border-white/40'
+          : 'border-white/25';
+
+      ticks.push(
+        <div
+          key={`ruler-beat-${beatIdx}`}
+          className={`absolute bottom-0 ${tickHeight} border-l ${tickOpacity} pointer-events-none`}
+          style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
+        />
+      );
+    }
+
+    // 3. Sub-beat Ticks (1/8th and 1/16th)
+    if (gridSubdivision === '1/8' || gridSubdivision === '1/16') {
+      const factor = gridSubdivision === '1/16' ? 4 : 2;
+      const totalSteps = totalBeats * factor;
+      const stepDuration = beatDuration / factor;
+
+      for (let subIdx = 1; subIdx <= totalSteps; subIdx++) {
+        if (subIdx % factor === 0) continue; // Skip full beats
+
+        const isEighth = gridSubdivision === '1/16' && subIdx % 2 === 0;
+        const tickClass =
+          gridSubdivision === '1/8'
+            ? 'h-2 border-l border-[#00e5ff]/40'
+            : isEighth
+            ? 'h-2 border-l border-white/30'
+            : 'h-1.5 border-l border-[#00e5ff]/40';
+
+        ticks.push(
+          <div
+            key={`ruler-sub-${subIdx}`}
+            className={`absolute bottom-0 pointer-events-none ${tickClass}`}
+            style={{ left: subIdx * stepDuration * pixelsPerSecond }}
+          />
+        );
+      }
+    }
+
+    return ticks;
+  }, [totalBars, totalBeats, beatDuration, pixelsPerSecond, gridSubdivision]);
+
+  // Memoized Background Grid Lines spanning full height that dynamically adapt to gridSubdivision
+  const backgroundGridLines = useMemo(() => {
+    const lines: React.ReactNode[] = [];
+
+    // 1. Measure / Bar Lines
+    for (let barIdx = 0; barIdx <= totalBars; barIdx++) {
+      lines.push(
+        <div
+          key={`grid-bar-${barIdx}`}
+          className="absolute top-0 bottom-0 border-l border-white/25 pointer-events-none"
+          style={{ left: barIdx * 4 * beatDuration * pixelsPerSecond }}
+        />
+      );
+    }
+
+    // 2. Quarter Beat Lines (1/4)
+    for (let beatIdx = 1; beatIdx <= totalBeats; beatIdx++) {
+      if (beatIdx % 4 === 0) continue; // Skip bar lines
+      const isHalfBar = beatIdx % 2 === 0;
+      const lineClass =
+        gridSubdivision === '1/1'
+          ? 'border-white/5'
+          : gridSubdivision === '1/2' && isHalfBar
+          ? 'border-white/20'
+          : isHalfBar
+          ? 'border-white/15'
+          : 'border-white/10';
+
+      lines.push(
+        <div
+          key={`grid-beat-${beatIdx}`}
+          className={`absolute top-0 bottom-0 border-l ${lineClass} pointer-events-none`}
+          style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
+        />
+      );
+    }
+
+    // 3. Sub-beat Lines (1/8th and 1/16th)
+    if (gridSubdivision === '1/8' || gridSubdivision === '1/16') {
+      const factor = gridSubdivision === '1/16' ? 4 : 2;
+      const totalSteps = totalBeats * factor;
+      const stepDuration = beatDuration / factor;
+
+      for (let subIdx = 1; subIdx <= totalSteps; subIdx++) {
+        if (subIdx % factor === 0) continue; // Skip full beats
+
+        const isEighth = gridSubdivision === '1/16' && subIdx % 2 === 0;
+        const lineClass =
+          gridSubdivision === '1/8'
+            ? 'border-l border-[#00e5ff]/20'
+            : isEighth
+            ? 'border-l border-white/12'
+            : 'border-l border-[#00e5ff]/20';
+
+        lines.push(
+          <div
+            key={`grid-sub-${subIdx}`}
+            className={`absolute top-0 bottom-0 pointer-events-none ${lineClass}`}
+            style={{ left: subIdx * stepDuration * pixelsPerSecond }}
+          />
+        );
+      }
+    }
+
+    return lines;
+  }, [totalBars, totalBeats, beatDuration, pixelsPerSecond, gridSubdivision]);
+
   return (
     <div className="flex-1 w-full h-full min-h-0 flex overflow-hidden relative select-none bg-[#09090f]">
       {/* 1. Dedicated Left Column: Track Headers (always visible, strictly left of timeline, synced vertical scroll) */}
@@ -474,50 +611,13 @@ export function Timeline({
               onPointerMove={handleRulerPointerMove}
               onPointerUp={handleRulerPointerUp}
             >
-              {Array.from({ length: totalBars + 1 }).map((_, barIdx) => {
-                const barTime = barIdx * 4 * beatDuration;
-                return (
-                  <div
-                    key={barIdx}
-                    className="absolute top-0 bottom-0 border-l-2 border-[#00e5ff]/40 flex flex-col justify-between pl-1 pointer-events-none"
-                    style={{ left: barTime * pixelsPerSecond }}
-                  >
-                    <span className="font-mono text-[10px] font-bold text-[#00e5ff]/90">m.{barIdx + 1}</span>
-                    <span className="text-[9px] text-white/40 font-mono mb-0.5">{barTime.toFixed(1)}s</span>
-                  </div>
-                );
-              })}
-              {Array.from({ length: totalBeats + 1 }).map((_, beatIdx) => {
-                if (beatIdx % 4 === 0) return null;
-                return (
-                  <div
-                    key={beatIdx}
-                    className="absolute bottom-0 h-3.5 border-l border-white/20 pointer-events-none"
-                    style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
-                  />
-                );
-              })}
+              {rulerTicks}
             </div>
           </div>
 
           {/* Background Beat & Bar Grid Lines spanning full height */}
           <div className="absolute top-9 bottom-0 pointer-events-none z-0" style={{ left: 0, width: widthPx }}>
-            {Array.from({ length: totalBars + 1 }).map((_, barIdx) => (
-              <div
-                key={`bar-${barIdx}`}
-                className="absolute top-0 bottom-0 border-l border-white/20 pointer-events-none"
-                style={{ left: barIdx * 4 * beatDuration * pixelsPerSecond }}
-              />
-            ))}
-            {Array.from({ length: totalBeats + 1 }).map((_, beatIdx) =>
-              beatIdx % 4 === 0 ? null : (
-                <div
-                  key={`beat-${beatIdx}`}
-                  className="absolute top-0 bottom-0 border-l border-white/10 pointer-events-none"
-                  style={{ left: beatIdx * beatDuration * pixelsPerSecond }}
-                />
-              )
-            )}
+            {backgroundGridLines}
           </div>
 
           {/* Note Track Lanes (flex-1 to consume remaining vertical space smoothly, min-h-[280px] for responsiveness) */}

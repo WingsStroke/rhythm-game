@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Activity,
   Clock,
@@ -63,29 +63,35 @@ export function EditorHeader({
   onPlaytest,
   onExit,
 }: EditorHeaderProps) {
+  const [localSpeed, setLocalSpeed] = useState<string>(playbackSpeed.toString());
+
+  useEffect(() => {
+    setLocalSpeed(playbackSpeed.toString());
+  }, [playbackSpeed]);
+
   return (
     <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 gap-3 bg-black/50 shrink-0 select-none overflow-x-auto overflow-y-hidden">
       {/* Brand & Time Badges */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 shrink-0">
         <Activity className="w-5 h-5 text-[#00e5ff]" />
         <span className="font-bold text-lg tracking-wider text-[#00e5ff]">BEATMAP EDITOR</span>
-        <div className="text-xs text-white/60 bg-white/5 px-2.5 py-1 rounded font-mono flex items-center gap-1.5 border border-white/10">
+        <div className="text-xs text-white/60 bg-white/5 px-2.5 py-1 rounded font-mono flex items-center gap-1.5 border border-white/10 whitespace-nowrap">
           <Clock className="w-3.5 h-3.5 text-[#00e5ff]" /> BPM: {bpm}
         </div>
-        <div className="text-xs text-white/50 bg-white/5 px-2.5 py-1 rounded font-mono flex items-center gap-1.5 border border-white/10">
+        <div className="text-xs text-white/50 bg-white/5 px-2.5 py-1 rounded font-mono flex items-center gap-1.5 border border-white/10 whitespace-nowrap">
           <Clock className="w-3.5 h-3.5 text-[#00ff9d]" /> {formatTime(currentTime)}
         </div>
       </div>
 
       {/* Transport & Recording & History Controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         {/* Undo / Redo Buttons */}
-        <div className="flex items-center gap-1 mr-1 border-r border-white/10 pr-2">
+        <div className="flex items-center gap-1 mr-1 border-r border-white/10 pr-2 shrink-0">
           <button
             onClick={onUndo}
             disabled={!canUndo}
             title="Undo (Ctrl+Z)"
-            className={`p-1.5 rounded transition-colors text-xs font-bold flex items-center border border-white/10 ${
+            className={`p-1.5 rounded transition-colors text-xs font-bold flex items-center border border-white/10 shrink-0 ${
               canUndo
                 ? 'bg-white/10 text-white/90 hover:bg-white/20 hover:text-white cursor-pointer'
                 : 'bg-white/5 text-white/20 border-white/5 cursor-not-allowed opacity-30'
@@ -97,7 +103,7 @@ export function EditorHeader({
             onClick={onRedo}
             disabled={!canRedo}
             title="Redo (Ctrl+Y)"
-            className={`p-1.5 rounded transition-colors text-xs font-bold flex items-center border border-white/10 ${
+            className={`p-1.5 rounded transition-colors text-xs font-bold flex items-center border border-white/10 shrink-0 ${
               canRedo
                 ? 'bg-white/10 text-white/90 hover:bg-white/20 hover:text-white cursor-pointer'
                 : 'bg-white/5 text-white/20 border-white/5 cursor-not-allowed opacity-30'
@@ -110,7 +116,7 @@ export function EditorHeader({
         <button
           onClick={onToggleRecord}
           title="Toggle Live Recording Mode (R) — Tap A,S,D,F to place notes in real-time"
-          className={`px-3.5 py-1.5 rounded transition-all text-xs font-bold flex items-center gap-2 shadow-sm ${
+          className={`px-3.5 py-1.5 rounded transition-all text-xs font-bold flex items-center gap-2 shadow-sm whitespace-nowrap shrink-0 cursor-pointer ${
             isRecording
               ? 'bg-red-500 text-white shadow-[0_0_15px_#ff0055] animate-pulse border border-red-400'
               : 'bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30'
@@ -123,7 +129,7 @@ export function EditorHeader({
         {/* Play/Pause Button */}
         <button
           onClick={onTogglePlay}
-          className={`px-4 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-2 shadow-sm ${
+          className={`px-4 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-2 shadow-sm whitespace-nowrap shrink-0 cursor-pointer ${
             isPlaying
               ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 hover:bg-yellow-500/30'
               : 'bg-[#00ff9d]/20 text-[#00ff9d] border border-[#00ff9d]/40 hover:bg-[#00ff9d]/30'
@@ -136,7 +142,7 @@ export function EditorHeader({
         {/* Stop Button */}
         <button
           onClick={onStop}
-          className="px-3.5 py-1.5 bg-white/10 text-white/80 rounded hover:bg-white/20 transition-colors text-xs font-bold flex items-center gap-2 border border-white/10"
+          className="px-3.5 py-1.5 bg-white/10 text-white/80 rounded hover:bg-white/20 transition-colors text-xs font-bold flex items-center gap-2 border border-white/10 whitespace-nowrap shrink-0 cursor-pointer"
         >
           <Square className="w-3.5 h-3.5" /> STOP
         </button>
@@ -145,7 +151,7 @@ export function EditorHeader({
         <button
           onClick={onToggleHitsounds}
           title={enableHitsounds ? 'Hitsounds Enabled (Low-latency audio click)' : 'Hitsounds Disabled'}
-          className={`px-3.5 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-2 shadow-sm border ${
+          className={`px-3.5 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-2 shadow-sm border whitespace-nowrap shrink-0 cursor-pointer ${
             enableHitsounds
               ? 'bg-[#00ff9d]/20 text-[#00ff9d] border-[#00ff9d]/40 hover:bg-[#00ff9d]/30'
               : 'bg-white/10 text-white/40 border-white/10 hover:bg-white/20'
@@ -155,46 +161,60 @@ export function EditorHeader({
           {enableHitsounds ? 'HITS' : 'MUTE'}
         </button>
 
-        {/* Playback Speed Selector */}
+        {/* Playback Speed Input (0.25x - 4x) */}
         {onChangePlaybackSpeed && (
-          <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-0.5 rounded ml-1">
-            <span className="text-[10px] text-white/50 font-mono px-1.5 font-bold flex items-center gap-1">
-              <Gauge className="w-3 h-3 text-[#00e5ff]" />
-              SPEED:
-            </span>
-            {([0.25, 0.5, 0.75, 1.0] as const).map((speed) => {
-              const isCurrent = Math.abs(playbackSpeed - speed) < 0.01;
-              return (
-                <button
-                  key={speed}
-                  onClick={() => onChangePlaybackSpeed(speed)}
-                  title={`Set playback speed to ${speed}x for precision mapping`}
-                  className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all cursor-pointer ${
-                    isCurrent
-                      ? speed < 1.0
-                        ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 shadow-[0_0_8px_#ffaa0040]'
-                        : 'bg-[#00e5ff]/20 text-[#00e5ff] border border-[#00e5ff]/40 shadow-[0_0_8px_#00e5ff30]'
-                      : 'text-white/50 hover:text-white hover:bg-white/10 border border-transparent'
-                  }`}
-                >
-                  {speed}x
-                </button>
-              );
-            })}
+          <div
+            className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2 py-1 rounded ml-1 shrink-0"
+            title="Playback Speed (0.25x - 4.0x)"
+          >
+            <Gauge className="w-3.5 h-3.5 text-[#00e5ff] shrink-0" />
+            <span className="text-[10px] text-white/50 font-mono font-bold whitespace-nowrap">SPEED:</span>
+            <div className="flex items-center">
+              <input
+                type="number"
+                min={0.25}
+                max={4}
+                step={0.25}
+                value={localSpeed}
+                onChange={(e) => {
+                  setLocalSpeed(e.target.value);
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val) && val >= 0.25 && val <= 4) {
+                    onChangePlaybackSpeed(Number(val.toFixed(2)));
+                  }
+                }}
+                onBlur={() => {
+                  const val = parseFloat(localSpeed);
+                  if (isNaN(val) || val < 0.25) {
+                    onChangePlaybackSpeed(0.25);
+                    setLocalSpeed('0.25');
+                  } else if (val > 4) {
+                    onChangePlaybackSpeed(4);
+                    setLocalSpeed('4');
+                  } else {
+                    const rounded = Number(val.toFixed(2));
+                    onChangePlaybackSpeed(rounded);
+                    setLocalSpeed(String(rounded));
+                  }
+                }}
+                className="w-13 bg-black/60 border border-white/15 rounded px-1.5 py-0.5 text-xs text-center font-mono font-bold text-[#00e5ff] focus:border-[#00e5ff] outline-none"
+              />
+              <span className="text-xs font-mono text-white/60 ml-1 font-bold">x</span>
+            </div>
           </div>
         )}
       </div>
 
       {/* Action Buttons: Audio, Import, Export, Exit */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 shrink-0">
         {/* Playtest / Test Play in Real Game */}
         {onPlaytest && (
           <button
             onClick={onPlaytest}
             title="Test play level in real game engine (Standalone Runtime)"
-            className="px-3.5 py-1.5 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white font-black rounded hover:scale-105 active:scale-95 transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#ff2d6f]/30 mr-1"
+            className="px-3.5 py-1.5 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white font-black rounded hover:scale-105 active:scale-95 transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#ff2d6f]/30 mr-1 whitespace-nowrap shrink-0"
           >
-            <Play className="w-3.5 h-3.5 fill-white" />
+            <Play className="w-3.5 h-3.5 fill-white shrink-0" />
             <span>PLAYTEST</span>
           </button>
         )}
@@ -202,9 +222,9 @@ export function EditorHeader({
         {/* Load Audio File */}
         <label
           title="Load Audio File (.mp3, .wav, .ogg)"
-          className="px-3 py-1.5 bg-[#00e5ff]/15 text-[#00e5ff] hover:bg-[#00e5ff]/25 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 border border-[#00e5ff]/30 cursor-pointer"
+          className="px-3 py-1.5 bg-[#00e5ff]/15 text-[#00e5ff] hover:bg-[#00e5ff]/25 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 border border-[#00e5ff]/30 cursor-pointer whitespace-nowrap shrink-0"
         >
-          <Music className="w-3.5 h-3.5" />
+          <Music className="w-3.5 h-3.5 shrink-0" />
           <span>Load Audio</span>
           <input
             type="file"
@@ -223,9 +243,9 @@ export function EditorHeader({
         {/* Import JSON */}
         <label
           title="Import Beatmap JSON"
-          className="px-3 py-1.5 bg-white/10 text-white/80 hover:bg-white/20 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 border border-white/10 cursor-pointer"
+          className="px-3 py-1.5 bg-white/10 text-white/80 hover:bg-white/20 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 border border-white/10 cursor-pointer whitespace-nowrap shrink-0"
         >
-          <Upload className="w-3.5 h-3.5 text-white/70" />
+          <Upload className="w-3.5 h-3.5 text-white/70 shrink-0" />
           <span>Import JSON</span>
           <input
             type="file"
@@ -244,17 +264,19 @@ export function EditorHeader({
         {/* Export JSON */}
         <button
           onClick={onExport}
-          className="px-3 py-1.5 bg-[#00ff9d]/15 text-[#00ff9d] rounded hover:bg-[#00ff9d]/25 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-[#00ff9d]/30"
+          className="px-3 py-1.5 bg-[#00ff9d]/15 text-[#00ff9d] rounded hover:bg-[#00ff9d]/25 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-[#00ff9d]/30 whitespace-nowrap shrink-0 cursor-pointer"
         >
-          <Download className="w-3.5 h-3.5" /> Export JSON
+          <Download className="w-3.5 h-3.5 shrink-0" />
+          <span>Export JSON</span>
         </button>
 
         {/* Exit Button */}
         <button
           onClick={onExit}
-          className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-red-500/30"
+          className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-red-500/30 whitespace-nowrap shrink-0 cursor-pointer"
         >
-          <LogOut className="w-3.5 h-3.5" /> Exit
+          <LogOut className="w-3.5 h-3.5 shrink-0" />
+          <span>Exit</span>
         </button>
       </div>
     </header>

@@ -357,8 +357,9 @@ export function useEditorEngine({
   }, [isPlaying, currentTime, level.songId, level.song.id, level.song.url, level.timing.bpm, activeTab, playbackSpeed]);
 
   const setPlaybackSpeed = useCallback((speed: number) => {
-    setPlaybackSpeedState(speed);
-    transportRef.current?.setPlaybackSpeed(speed);
+    const clamped = Math.max(0.25, Math.min(4.0, Number(speed.toFixed(2))));
+    setPlaybackSpeedState(clamped);
+    transportRef.current?.setPlaybackSpeed(clamped);
   }, []);
 
   const handleStop = useCallback(() => {
