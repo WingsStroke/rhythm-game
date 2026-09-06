@@ -156,9 +156,11 @@ export function Timeline({
   const totalDuration = level.song.duration || 120;
   const offset = level.timing?.offset ?? 0;
   const leadIn = level.timing?.leadIn ?? 0;
+  const songOrigin = leadIn + offset;
   const fadeIn = level.timing?.fadeIn ?? 0;
   const fadeOut = level.timing?.fadeOut ?? 0;
-  const widthPx = Math.max(1200, totalDuration * pixelsPerSecond);
+  const totalTimelineDuration = totalDuration + leadIn;
+  const widthPx = Math.max(1200, totalTimelineDuration * pixelsPerSecond);
 
   const audioBuffer = useMemo(
     () => SongRegistry.getInstance().getAudioBuffer(level.songId || level.song.id),
@@ -183,20 +185,20 @@ export function Timeline({
   const getAudioTimeFromClickX = useCallback(
     (clickX: number) => {
       const rawTime = Math.max(0, clickX / pixelsPerSecond);
-      if (rawTime < offset) {
+      if (rawTime < songOrigin) {
         if (gridSubdivision === 'free') {
           return rawTime;
         }
         const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
         const step = interval > 0 ? interval : beatDuration;
-        const stepsBefore = Math.round((offset - rawTime) / step);
-        return Math.max(0, offset - stepsBefore * step);
+        const stepsBefore = Math.round((songOrigin - rawTime) / step);
+        return Math.max(0, songOrigin - stepsBefore * step);
       }
-      const rawSongTime = rawTime - offset;
+      const rawSongTime = rawTime - songOrigin;
       const snappedSongTime = snapTimeToGrid(rawSongTime, level.timing.bpm, gridSubdivision);
-      return snappedSongTime + offset;
+      return snappedSongTime + songOrigin;
     },
-    [pixelsPerSecond, offset, gridSubdivision, level.timing.bpm, beatDuration]
+    [pixelsPerSecond, songOrigin, gridSubdivision, level.timing.bpm, beatDuration]
   );
 
   const startAutoScroller = useCallback(() => {
@@ -280,8 +282,8 @@ export function Timeline({
     if (activeTool === 'pen') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const rawAudioTime = Math.max(0, clickX / pixelsPerSecond);
-      const rawSongTime = rawAudioTime - offset;
+      const rawTimelineTime = Math.max(0, clickX / pixelsPerSecond);
+      const rawSongTime = rawTimelineTime - songOrigin;
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), level.timing.bpm, gridSubdivision);
 
       const newEvent: PadEvent = {
@@ -305,8 +307,8 @@ export function Timeline({
     if (activeTool === 'pen') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const rawAudioTime = Math.max(0, clickX / pixelsPerSecond);
-      const rawSongTime = rawAudioTime - offset;
+      const rawTimelineTime = Math.max(0, clickX / pixelsPerSecond);
+      const rawSongTime = rawTimelineTime - songOrigin;
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), level.timing.bpm, gridSubdivision);
 
       const newTrigger: TriggerData = {
@@ -614,32 +616,53 @@ export function Timeline({
     }
   };
 
-  // Memoized Ruler Ticks that dynamically adapt to the active snap gridSubdivision and timing offset
+  // Memoized Ruler Ticks that dynamically adapt to the active snap gridSubdivision, leadIn, and timing offset
   const rulerTicks = useMemo(() => {
     const ticks: React.ReactNode[] = [];
     const bpm = level.timing.bpm || 120;
     const interval = getSnapInterval(bpm, gridSubdivision);
     const step = interval > 0 ? interval : beatDuration;
     const barDuration = 4 * beatDuration;
+    const currentOrigin = (level.timing?.leadIn ?? 0) + (level.timing?.offset ?? 0);
+    const totalTimelineSec = (level.song.duration || 120) + (level.timing?.leadIn ?? 0);
+    const currentLeadIn = level.timing?.leadIn ?? 0;
 
-    // 0. Initial audio start marker (if offset > 0)
-    if (offset > 0.01) {
+    // 0. Pre-roll start marker (if leadIn > 0)
+    if (currentLeadIn > 0) {
       ticks.push(
         <div
-          key="ruler-audio-start"
-          className="absolute top-0 bottom-0 border-l border-white/20 flex flex-col justify-between pl-1 pointer-events-none"
+          key="ruler-preroll-start"
+          className="absolute top-0 bottom-0 border-l-2 border-amber-400/60 flex flex-col justify-between pl-1 pointer-events-none"
           style={{ left: 0 }}
         >
-          <span className="font-mono text-[9px] text-white/40 font-bold">0.0s</span>
-          <span className="text-[8px] text-white/25 font-mono mb-0.5">start</span>
+          <span className="font-mono text-[9px] text-amber-300 font-bold">0.0s</span>
+          <span className="text-[8px] text-amber-400/80 font-mono mb-0.5">pre-roll</span>
         </div>
       );
     }
 
-    // 1. Measure / Bar Markers (m.1, m.2, ...) starting from offset
-    const maxBar = Math.floor((totalDuration - offset) / barDuration);
+    // Audio start marker (at leadIn)
+    ticks.push(
+      <div
+        key="ruler-audio-start"
+        className={`absolute top-0 bottom-0 ${
+          currentLeadIn > 0 ? 'border-l-2 border-amber-400' : 'border-l border-white/20'
+        } flex flex-col justify-between pl-1 pointer-events-none`}
+        style={{ left: currentLeadIn * pixelsPerSecond }}
+      >
+        <span className={`font-mono text-[9px] ${currentLeadIn > 0 ? 'text-amber-300 font-bold' : 'text-white/40'}`}>
+          {currentLeadIn > 0 ? `${currentLeadIn.toFixed(2)}s` : '0.0s'}
+        </span>
+        <span className={`text-[8px] ${currentLeadIn > 0 ? 'text-amber-400/80 font-bold' : 'text-white/25'} font-mono mb-0.5`}>
+          audio start
+        </span>
+      </div>
+    );
+
+    // 1. Measure / Bar Markers (m.1, m.2, ...) starting from currentOrigin
+    const maxBar = Math.floor((totalTimelineSec - currentOrigin) / barDuration);
     for (let barIdx = 0; barIdx <= maxBar; barIdx++) {
-      const barTime = offset + barIdx * barDuration;
+      const barTime = currentOrigin + barIdx * barDuration;
       ticks.push(
         <div
           key={`ruler-bar-${barIdx}`}
@@ -653,12 +676,12 @@ export function Timeline({
     }
 
     // 2. Intermediate Snap Ticks in Ruler (skipping bar positions)
-    const totalSteps = Math.floor((totalDuration - offset) / step);
+    const totalSteps = Math.floor((totalTimelineSec - currentOrigin) / step);
     const stepsPerBar = Math.round(barDuration / step);
     if (stepsPerBar > 1) {
       for (let i = 1; i <= totalSteps; i++) {
         if (i % stepsPerBar === 0) continue; // Skip bar markers already drawn
-        const time = offset + i * step;
+        const time = currentOrigin + i * step;
         ticks.push(
           <div
             key={`ruler-sub-${i}`}
@@ -669,11 +692,11 @@ export function Timeline({
       }
     }
 
-    // 3. Pre-offset intermediate ticks if offset > 0
-    if (offset > 0) {
-      const preSteps = Math.floor(offset / step);
+    // 3. Pre-origin intermediate ticks down to 0
+    if (currentOrigin > 0) {
+      const preSteps = Math.floor(currentOrigin / step);
       for (let k = 1; k <= preSteps; k++) {
-        const time = offset - k * step;
+        const time = currentOrigin - k * step;
         if (time <= 0) break;
         ticks.push(
           <div
@@ -686,21 +709,23 @@ export function Timeline({
     }
 
     return ticks;
-  }, [totalDuration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm, offset]);
+  }, [level.song.duration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm, level.timing?.offset, level.timing?.leadIn]);
 
-  // Memoized Background Grid Lines that dynamically adapt directly to the selected snap and offset
+  // Memoized Background Grid Lines that dynamically adapt directly to the selected snap, leadIn and offset
   // All lines have the exact same low, notable opacity (border-white/10) with zero harsh contrasting lines
   const backgroundGridLines = useMemo(() => {
     const bpm = level.timing.bpm || 120;
     const interval = getSnapInterval(bpm, gridSubdivision);
     const step = interval > 0 ? interval : beatDuration; // fallback to 1/4 beat in 'free' mode
+    const currentOrigin = (level.timing?.leadIn ?? 0) + (level.timing?.offset ?? 0);
+    const totalTimelineSec = (level.song.duration || 120) + (level.timing?.leadIn ?? 0);
     const lines: React.ReactNode[] = [];
 
-    // Forward grid lines starting from offset
-    const totalStepsForward = Math.ceil((totalDuration - offset) / step);
+    // Forward grid lines starting from currentOrigin
+    const totalStepsForward = Math.ceil((totalTimelineSec - currentOrigin) / step);
     for (let i = 0; i <= totalStepsForward; i++) {
-      const time = offset + i * step;
-      if (time > totalDuration) break;
+      const time = currentOrigin + i * step;
+      if (time > totalTimelineSec) break;
       lines.push(
         <div
           key={`grid-snap-${i}`}
@@ -710,11 +735,11 @@ export function Timeline({
       );
     }
 
-    // Pre-offset grid lines from offset back down to 0
-    if (offset > 0) {
-      const preSteps = Math.ceil(offset / step);
+    // Pre-origin grid lines down to 0
+    if (currentOrigin > 0) {
+      const preSteps = Math.ceil(currentOrigin / step);
       for (let k = 1; k <= preSteps; k++) {
-        const time = offset - k * step;
+        const time = currentOrigin - k * step;
         if (time < 0) break;
         lines.push(
           <div
@@ -727,7 +752,7 @@ export function Timeline({
     }
 
     return lines;
-  }, [totalDuration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm, offset]);
+  }, [level.song.duration, beatDuration, pixelsPerSecond, gridSubdivision, level.timing.bpm, level.timing?.offset, level.timing?.leadIn]);
 
   return (
     <div className="flex-1 w-full h-full min-h-0 flex overflow-hidden relative select-none bg-[#09090f]">
@@ -863,7 +888,25 @@ export function Timeline({
                   currentTime={currentTime}
                   bpm={level.timing.bpm}
                   offset={offset}
+                  leadIn={leadIn}
                 />
+              </div>
+            )}
+
+            {/* Pre-Roll Lead-In Shading Overlay */}
+            {leadIn > 0 && (
+              <div
+                className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-r-2 border-amber-400/80 bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-amber-950/5"
+                style={{
+                  left: 0,
+                  width: leadIn * pixelsPerSecond,
+                }}
+              >
+                <div className="flex items-center gap-1.5 px-2 pt-1 z-10">
+                  <span className="font-mono text-[9px] font-bold text-amber-300 uppercase tracking-wider bg-black/80 px-1.5 py-0.5 rounded border border-amber-400/50 shadow-sm">
+                    Pre-Roll {leadIn.toFixed(1)}s (Silence)
+                  </span>
+                </div>
               </div>
             )}
 
@@ -872,7 +915,7 @@ export function Timeline({
               <div
                 className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-r border-[#00e5ff]/50 bg-gradient-to-r from-black/85 via-black/40 to-transparent"
                 style={{
-                  left: offset * pixelsPerSecond,
+                  left: leadIn * pixelsPerSecond,
                   width: Math.max(12, fadeIn * pixelsPerSecond),
                 }}
               >
@@ -892,7 +935,7 @@ export function Timeline({
               <div
                 className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-l border-pink-500/50 bg-gradient-to-l from-black/85 via-black/40 to-transparent"
                 style={{
-                  left: (totalDuration - fadeOut) * pixelsPerSecond,
+                  left: (leadIn + totalDuration - fadeOut) * pixelsPerSecond,
                   width: Math.max(12, fadeOut * pixelsPerSecond),
                 }}
               >
@@ -919,7 +962,7 @@ export function Timeline({
                 >
                   {trackEvents.map((event) => {
                     const isSelected = effectiveEventIds.has(event.id);
-                    const x = (event.targetTime + offset) * pixelsPerSecond;
+                    const x = (event.targetTime + songOrigin) * pixelsPerSecond;
                     const width = Math.max(16, (event.duration ?? beatDuration) * pixelsPerSecond);
 
                     if (event.behavior === 'tap') {
@@ -1076,7 +1119,7 @@ export function Timeline({
           >
             {triggers.map((trigger) => {
               const isSelected = effectiveTriggerIds.has(trigger.id);
-              const x = (trigger.time + offset) * pixelsPerSecond;
+              const x = (trigger.time + songOrigin) * pixelsPerSecond;
               const width = Math.max(32, (trigger.duration || 0) * pixelsPerSecond);
               const color = getTriggerColor(trigger.action);
               return (

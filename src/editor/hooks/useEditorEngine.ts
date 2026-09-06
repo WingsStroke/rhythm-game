@@ -74,12 +74,20 @@ export function useEditorEngine({
   const currentTimeRef = useRef(0);
   currentTimeRef.current = currentTime;
 
+  const playbackSpeedRef = useRef(playbackSpeed);
+  playbackSpeedRef.current = playbackSpeed;
+
+  // Active pre-roll timer reference: { startPerfTime, startTimelineTime }
+  const preRollRef = useRef<{ startPerfTime: number; startTimelineTime: number } | null>(null);
+
   const onRecordEventRef = useRef(onRecordEvent);
   onRecordEventRef.current = onRecordEvent;
 
   // Initialize InputManager once and maintain key mapping
   useEffect(() => {
-    const input = new InputManager(() => transportRef.current?.getTime() ?? 0);
+    const input = new InputManager(
+      () => currentTimeRef.current - (levelRef.current.timing?.leadIn ?? 0)
+    );
     inputRef.current = input;
 
     const map: Record<string, PadId> = {};
@@ -101,9 +109,10 @@ export function useEditorEngine({
 
       // 3. Live recording logic when recording and playback are active
       if (isRecordingRef.current && isPlayingRef.current) {
-        const t = transportRef.current?.getTime() ?? 0;
+        const leadIn = levelRef.current.timing?.leadIn ?? 0;
+        const audioTime = currentTimeRef.current - leadIn;
         const songOffset = levelRef.current.timing?.offset ?? 0;
-        const songTime = Math.max(0, t - songOffset);
+        const songTime = Math.max(0, audioTime - songOffset);
         const beh = creationBehaviorRef.current;
         const currentBpm = levelRef.current.timing.bpm;
         const sub = gridSubdivisionRef.current;
@@ -141,9 +150,10 @@ export function useEditorEngine({
         const hold = activeRecordHolds.current.get(padId);
         if (hold) {
           activeRecordHolds.current.delete(padId);
-          const t = transportRef.current?.getTime() ?? 0;
+          const leadIn = levelRef.current.timing?.leadIn ?? 0;
+          const audioTime = currentTimeRef.current - leadIn;
           const songOffset = levelRef.current.timing?.offset ?? 0;
-          const releaseTime = Math.max(0, t - songOffset);
+          const releaseTime = Math.max(0, audioTime - songOffset);
           const rawDuration = Math.max(0.05, releaseTime - hold.startTime);
           const currentBpm = levelRef.current.timing.bpm;
           const sub = gridSubdivisionRef.current;
@@ -182,7 +192,7 @@ export function useEditorEngine({
 
       const gameplay = new GameplayEngine(
         level,
-        () => transportRef.current?.getTime() ?? 0,
+        () => currentTimeRef.current - (levelRef.current.timing?.leadIn ?? 0),
         eventBus
       );
       gameplayRef.current = gameplay;
@@ -212,7 +222,8 @@ export function useEditorEngine({
           inputRef.current?.attach();
         }
         if (isPlaying) {
-          gameplay.start(currentTime);
+          const leadIn = levelRef.current.timing?.leadIn ?? 0;
+          gameplay.start(currentTime - leadIn);
         }
       });
     }
@@ -226,7 +237,8 @@ export function useEditorEngine({
     if (activeTab === 'preview' || isRecording) {
       inputRef.current?.attach();
       if (isPlaying && activeTab === 'preview') {
-        gameplayRef.current?.start(currentTime);
+        const leadIn = levelRef.current.timing?.leadIn ?? 0;
+        gameplayRef.current?.start(currentTime - leadIn);
       }
     } else {
       inputRef.current?.detach();
@@ -301,21 +313,48 @@ export function useEditorEngine({
   // Main animation loop
   useEffect(() => {
     const loop = () => {
-      // Read from ref to avoid stale closure on currentTime while keeping
-      // the effect stable (no currentTime in the dependency array).
       let t = currentTimeRef.current;
-      if (isPlayingRef.current && transportRef.current) {
-        t = transportRef.current.getTime();
-        setCurrentTime(t);
-        currentTimeRef.current = t;
+      const currentLeadIn = levelRef.current.timing?.leadIn ?? 0;
+
+      if (isPlayingRef.current) {
+        if (preRollRef.current) {
+          const elapsed =
+            ((performance.now() - preRollRef.current.startPerfTime) / 1000) * playbackSpeedRef.current;
+          t = preRollRef.current.startTimelineTime + elapsed;
+
+          if (t >= currentLeadIn) {
+            // Pre-roll complete! Cleanly start audio playback from beginning (offset 0)
+            preRollRef.current = null;
+            t = currentLeadIn;
+
+            if (transportRef.current) {
+              const envelope = {
+                fadeIn: levelRef.current.timing?.fadeIn ?? 0,
+                fadeOut: levelRef.current.timing?.fadeOut ?? 0,
+                totalDuration: levelRef.current.song.duration,
+              };
+              transportRef.current.play(levelRef.current.timing.bpm, 0, envelope);
+            }
+          }
+          setCurrentTime(t);
+          currentTimeRef.current = t;
+        } else if (transportRef.current && transportRef.current.state === 'playing') {
+          const audioTime = transportRef.current.getTime();
+          t = currentLeadIn + audioTime;
+          setCurrentTime(t);
+          currentTimeRef.current = t;
+        }
       }
+
+      const audioTime = t - currentLeadIn;
+
       if (activeTab === 'preview') {
         if (isPlayingRef.current && gameplayRef.current) {
           gameplayRef.current.update();
         }
         if (visualRef.current) {
           const bands: AudioBands =
-            isPlayingRef.current && transportRef.current
+            isPlayingRef.current && !preRollRef.current && transportRef.current
               ? transportRef.current.getAudioBands()
               : {
                   bass: 0,
@@ -325,19 +364,18 @@ export function useEditorEngine({
                   freqData: new Uint8Array(0),
                   waveData: new Uint8Array(0),
                 };
-          visualRef.current.update(t, bands);
+          visualRef.current.update(audioTime, bands);
         }
       }
       animFrameRef.current = requestAnimationFrame(loop);
     };
     animFrameRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animFrameRef.current);
-    // activeTab is the only structural dependency; isPlaying and currentTime
-    // are accessed via refs to prevent loop re-creation on every state update.
   }, [activeTab]);
 
   const togglePlay = useCallback(async () => {
     if (isPlaying) {
+      preRollRef.current = null;
       transportRef.current?.pause();
       setIsPlaying(false);
       setIsRecording(false);
@@ -345,7 +383,7 @@ export function useEditorEngine({
       if (!transportRef.current) {
         transportRef.current = new AudioTransport();
         await transportRef.current.init();
-        transportRef.current.setPlaybackSpeed(playbackSpeed);
+        transportRef.current.setPlaybackSpeed(playbackSpeedRef.current);
       }
 
       // Always synchronize transport audio buffer with active level song identity
@@ -362,49 +400,109 @@ export function useEditorEngine({
           visualRef.current.onBeat(beatIndex);
         }
       });
+
+      const currentLeadIn = level.timing?.leadIn ?? 0;
+      const currentTimelineTime = currentTimeRef.current;
+      const audioTime = currentTimelineTime - currentLeadIn;
+
       const envelope = {
         fadeIn: level.timing?.fadeIn ?? 0,
         fadeOut: level.timing?.fadeOut ?? 0,
         totalDuration: level.song.duration,
       };
-      await transportRef.current.play(level.timing.bpm, currentTime, envelope);
-      setIsPlaying(true);
-      if (activeTab === 'preview') {
-        gameplayRef.current?.start(currentTime);
+
+      if (currentTimelineTime < currentLeadIn) {
+        // Start in pre-roll: silent preparation, keep audio transport paused
+        preRollRef.current = {
+          startPerfTime: performance.now(),
+          startTimelineTime: currentTimelineTime,
+        };
+        setIsPlaying(true);
+        if (activeTab === 'preview') {
+          gameplayRef.current?.start(audioTime);
+        }
+      } else {
+        // Start within song audio: play audio from calculated audio offset
+        preRollRef.current = null;
+        await transportRef.current.play(level.timing.bpm, Math.max(0, audioTime), envelope);
+        setIsPlaying(true);
+        if (activeTab === 'preview') {
+          gameplayRef.current?.start(audioTime);
+        }
       }
     }
-  }, [isPlaying, currentTime, level.songId, level.song.id, level.song.url, level.timing.bpm, level.timing?.fadeIn, level.timing?.fadeOut, level.song.duration, activeTab, playbackSpeed]);
+  }, [
+    isPlaying,
+    level.songId,
+    level.song.id,
+    level.song.url,
+    level.timing.bpm,
+    level.timing?.fadeIn,
+    level.timing?.fadeOut,
+    level.timing?.leadIn,
+    level.song.duration,
+    activeTab,
+  ]);
 
   const setPlaybackSpeed = useCallback((speed: number) => {
     const clamped = Math.max(0.25, Math.min(4.0, Number(speed.toFixed(2))));
     setPlaybackSpeedState(clamped);
+    playbackSpeedRef.current = clamped;
+    if (preRollRef.current) {
+      preRollRef.current = {
+        startPerfTime: performance.now(),
+        startTimelineTime: currentTimeRef.current,
+      };
+    }
     transportRef.current?.setPlaybackSpeed(clamped);
   }, []);
 
   const handleStop = useCallback(() => {
+    preRollRef.current = null;
     transportRef.current?.stop();
     setIsPlaying(false);
     setIsRecording(false);
     setCurrentTime(0);
-    visualRef.current?.seek(0);
+    currentTimeRef.current = 0;
+    const currentLeadIn = levelRef.current.timing?.leadIn ?? 0;
+    visualRef.current?.seek(-currentLeadIn);
     gameplayRef.current?.reset();
-    gameplayRef.current?.start(0);
+    gameplayRef.current?.start(-currentLeadIn);
     activeRecordHolds.current.clear();
   }, []);
 
-  const handleSeek = useCallback(
-    (t: number) => {
-      setCurrentTime(t);
-      transportRef.current?.seek(t);
-      visualRef.current?.seek(t);
-      if (isPlaying) {
-        gameplayRef.current?.start(t);
+  const handleSeek = useCallback((t: number) => {
+    const clampedTime = Math.max(0, t);
+    setCurrentTime(clampedTime);
+    currentTimeRef.current = clampedTime;
+
+    const currentLeadIn = levelRef.current.timing?.leadIn ?? 0;
+    const audioTime = clampedTime - currentLeadIn;
+
+    if (isPlayingRef.current) {
+      if (clampedTime < currentLeadIn) {
+        // Seeking into pre-roll while playing: pause audio transport and resume pre-roll clock
+        transportRef.current?.pause();
+        preRollRef.current = {
+          startPerfTime: performance.now(),
+          startTimelineTime: clampedTime,
+        };
+        visualRef.current?.seek(audioTime);
+        gameplayRef.current?.start(audioTime);
       } else {
-        gameplayRef.current?.reset();
+        // Seeking into audio while playing: cancel pre-roll and seek audio transport directly
+        preRollRef.current = null;
+        transportRef.current?.seek(audioTime);
+        visualRef.current?.seek(audioTime);
+        gameplayRef.current?.start(audioTime);
       }
-    },
-    [isPlaying]
-  );
+    } else {
+      preRollRef.current = null;
+      transportRef.current?.seek(Math.max(0, audioTime));
+      visualRef.current?.seek(audioTime);
+      gameplayRef.current?.reset();
+    }
+  }, []);
 
   const toggleRecord = useCallback(async () => {
     if (isRecording) {
@@ -426,19 +524,22 @@ export function useEditorEngine({
       if (!transportRef.current) {
         transportRef.current = new AudioTransport();
         await transportRef.current.init();
-        transportRef.current.setPlaybackSpeed(playbackSpeed);
+        transportRef.current.setPlaybackSpeed(playbackSpeedRef.current);
       }
       const result = await transportRef.current.loadAudio(file, songId);
       if (result.success) {
+        preRollRef.current = null;
         setIsPlaying(false);
         setIsRecording(false);
         setCurrentTime(0);
-        visualRef.current?.seek(0);
+        currentTimeRef.current = 0;
+        const currentLeadIn = levelRef.current.timing?.leadIn ?? 0;
+        visualRef.current?.seek(-currentLeadIn);
         gameplayRef.current?.reset();
       }
       return result;
     },
-    [playbackSpeed]
+    []
   );
 
   const updateSceneNode = useCallback((node: SceneNodeData) => {

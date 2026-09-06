@@ -11,6 +11,7 @@ interface WaveformCanvasProps {
   currentTime: number;
   bpm: number;
   offset?: number;
+  leadIn?: number;
   opacity?: number;
 }
 
@@ -32,6 +33,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
   currentTime,
   bpm,
   offset = 0,
+  leadIn = 0,
   opacity,
 }) => {
   const fullWidth = totalWidth ?? widthPx ?? 1200;
@@ -124,12 +126,14 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     if (audioBuffer) {
       // Real AudioBuffer waveform rendering for the visible window
       const { peaks } = extractWaveformPeaks(audioBuffer, pixelsPerSecond);
-      const startX = Math.floor(renderLeft);
-      const endX = Math.min(peaks.length, Math.ceil(renderLeft + visibleWidth));
+      const leadInPx = Math.round(leadIn * pixelsPerSecond);
+      const startX = Math.max(leadInPx, Math.floor(renderLeft));
+      const endX = Math.min(leadInPx + peaks.length, Math.ceil(renderLeft + visibleWidth));
 
       for (let worldPx = startX; worldPx < endX; worldPx++) {
-        const amp = peaks[worldPx];
-        if (amp <= 0.005) continue;
+        const peakIdx = worldPx - leadInPx;
+        const amp = peaks[peakIdx];
+        if (!amp || amp <= 0.005) continue;
 
         const barHeight = Math.max(2, amp * (height * 0.90));
         const yTop = centerY - barHeight / 2;
@@ -147,16 +151,16 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     } else {
       // Procedural synthetic waveform envelope when in Zero-Asset mode
       const beatLen = 60 / bpm;
-      const startX = Math.floor(renderLeft);
+      const songStartSec = leadIn + offset;
+      const startX = Math.max(Math.round(songStartSec * pixelsPerSecond), Math.floor(renderLeft));
       const endX = Math.min(fullWidth, Math.ceil(renderLeft + visibleWidth));
-      const songOffset = offset ?? 0;
 
       for (let worldPx = startX; worldPx < endX; worldPx++) {
         const audioTime = worldPx / pixelsPerSecond;
-        if (audioTime < songOffset) {
+        if (audioTime < songStartSec) {
           continue;
         }
-        const t = audioTime - songOffset;
+        const t = audioTime - songStartSec;
         const inBeat = (t % beatLen) / beatLen; // 0..1 in current beat
         const barIndex = Math.floor(t / (beatLen * 4));
         const beatIndex = Math.floor((t % (beatLen * 4)) / beatLen);
@@ -189,6 +193,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     currentTime,
     bpm,
     offset,
+    leadIn,
   ]);
 
   return (
