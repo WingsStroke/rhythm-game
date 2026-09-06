@@ -225,6 +225,14 @@ Minimal interface: `getTime(): number`. Implemented by AudioEngine for dependenc
 
 Abstracts all input sources into a uniform stream of `PadInputEvent` objects identified by `PadId`. Maps keyboard `KeyboardEvent.code` values to pad IDs via a configurable key map. Timestamps events using the audio clock. Provides `pressPad`/`releasePad` methods so touch targets can inject events without bypassing the abstraction.
 
+### src/engine/input/Keybindings.ts
+
+Defines player-level global keyboard controls decoupled from level data:
+- Canonical default mappings (`DEFAULT_KEY_MAP`): `pad_0` -> `KeyA`, `pad_1` -> `KeyS`, `pad_2` -> `KeyD`, `pad_3` -> `KeyF`.
+- Collision resolution with automatic key swapping (`assignPadKey`): assigning a key already in use by another pad swaps keys between the two pads, ensuring every pad always has a unique assigned key.
+- Validation and normalization (`validateAndNormalizeKeybindings`): sanitizes stored objects, prevents duplicate keys, and fills any missing pads with fallback defaults.
+- Persistence via `localStorage` (`wings_stroke_keybindings`) and dedicated reset function (`resetUserKeybindings`).
+
 ---
 
 ### src/engine/beatmap/BeatmapGenerator.ts

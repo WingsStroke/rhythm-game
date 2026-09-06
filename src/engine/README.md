@@ -43,8 +43,9 @@ AudioEngine is the sole `AudioContext` owner. All time references in the game de
 | File | Description |
 |---|---|
 | `InputManager.ts` | Maps raw keyboard events to `PadInputEvent` objects identified by `PadId`. Timestamps events using the audio clock. Provides `pressPad`/`releasePad` methods for touch injection. |
+| `Keybindings.ts` | Manages player keyboard-to-pad bindings, canonical defaults (A-S-D-F), collision resolution via automatic key swapping, validation, normalization, and persistent `localStorage` storage (`wings_stroke_keybindings`). |
 
-The engine does not receive key codes. It receives pad identifiers and audio timestamps.
+The engine does not receive key codes directly during gameplay. `InputManager` translates them to pad identifiers and audio timestamps using the active key mapping. Key mappings represent player preferences and remain decoupled from level authoring data.
 
 ---
 

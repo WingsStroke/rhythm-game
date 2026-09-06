@@ -65,7 +65,7 @@ Top navigation bar. Contains:
 
 Centralized settings modal divided into two operational tabs:
 - **Song Configuration**: Title, Artist, BPM, Duration, Lead-In pre-roll preparation, Fade In / Fade Out volume envelopes, and interactive Audio Offset Calibrator with fine-tuning step buttons (±1ms, ±10ms).
-- **Pads Matrix**: Interactive matrix editor for pad colors, key hints, labels, audio channel routing, and acoustic roles.
+- **Pads Matrix**: Interactive matrix editor for level-specific pad properties: pad colors, labels, audio channel routing, and acoustic roles. Displays active player keybindings as read-only indicators (player control mapping is configured globally from the main menu's `KeybindingsModal`).
 
 ### EditorToolbar.tsx
 

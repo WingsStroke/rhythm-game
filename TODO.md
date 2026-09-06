@@ -83,7 +83,7 @@ Cuestiones logicas del gameplay y del motor que han quedado en segundo plano y r
 
 - [x] **[P1] Remapeo Dinamico de Controles (Keybinding Remapper)**
   - Las teclas físicas del jugador están completamente desacopladas de la configuración del nivel (`Keybindings.ts`).
-  - Mapeo dinámico y persistente en `localStorage` (`wings_stroke_keybindings`) con soporte para teclas no alfabéticas (Espacio, Flechas, Dígitos, etc.) y remapeo interactivo en `SongPadsModal`.
+  - Mapeo dinámico y persistente en `localStorage` (`wings_stroke_keybindings`) con soporte para teclas no alfabéticas (Espacio, Flechas, Dígitos, etc.), modal interactivo global en el Menú Principal (`KeybindingsModal`), resolución automática de colisiones con intercambio (swap) y visualización desacoplada de solo lectura en el editor (`SongPadsModal`).
 
 - [ ] **[P2] Modificadores de Juego (Gameplay Modifiers)**
   - Permitir a los jugadores personalizar el desafio antes de iniciar:
