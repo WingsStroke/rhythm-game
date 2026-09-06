@@ -125,7 +125,7 @@ Suite de herramientas de productividad y edicion por lotes requerida para desblo
   - [x] **3. Zoom Horizontal Interactivo con Pivote (Dynamic pixelsPerSecond):**
     - Control interactivo mediante atajo `Ctrl + Rueda del raton` en la linea de tiempo y deslizador continuo en barra de herramientas.
     - Rango operativo expandido: desde escala macro (~40 px/s para vision panoramica de la cancion completa) hasta escala quirurgica (~350 px/s para microtransientes en 1/16 y 1/32).
-    - Zoom centrado en el cursor: Conservacion matematica del tiempo bajo el puntero del raton al escalar (`newScrollLeft = T_cursor * newPxPerSec - X_cursor`), evitando saltos y perdida de contexto visual.
+    - Zoom anclado al cabezal de reproduccion (playhead): Conservacion automatica de la posicion en pantalla del cursor al escalar con rueda, botones de zoom (+ / -), slider de escala o atajos de teclado (`Ctrl + =` / `Ctrl + -`), evitando la perdida de contexto visual.
 
 - [ ] **[P3] Guardado Automatico en localStorage (Auto-Save Recovery)**
   - Guardar el estado del nivel cada 30 segundos en el almacenamiento local para prevenir perdida accidental de trabajo.
@@ -146,11 +146,22 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
   - Unificacion matematica del offset de cancion (`songTime = audioTime - offset`) en `VisualEngine` y `GameplayEngine`.
   - Calibrador interactivo de offset en milisegundos con botones de paso (±1ms, ±10ms) en `SongPadsModal`.
 
+- [x] **[P0] Pre-programacion de Audio Lead-In (Cero Microtirones de FPS)**
+  - Pre-programacion por hardware en Web Audio API (`bufferSource.start(scheduledStart, offset)`) calculando `scheduledStart = ctx.currentTime + (leadIn / playbackSpeed)`.
+  - Eliminacion del microtirón de fotogramas al cruzar `t = 0`: reloj temporal continuo con valores negativos (`-leadIn` hasta `0.0s`) sin re-instanciaciones en el hilo principal ni esperas sincrónicas.
+  - Desplazamiento visual proporcional en la Timeline (`songOrigin = leadIn + offset`), regla temporal y forma de onda (`WaveformCanvas`), dejando la zona inicial de silencio preparatorio.
+
+- [x] **[P1] Fades de Audio y Curvas Visuales Estilo Premiere Pro / CapCut**
+  - Curvas Bézier acusticas con curvatura logaritmica natural de percepcion auditiva humana en `Timeline.tsx`.
+  - Mascaras de atenuacion oscura con trama diagonal vectorial (`#fadeHatchIn`, `#fadeHatchOut`) delimitando con claridad la zona enmudecida sobre la forma de onda.
+  - Badges flotantes con efecto glassmorphic (`backdrop-blur-md`), bordes luminosos neón (cian para Fade In, rosa magenta para Fade Out) y marcadores circulares de anclaje (*fade handle pips*).
+  - Rampas lineales y continuas de ganancia Web Audio integradas en `AudioEngine` y preservadas tras pausas y scrubbing.
+
 - [x] **[P1] Despeje de Interfaz del Editor (UI Declutter & Settings Modal)**
   - Reemplazo de botones fijos en la cabecera por boton de configuracion (engranaje sin titulo) en la esquina superior derecha.
   - Menu flotante desplegable con animacion escalonada / cascada (staggered delay).
   - Reubicacion de PLAYTEST en el menu de ajustes (con atajo global F5 / Ctrl+Enter).
-  - Nuevo modal centralizado `SongPadsModal` para configuracion de pista (metadata, BPM, duracion, offset) y matriz de pads (color, atajo de teclado, canal de audio, rol semantico).
+  - Nuevo modal centralizado `SongPadsModal` para configuracion de pista (metadata, BPM, duracion, offset, lead-in, fade in/out) y matriz de pads (color, atajo de teclado, canal de audio, rol semantico).
   - Limpieza de la barra lateral izquierda (`EditorSidebarLeft`), dedicada al 100% al `SceneOutliner`.
 
 - [ ] **[P1] Perfiles de Calidad Grafica Adaptativa**

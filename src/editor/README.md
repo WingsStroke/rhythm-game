@@ -50,22 +50,35 @@ Shared utility functions used across editor components.
 Top navigation bar. Contains:
 - Tab switcher (Timeline / Preview).
 - Transport controls (play/pause, stop, seek to start).
-- Audio file loader (reads a file from disk and passes an `ArrayBuffer` to the transport).
 - Recording toggle (arms live record mode).
 - Hitsound toggle.
+- Playback Speed Selector (0.25x, 0.5x, 0.75x, 1.0x).
+- Gear settings toggle button: Opens a floating dropdown menu with staggered animations:
+  1. `Playtest Level` (F5 / Ctrl+Enter)
+  2. `Song & Pads Setup` (opens `SongPadsModal`)
+  3. `Load Audio File`
+  4. `Import Beatmap (JSON)`
+  5. `Export Beatmap (JSON)`
+  6. `Exit Editor`
+
+### SongPadsModal.tsx
+
+Centralized settings modal divided into two operational tabs:
+- **Song Configuration**: Title, Artist, BPM, Duration, Lead-In pre-roll preparation, Fade In / Fade Out volume envelopes, and interactive Audio Offset Calibrator with fine-tuning step buttons (±1ms, ±10ms).
+- **Pads Matrix**: Interactive matrix editor for pad colors, key hints, labels, audio channel routing, and acoustic roles.
 
 ### EditorToolbar.tsx
 
 Tool palette row. Contains:
-- Tool selector buttons: Select, Pen, Eraser.
+- Tool selector buttons: Select (V), Pen (B), Eraser (E).
+- Sub-selector for creation behavior (tap, hold, loop, trigger) when Pen is active.
 - Grid subdivision selector: 1/1, 1/2, 1/4, 1/8, 1/16, Free.
-- Zoom slider.
+- Zoom controls: Zoom In / Zoom Out buttons, scale slider (40 to 350 px/s), and numeric scale display.
+- Waveform watermark toggle button (`W`).
 
 ### EditorSidebarLeft.tsx
 
-Left sidebar for song configuration and scene management. Features dedicated internal vertical scrolling (`overflow-y-auto custom-scrollbar`) for compact windows:
-- Song & Pads config tab: Title, BPM, duration, pad labels & roles, keyboard shortcuts.
-- Scene Outliner tab.
+Dedicated exclusively to the `SceneOutliner`, offering full-height hierarchy inspection with internal vertical scrolling (`overflow-y-auto custom-scrollbar`) for compact windows.
 
 ### SceneOutliner.tsx
 
@@ -104,7 +117,7 @@ Manages the PixiJS engine lifecycle within the editor context.
 - Initializes `AudioTransport`, `VisualEngine`, `InputManager`, `GameplayEngine`, and `GameplayEventBus` when the preview tab is activated.
 - Disposes all engine instances when the tab changes away or the component unmounts.
 - Maintains a `requestAnimationFrame` loop for the timeline current time display.
-- Handles recording mode: when `isRecording` is true and the transport is playing, pad press events are captured as `PadEvent` objects with grid-snapped timestamps and passed to the `onRecordEvent` callback.
+- Handles pre-scheduled lead-in playback, continuous time progression through `0.0s`, and live recording mode: captures pad presses as `PadEvent` objects with grid-snapped timestamps.
 - Provides `handleSeek`, `handlePlay`, `handleStop`, `handleLoadAudio`, and `handleToggleRecord` to EditorApp.
 
 ### useEditorShortcuts.ts
@@ -112,8 +125,13 @@ Manages the PixiJS engine lifecycle within the editor context.
 Global `keydown` handler. Wires:
 - `Ctrl+Z`: undo.
 - `Ctrl+Y` / `Ctrl+Shift+Z`: redo.
+- `Ctrl+C` / `Ctrl+X` / `Ctrl+V`: copy / cut / paste batch clipboard.
+- `Ctrl+D`: duplicate selected items.
+- `Ctrl+A`: select all.
+- `Ctrl+=` / `Ctrl+-`: zoom in / zoom out anchored to playhead.
 - `Space`: play/pause toggle.
 - `R`: toggle recording mode.
+- `W`: toggle waveform watermark.
 - `Delete` / `Backspace`: delete selected event, trigger, or scene node.
 - `B`: switch to pen tool.
 - `V`: switch to select tool.

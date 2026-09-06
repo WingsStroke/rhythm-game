@@ -1,7 +1,7 @@
 # Rhythm Game - Technical Documentation
 
-**Last updated:** 2026-09-05
-**Version:** Phase 4 completed (Player & Content Runtime)
+**Last updated:** 2026-09-06
+**Version:** Phase 6 in progress (Engine Optimization, NotePool & Settings Modularization)
 **Repository:** rhythm-game
 
 ---
@@ -82,8 +82,8 @@ The project follows a single, normalized phase progression across all documentat
 - **Phase 2 — Visual Engine & Reactivity**: SceneGraph hierarchy, primitives, FFT AudioMapping, bloom & GLSL RGB shaders, particles. *(Completed)*
 - **Phase 3 — Level Editor**: DAW-style multi-track timeline, tools (V/B/E), snapping (1/1 to 1/16, free), outliner, inspector, undo/redo. *(Completed)*
 - **Phase 4 — Player & Content Runtime**: Full-screen standalone 1920×1080 player, Playtest roundtrip, results screen, pause system, HUD. *(Completed)*
-- **Phase 5 — Content Pipeline & Asset Management**: Active SongRegistry with AudioBuffer caching, multi-difficulty linking, level packaging. *(Next Target)*
-- **Phase 6 — Engine Optimization & Polish**: Intensive pooling, GPU/CPU profiling, guaranteed 60+ FPS stability, adaptive quality.
+- **Phase 5 — Content Pipeline & Asset Management**: Active SongRegistry with AudioBuffer caching, multi-difficulty linking, level packaging. *(Completed)*
+- **Phase 6 — Engine Optimization & Polish**: Intensive NotePool, song offset calibration, pre-roll lead-in, fade in/out curves, UI declutter & settings modularization, guaranteed 60+ FPS stability. *(Active)*
 - **Phase 7 — Online Infrastructure & Backend**: User accounts, cloud saves, leaderboards, remote level repository (Supabase).
 - **Phase 8 — Multiplayer & Community**: Real-time duel / co-op multiplayer, Mashup mode, public level browser.
 
@@ -291,34 +291,53 @@ Manages active property transitions with configurable easing. On each frame, int
 
 Pre-allocated pool of PixiJS `Graphics` objects used as particles. Provides `burst(x, y, color, count)`. Avoids per-frame allocations.
 
+### src/engine/visual/NotePool.ts
+
+Pre-allocated static object pool of PixiJS `Graphics` note objects (150 initial instances) rendered with neutral white geometry. Notes entering the visual threshold are acquired from the pool, mutating only `tint` and `visible = true` rather than re-tessellating WebGL geometry or instantiating objects per frame. Releases notes back on judgement or expiry, eliminating Garbage Collection stutter across dense beatmaps (~1,000 notes).
+
 ---
 
 ### src/editor/EditorApp.tsx
 
-Root component of the editor. Assembles all panels and manages top-level UI state: active tab, active tool, grid subdivision, creation behavior, zoom, selected event/trigger IDs, recording mode. Delegates engine lifecycle to `useEditorEngine` and level state to `useEditorHistory`.
+Root component of the editor. Assembles all panels and manages top-level UI state: active tab, active tool, grid subdivision, creation behavior, zoom, selected event/trigger IDs, recording mode, and SongPadsModal state. Delegates engine lifecycle to `useEditorEngine` and level state to `useEditorHistory`.
 
 ### src/editor/Timeline.tsx
 
-The primary authoring surface. Multi-track DAW-style timeline engineered under the UI optimization and responsive design principles:
-- **Decoupled Track Header Architecture & Synchronized Vertical Scrolling**: Dedicated left column (144px / `w-36`) displaying track headers (TIME, Pad labels with role & key indicators, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without ever overlaying notes. In windowed mode or on compact screens, its vertical scroll (`scrollTop`) is synchronized in real-time with the tracks canvas, with mouse wheel forwarding (`onWheel`) for intuitive dual-column navigation.
-- **Background Audio Waveform Display**: High-resolution amplitude envelope rendered as an architectural background layer directly behind the four pad tracks via `WaveformCanvas` (virtualized viewport canvas rendering true PCM peaks from `AudioBuffer` or synthetic beat envelopes in zero-asset mode). By eliminating isolated 48px lanes, the waveform expands across 280px–450px+ of vertical height, making percussive transients (kicks, snares, and drops) sharply legible beneath authored notes.
-- **Adaptive Vertical Sizing & Windowed Responsiveness**: Uses an elastic flex distribution (`flex-1` with `min-h-[68px]` per pad track). On tall/full-screen displays, tracks expand smoothly to 110px–165px to fill empty vertical space; in windowed mode (non-fullscreen/reduced height), tracks compress adaptively down to 68px. If the total height exceeds the viewport, smooth vertical scrolling activates without ever clipping the Triggers section or FX Lane.
-- **Horizontally Scrollable Canvas**: Scrollable tracks container for ruler, beat/bar grid lines, notes (tap, hold, loop, trigger), scene triggers, and playhead starting at origin `t = 0`.
+The primary authoring surface. Multi-track DAW-style timeline engineered under UI optimization and responsive design principles:
+- **Decoupled Track Header Architecture & Synchronized Vertical Scrolling**: Dedicated left column (144px / `w-36`) displaying track headers (TIME with lead-in indicator, Pad labels with role & key indicators, TRIGGERS, FX LANE) that never scrolls horizontally and remains cleanly positioned to the left without overlaying notes. Vertical scroll (`scrollTop`) is synchronized with the tracks canvas with wheel forwarding.
+- **Background Audio Waveform Display**: High-resolution amplitude envelope rendered as an architectural background layer directly behind the four pad tracks via `WaveformCanvas`.
+- **Pre-Roll Lead-In Offset**: Visual origin offset (`songOrigin = leadIn + offset`) providing a dedicated silence zone and shifting beat 1 (`m.1`), notes, triggers, and waveform transients to align seamlessly with track preparation.
+- **Acoustic Fade In & Fade Out Envelopes**: Logarithmic Bézier volume curves (cyan for Fade In, pink/magenta for Fade Out) with diagonal hatch attenuation masks (`#fadeHatchIn`, `#fadeHatchOut`), circular volume anchor pips, and floating glassmorphic badges (`Volume2`, `VolumeX`).
+- **Playhead-Anchored Dynamic Zoom**: Preserves exact on-screen playhead position when zooming via `Ctrl + Mouse Wheel`, toolbar zoom buttons (+ / -), scale slider, or keyboard shortcuts (`Ctrl + =` / `Ctrl + -`).
+- **Adaptive Vertical Sizing & Windowed Responsiveness**: Elastic flex distribution (`flex-1` with `min-h-[68px]` per pad track), smoothly expanding on full-screen displays and compressing in windowed mode.
+- **Horizontally Scrollable Canvas**: Scrollable tracks container for ruler, beat/bar grid lines, notes (tap, hold, loop, trigger), scene triggers, and playhead.
 - **Sticky Time Ruler**: Quantized ruler with seek-on-click, playhead drag, and edge auto-scrolling.
 
-Tools: Pen (insert), Select (move/resize via drag), Eraser (delete on click).
+Tools: Pen (insert), Select (move/resize via drag, marquee selection, multi-item batch editing), Eraser (delete on click).
 
 ### src/editor/components/EditorHeader.tsx
 
-Top navigation bar: tab switching, transport controls, audio file loading, recording toggle, hitsound toggle, and **Playback Speed Selector** (0.25x, 0.5x, 0.75x, 1.0x with glowing status indicator). Features overflow-safe horizontal scrolling for narrow window layouts.
+Top navigation bar: tab switching, transport controls, recording toggle, hitsound toggle, and Playback Speed Selector (0.25x to 1.0x). Features a gear toggle button opening a floating dropdown menu with staggered animation for:
+1. `Playtest Level` (with global `F5` / `Ctrl+Enter` shortcut)
+2. `Song & Pads Setup` (opens `SongPadsModal`)
+3. `Load Audio File`
+4. `Import Beatmap (JSON)`
+5. `Export Beatmap (JSON)`
+6. `Exit Editor`
+
+### src/editor/components/SongPadsModal.tsx
+
+Centralized settings modal divided into two operational tabs:
+- **Song Configuration**: Title, Artist, BPM, Duration, Lead-In pre-roll preparation, Fade In / Fade Out volume curves, and an interactive Audio Offset Calibrator with fine-tuning step buttons (±1ms, ±10ms).
+- **Pads Matrix**: Matrix editor for each pad's color picker, key binding hint, label, audio channel routing, and acoustic role.
 
 ### src/editor/components/EditorToolbar.tsx
 
-Tool palette: Select / Pen / Eraser, grid subdivision selector, zoom control, and **WAVE toggle button** (with `W` shortcut) for showing/hiding the background waveform watermark. Features horizontal overflow protection for compact viewports.
+Tool palette: Select / Pen / Eraser, sub-selector for creation behavior (tap, hold, loop, trigger), grid subdivision selector, zoom controls (+ / -, slider, scale readout), and WAVE toggle button (with `W` shortcut).
 
 ### src/editor/components/EditorSidebarLeft.tsx
 
-Scene management and metadata sidebar: Song & Pads config (title, BPM, duration, pad roles, shortcuts) and Scene Outliner. Fully responsive with dedicated internal vertical scrolling (`overflow-y-auto custom-scrollbar`) preventing clipping in windowed mode.
+Dedicated exclusively to the `SceneOutliner`, offering full-height hierarchy inspection with internal scrolling.
 
 ### src/editor/components/SceneOutliner.tsx
 
@@ -326,7 +345,7 @@ Tree view of scene nodes. Displays name and numeric ID badge (golden if assigned
 
 ### src/editor/components/EditorPropertiesPanel.tsx
 
-Context-sensitive property inspector for selected PadEvent, TriggerData, or SceneNode. Strictly constrained to viewport height with internal vertical scrolling (`h-full min-h-0 overflow-y-auto custom-scrollbar`), guaranteeing that all form fields (Position, Scale, Rotation, Opacity, Dimensions, Color, Blend Mode, and Delete button) remain completely accessible in windowed mode.
+Context-sensitive property inspector for selected PadEvent, TriggerData, or SceneNode. Strictly constrained to viewport height with internal vertical scrolling (`h-full min-h-0 overflow-y-auto custom-scrollbar`), guaranteeing that all form fields remain completely accessible in windowed mode.
 
 ### src/editor/hooks/useEditorHistory.ts
 
@@ -334,11 +353,21 @@ Undo/redo system. Fixed-size stack (max 50 snapshots). `setLevel(newLevel, recor
 
 ### src/editor/hooks/useEditorEngine.ts
 
-Manages engine lifecycle within the editor. Initializes and disposes AudioTransport, VisualEngine, InputManager, GameplayEngine, and GameplayEventBus as tabs change. Handles live recording mode: captures pad presses as `PadEvent` objects with grid-snapped timestamps.
+Manages engine lifecycle within the editor. Initializes and disposes AudioTransport, VisualEngine, InputManager, GameplayEngine, and GameplayEventBus. Handles pre-scheduled lead-in playback, live recording mode, and continuous timeline time progression.
 
 ### src/editor/hooks/useEditorShortcuts.ts
 
-Global keyboard shortcut handler. Wires Ctrl+Z, Ctrl+Y, Space, R (record), B (pen), V (select), E (eraser), and Delete/Backspace (deletes whichever item is currently selected: note/event, trigger, or scene node).
+Global keyboard shortcut handler. Wires:
+- `Ctrl+Z` / `Ctrl+Y`: undo / redo.
+- `Ctrl+C` / `Ctrl+X` / `Ctrl+V`: copy / cut / paste batch clipboard.
+- `Ctrl+D`: duplicate selected items.
+- `Ctrl+A`: select all.
+- `Ctrl+=` / `Ctrl+-`: zoom in / zoom out anchored to playhead.
+- `Space`: play/pause toggle.
+- `R`: toggle recording mode.
+- `W`: toggle waveform watermark.
+- `Delete` / `Backspace`: delete selected event, trigger, or scene node.
+- `B` / `V` / `E`: switch between Pen, Select, and Eraser tools.
 
 ---
 
@@ -418,16 +447,20 @@ SceneNodeData fields:
 - Audio Waveform Display: High-resolution background envelope rendered across the pad tracks via virtualized viewport canvas, displaying true PCM peaks or synthetic transients with toggleable visibility (`WAVE` / `W`) for intuitive visual alignment of beats and triggers.
 - Playback Speed Selector: Variable audio transport rate (0.25x, 0.5x, 0.75x, 1.0x) with continuous monotonic clock accumulation for fine-tuned rhythm mapping.
 - ParticlePool: pooled particle bursts on hit events.
+- NotePool & O(log N) Binary Search: Pre-allocated pool of 150 `Graphics` notes with `tint` and `visible` recycling, eliminating Garbage Collection stutter across dense 1,000+ note beatmaps.
+- Audio Offset Calibration: Interactive millisecond offset calibration with ±1ms and ±10ms step buttons, dynamically synchronizing `VisualEngine`, `GameplayEngine`, and timeline grid quantization.
+- Pre-Roll Lead-In with Zero-Stutter Pre-Scheduling: Hardware Web Audio buffer scheduling (`ctx.currentTime + leadIn / playbackSpeed`) providing seamless, 60+ FPS playback transitions through `t = 0` without main-thread stalls.
+- Acoustic Bézier Volume Envelopes (Fade In / Fade Out): Logarithmic loudness curves, diagonal hatch attenuation masks, volume handle pips, and floating glassmorphic badges rendered across the timeline.
+- Playhead-Anchored Dynamic Zoom: Smooth scaling preserving the playhead position in the viewport across mouse wheel, toolbar buttons, slider, and keyboard shortcuts (`Ctrl + =` / `Ctrl + -`).
+- Batch Editing & Productivity Suite: Marquee drag-to-select, clipboard engine (Copy `Ctrl+C`, Cut `Ctrl+X`, Paste `Ctrl+V`, Duplicate `Ctrl+D`, Select All `Ctrl+A`), and atomic batch deletion.
+- UI Declutter & SongPadsModal: Gear toggle button with staggered cascaded menu, dedicated `SongPadsModal` settings tabs, full-height `SceneOutliner`, and global `F5` / `Ctrl+Enter` Playtest shortcut.
 
 ### Planned (not yet implemented)
 
-#### Phase 6 — Engine Optimization & Polish (Next)
-- Particle and display object pooling optimization.
-- GPU shader profiling and mobile responsive performance tuning.
-- Adaptive performance quality scaler for high refresh-rate displays.
-
-#### Phase 7 — Online Infrastructure & Backend
-- Supabase authentication, cloud save profiles, and remote beatmap loading.
+#### Phase 6 — Engine Optimization & Polish (Remaining Focus)
+- Adaptive graphics quality profiles (Low, Medium, High, Ultra) with shader and particle scaling.
+- Web Worker offloading for heavy beatmap validation and waveform PCM calculations.
+- Memory leak prevention and comprehensive profiling across repeated Editor <-> Player transitions.
 - Global score leaderboards and online event systems.
 
 #### Phase 8 — Multiplayer & Community Features
