@@ -10,6 +10,7 @@ interface WaveformCanvasProps {
   pixelsPerSecond: number;
   currentTime: number;
   bpm: number;
+  opacity?: number;
 }
 
 /**
@@ -29,6 +30,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
   pixelsPerSecond,
   currentTime,
   bpm,
+  opacity,
 }) => {
   const fullWidth = totalWidth ?? widthPx ?? 1200;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -110,7 +112,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     const currentPx = currentTime * pixelsPerSecond;
 
     // Draw Center Baseline across the rendered slice
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, centerY);
@@ -133,9 +135,9 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
 
         const isPast = worldPx <= currentPx;
         if (isPast) {
-          ctx.fillStyle = amp > 0.6 ? 'rgba(255, 45, 111, 0.55)' : 'rgba(0, 229, 255, 0.38)';
+          ctx.fillStyle = amp > 0.6 ? 'rgba(255, 45, 111, 0.28)' : 'rgba(0, 229, 255, 0.18)';
         } else {
-          ctx.fillStyle = amp > 0.6 ? 'rgba(255, 45, 111, 0.22)' : 'rgba(0, 229, 255, 0.14)';
+          ctx.fillStyle = amp > 0.6 ? 'rgba(255, 45, 111, 0.10)' : 'rgba(0, 229, 255, 0.06)';
         }
 
         ctx.fillRect(xOnCanvas, yTop, 1, barHeight);
@@ -166,7 +168,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         const xOnCanvas = worldPx - renderLeft;
         const isPast = worldPx <= currentPx;
 
-        ctx.fillStyle = isPast ? 'rgba(0, 229, 255, 0.35)' : 'rgba(0, 229, 255, 0.12)';
+        ctx.fillStyle = isPast ? 'rgba(0, 229, 255, 0.16)' : 'rgba(0, 229, 255, 0.05)';
         ctx.fillRect(xOnCanvas, yTop, 1, barHeight);
       }
     }
@@ -190,6 +192,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         left: renderLeft,
         width: visibleWidth,
         height,
+        opacity: opacity !== undefined ? opacity : 1,
       }}
       className="pointer-events-none"
     />

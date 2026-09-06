@@ -77,7 +77,7 @@ Cuestiones logicas del gameplay y del motor que han quedado en segundo plano y r
   - Actualmente, un evento `hold` verifica inicio y final, pero no recompensa mantener la presion frame a frame.
   - *Accion:* Generar micro-ticks ritmicos cada 1/8 o 1/16 de compas durante la duracion del hold que sumen puntos continuos y alimenten la racha de combo.
 
-- [ ] **[P0] Asistente Interactivo de Calibracion de Latencia (Audio/Visual Offset Wizard)**
+- [ ] **[P3] Asistente Interactivo de Calibracion de Latencia (Audio/Visual Offset Wizard)**
   - Jugadores con auriculares Bluetooth o monitores de diferente tasa de refresco experimentan desfases de entre 20ms y 150ms.
   - *Accion:* Crear una pantalla de calibracion accesible desde Settings con un metronomo sonoro interactivo donde el usuario presione una tecla al ritmo durante 8 compases para calcular automaticamente el `audioOffset` y `visualOffset` local.
 
