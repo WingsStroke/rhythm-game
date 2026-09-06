@@ -3,7 +3,6 @@ import { Timeline, type EditorTool } from './Timeline';
 import { snapTimeToGrid, getSnapInterval, type GridSubdivision } from './utils';
 import { EditorHeader } from './components/EditorHeader';
 import { EditorToolbar } from './components/EditorToolbar';
-import { EditorSidebarLeft } from './components/EditorSidebarLeft';
 import { EditorPropertiesPanel } from './components/EditorPropertiesPanel';
 import { SongPadsModal } from './components/SongPadsModal';
 import { useEditorEngine } from './hooks/useEditorEngine';
@@ -324,6 +323,86 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     const key = newNode.uid || (typeof newNode.id === 'string' ? newNode.id : newNode.name || 'node');
     selectNode(key);
   }, [setLevel, selectNode]);
+
+  const handleCreatePrimitive = useCallback((type: 'rectangle' | 'circle' | 'group') => {
+    const nodes = level.visual?.nodes || [];
+    let max = 0;
+    const prefix = type === 'rectangle' ? 'rect' : type === 'circle' ? 'circle' : 'group';
+    for (const node of nodes) {
+      const name = node.name || (typeof node.id === 'string' ? node.id : '');
+      if (name.startsWith(`${prefix}-`)) {
+        const num = parseInt(name.replace(`${prefix}-`, ''), 10);
+        if (!Number.isNaN(num) && num > max) max = num;
+      }
+    }
+    const counter = max + 1;
+    const uid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`;
+
+    let newNode: SceneNodeData;
+    if (type === 'rectangle') {
+      newNode = {
+        uid,
+        name: `rect-${counter}`,
+        targetId: null,
+        id: null,
+        type: 'rectangle',
+        visible: true,
+        transform: {
+          x: 960,
+          y: 540,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0,
+          opacity: 0.9,
+        },
+        properties: {
+          width: 140,
+          height: 140,
+          color: '#00e5ff',
+        },
+      };
+    } else if (type === 'circle') {
+      newNode = {
+        uid,
+        name: `circle-${counter}`,
+        targetId: null,
+        id: null,
+        type: 'circle',
+        visible: true,
+        transform: {
+          x: 960,
+          y: 540,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0,
+          opacity: 0.9,
+        },
+        properties: {
+          radius: 70,
+          color: '#ff007f',
+        },
+      };
+    } else {
+      newNode = {
+        uid,
+        name: `group-${counter}`,
+        targetId: null,
+        id: null,
+        type: 'group',
+        visible: true,
+        transform: {
+          x: 960,
+          y: 540,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0,
+          opacity: 1,
+        },
+        properties: {},
+      };
+    }
+    handleAddNode(newNode);
+  }, [level.visual?.nodes, handleAddNode]);
 
   const handleUpdateNode = useCallback((updates: Partial<SceneNodeData>) => {
     if (!selectedNodeId) return;
@@ -776,20 +855,11 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         onChangePixelsPerSecond={setPixelsPerSecond}
         showWaveform={showWaveform}
         onToggleWaveform={() => setShowWaveform((prev) => !prev)}
+        onCreatePrimitive={handleCreatePrimitive}
       />
 
       {/* Main Workspace Layout */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Left Sidebar: Song Metadata, Pads & SceneOutliner */}
-        <EditorSidebarLeft
-          level={level}
-          onChangeLevel={setLevel}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={selectNode}
-          onAddNode={handleAddNode}
-          onRemoveNode={handleRemoveNode}
-        />
-
         {/* Central Workspace: Tab Switcher & Active View */}
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* View Tab Bar */}

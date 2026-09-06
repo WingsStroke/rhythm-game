@@ -14,7 +14,7 @@ import {
 } from '../engine/time/timeUtils';
 
 export type { GridSubdivision };
-export type EditorTool = 'select' | 'pen' | 'eraser';
+export type EditorTool = 'select' | 'pen' | 'eraser' | 'object';
 
 function getTriggerColor(action: TriggerActionType): string {
   switch (action) {
@@ -75,7 +75,7 @@ const PadTracksLane = React.memo(function PadTracksLane({
         return (
           <div
             key={pad.id}
-            className={`flex-1 min-h-[68px] bg-white/[0.025] border-y border-white/10 relative transition-colors ${
+            className={`flex-1 min-h-[50px] bg-white/[0.025] border-y border-white/10 relative transition-colors ${
               activeTool === 'pen' ? 'hover:bg-white/[0.06] cursor-crosshair' : ''
             }`}
             style={{ width: widthPx, minWidth: widthPx }}
@@ -259,7 +259,7 @@ const TriggersLane = React.memo(function TriggersLane({
 
       {/* FX Lane Track */}
       <div
-        className={`h-32 bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
+        className={`h-36 bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
           activeTool === 'pen' ? 'hover:bg-violet-950/[0.16] cursor-crosshair' : ''
         }`}
         style={{ width: widthPx, minWidth: widthPx }}
@@ -356,7 +356,7 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
 
       {/* Visual Objects Track Lane */}
       <div
-        className="h-28 bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0"
+        className="h-36 bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0"
         style={{ width: widthPx, minWidth: widthPx }}
       >
         {nodes.map((node, index) => {
@@ -1341,12 +1341,12 @@ export function Timeline({
             )}
           </div>
 
-          {/* Pad Track Labels (flex-1 to distribute vertical space generously, min-h-[68px] for responsive windowed mode) */}
-          <div className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[280px]">
+          {/* Pad Track Labels (flex-1 to distribute vertical space generously, min-h-[50px] for responsive windowed mode) */}
+          <div className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[210px]">
             {level.pads.map((pad) => (
               <div
                 key={pad.id}
-                className="flex-1 min-h-[68px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-white/10 shadow-sm transition-colors hover:bg-white/[0.04] group"
+                className="flex-1 min-h-[50px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-white/10 shadow-sm transition-colors hover:bg-white/[0.04] group"
               >
                 <div className="flex items-center gap-2.5">
                   <div
@@ -1378,7 +1378,7 @@ export function Timeline({
           </div>
 
           {/* FX Lane Track Label */}
-          <div className="h-32 flex flex-col justify-center px-3.5 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
+          <div className="h-36 flex flex-col justify-center px-3.5 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
               <span className="text-xs font-mono font-bold text-white/90 tracking-wide">FX LANE</span>
@@ -1393,7 +1393,7 @@ export function Timeline({
           </div>
 
           {/* Visual Objects Track Label */}
-          <div className="h-28 flex flex-col justify-center px-3.5 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
+          <div className="h-36 flex flex-col justify-center px-3.5 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span className="text-xs font-mono font-bold text-white/90 tracking-wide">SCENE ELEMENTS</span>
@@ -1444,10 +1444,10 @@ export function Timeline({
             {backgroundGridLines}
           </div>
 
-          {/* Note Track Lanes (flex-1 to consume remaining vertical space smoothly, min-h-[280px] for responsiveness) */}
+          {/* Note Track Lanes (flex-1 to consume remaining vertical space smoothly, min-h-[210px] for responsiveness) */}
           <div
             ref={padTracksRef}
-            className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[280px] relative z-10"
+            className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[210px] relative z-10"
           >
             {/* Background Audio Waveform Layer */}
             {showWaveform && (

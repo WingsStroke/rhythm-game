@@ -141,6 +141,8 @@ export function useEditorShortcuts({
         onSelectTool('pen');
       } else if (e.code === 'KeyE') {
         onSelectTool('eraser');
+      } else if (e.code === 'KeyO') {
+        onSelectTool('object');
       }
     };
 

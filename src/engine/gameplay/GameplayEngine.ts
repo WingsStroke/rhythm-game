@@ -147,8 +147,7 @@ export class GameplayEngine {
     for (const [id, evt] of this.activeHolds) {
       if (evt.duration !== undefined && time >= evt.targetTime + evt.duration) {
         this.activeHolds.delete(id);
-        // Pad held long enough — score was already given on press, just reset state
-        this.emitPadStateChange(evt.padId, 'holding', 'success');
+        this.emitPadStateChange(evt.padId, 'holding', 'success', evt);
         this.schedulePadStateTransition(evt.padId, 'success', 'ready', 300);
       }
     }
@@ -207,13 +206,13 @@ export class GameplayEngine {
         this.evaluateTap(bestEvt, bestOffset, signedOffset);
         break;
       case 'hold':
-        this.evaluateHoldStart(bestEvt, bestOffset, signedOffset);
+        this.evaluateHoldStart(bestEvt, bestOffset);
         break;
       case 'loop':
-        this.evaluateLoopStart(bestEvt, bestOffset, signedOffset);
+        this.evaluateLoopStart(bestEvt, bestOffset);
         break;
       case 'trigger':
-        this.evaluateTrigger(bestEvt, bestOffset, signedOffset);
+        this.evaluateTrigger(bestEvt, bestOffset);
         break;
     }
   }
@@ -229,23 +228,11 @@ export class GameplayEngine {
       const heldEnough = required === 0 || heldDuration >= required * 0.8;
 
       if (heldEnough) {
-        this.emitPadStateChange(pad, 'holding', 'success');
+        this.emitPadStateChange(pad, 'holding', 'success', evt);
         this.schedulePadStateTransition(pad, 'success', 'ready', 300);
       } else {
-        // Released too early — treat as miss
-        this.emitPadStateChange(pad, 'holding', 'miss');
-        const s = this.playerState;
-        if (s.combo > 0) this.onComboBreak?.();
-        this.applyMiss();
-        this.eventBus?.emit({
-          type: 'HIT_MISS',
-          padId: pad,
-          time,
-          event: evt,
-          score: s.score,
-          combo: 0,
-        });
-        this.onScoreChange?.(this.state);
+        // Released too early — treat as dropped sustain without score/combo impact
+        this.emitPadStateChange(pad, 'holding', 'miss', evt);
         this.schedulePadStateTransition(pad, 'miss', 'ready', 400);
       }
       break;
@@ -259,70 +246,52 @@ export class GameplayEngine {
     this.judge(evt, judgement, signedOffset);
   }
 
-  private evaluateHoldStart(evt: PadEvent, absOffset: number, signedOffset: number): void {
+  private evaluateHoldStart(evt: PadEvent, absOffset: number): void {
     const judgement = this.offsetToJudgement(absOffset);
     if (judgement === 'miss') {
-      this.judge(evt, 'miss', signedOffset);
+      this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'miss', evt);
+      this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 300);
       return;
     }
 
-    // Valid press — award score immediately and start tracking the sustain
-    this.applyHitScore(judgement);
-    const s = this.playerState;
-
-    this.eventBus?.emit({
-      type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
-      padId: evt.padId,
-      time: this.getSongTime(),
-      event: evt,
-      score: s.score,
-      combo: s.combo,
-    });
-    this.onJudgement?.(evt, judgement, signedOffset);
-    this.onScoreChange?.(this.state);
-
+    // Valid press — start tracking sustain without score/combo modifications
     this.activeHolds.set(evt.id, evt);
-    this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'holding');
+    this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'holding', evt);
   }
 
-  private evaluateLoopStart(evt: PadEvent, absOffset: number, signedOffset: number): void {
+  private evaluateLoopStart(evt: PadEvent, absOffset: number): void {
     const judgement = this.offsetToJudgement(absOffset);
     if (judgement === 'miss') {
-      this.judge(evt, 'miss', signedOffset);
+      this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'miss', evt);
+      this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 300);
       return;
     }
 
-    this.applyHitScore(judgement);
-    const s = this.playerState;
+    // Loop active without combo/score modifications
+    this.activeLoops.set(evt.id, evt);
+    this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'playing', evt);
+  }
 
+  private evaluateTrigger(evt: PadEvent, absOffset: number): void {
+    const judgement = this.offsetToJudgement(absOffset);
+    if (judgement === 'miss') {
+      this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'miss', evt);
+      this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 300);
+      return;
+    }
+
+    // Trigger hit — trigger audiovisual FX without combo/score modifications
+    this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'success', evt);
+    this.schedulePadStateTransition(evt.padId, 'success', 'ready', 300);
+
+    const triggerId = evt.triggerId || 'fx_trigger';
     this.eventBus?.emit({
-      type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
+      type: 'TRIGGER_TRIGGERED',
       padId: evt.padId,
       time: this.getSongTime(),
       event: evt,
-      score: s.score,
-      combo: s.combo,
+      triggerId,
     });
-    this.onJudgement?.(evt, judgement, signedOffset);
-    this.onScoreChange?.(this.state);
-
-    this.activeLoops.set(evt.id, evt);
-    this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'playing');
-  }
-
-  private evaluateTrigger(evt: PadEvent, absOffset: number, signedOffset: number): void {
-    const judgement = this.offsetToJudgement(absOffset);
-    this.judge(evt, judgement, signedOffset);
-
-    if (judgement !== 'miss' && evt.triggerId) {
-      this.eventBus?.emit({
-        type: 'TRIGGER_TRIGGERED',
-        padId: evt.padId,
-        time: this.getSongTime(),
-        event: evt,
-        triggerId: evt.triggerId,
-      });
-    }
   }
 
   // ---- Core judge helper (for tap/trigger/miss) ----
@@ -418,7 +387,12 @@ export class GameplayEngine {
     return 'miss';
   }
 
-  private emitPadStateChange(padId: PadId, oldState: PadState, newState: PadState): void {
+  private emitPadStateChange(
+    padId: PadId,
+    oldState: PadState,
+    newState: PadState,
+    event?: PadEvent
+  ): void {
     this.padStates.set(padId, newState);
     this.eventBus?.emit({
       type: 'PAD_STATE_CHANGE',
@@ -426,6 +400,7 @@ export class GameplayEngine {
       time: this.getSongTime(),
       oldState,
       newState,
+      event,
     });
   }
 

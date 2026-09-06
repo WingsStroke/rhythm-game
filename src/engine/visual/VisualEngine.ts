@@ -100,6 +100,7 @@ export class VisualEngine {
   private bgGrid!: Graphics;
   private laneGfx!: Graphics;
   private notePool!: NotePool;
+  private activeHoldEventIds: Set<string> = new Set();
   private padVisuals: Map<PadId, PadVisual> = new Map();
   private judgementPopups: JudgementPopup[] = [];
   private scoreText!: Text;
@@ -245,6 +246,30 @@ export class VisualEngine {
         const pv = this.padVisuals.get(gameEvent.padId);
         if (pv && gameEvent.newState) {
           pv.state = gameEvent.newState;
+          if (gameEvent.newState === 'holding') {
+            if (gameEvent.event) {
+              this.activeHoldEventIds.add(gameEvent.event.id);
+            }
+          } else if (
+            gameEvent.newState === 'success' ||
+            gameEvent.newState === 'miss' ||
+            gameEvent.newState === 'ready'
+          ) {
+            if (gameEvent.event) {
+              this.activeHoldEventIds.delete(gameEvent.event.id);
+              this.notePool?.release(gameEvent.event);
+            } else {
+              // Clear any active holds associated with this pad
+              for (const id of Array.from(this.activeHoldEventIds)) {
+                const pooled = this.notePool?.get(id);
+                if (pooled && pooled.event?.padId === gameEvent.padId) {
+                  this.activeHoldEventIds.delete(id);
+                  this.notePool?.release(id);
+                }
+              }
+            }
+          }
+
           if (gameEvent.newState === 'success') {
             this.pressPad(gameEvent.padId);
             this.particlePool.spawn(pv.x + 50, this.padY + PAD_HEIGHT / 2, pv.baseColor, 10, 1.2);
@@ -705,8 +730,8 @@ export class VisualEngine {
   }
 
   showJudgement(event: PadEvent, judgement: Judgement): void {
-    // 1. Immediately return note sprite to pool
-    if (this.notePool) {
+    // 1. Immediately return note sprite to pool, unless it's actively being sustained in a hold
+    if (this.notePool && !this.activeHoldEventIds.has(event.id)) {
       this.notePool.release(event);
     }
 
@@ -795,6 +820,7 @@ export class VisualEngine {
     if (this.particlePool) {
       this.particlePool.reset();
     }
+    this.activeHoldEventIds.clear();
     // Return all active notes to pool so they cleanly re-instantiate for the new timestamp
     if (this.notePool) {
       this.notePool.releaseAll();
@@ -930,7 +956,8 @@ export class VisualEngine {
     // 7. Cleanup events that fell past the pads
     if (this.notePool) {
       for (const { event } of this.notePool.getActiveNotes()) {
-        if (event.targetTime + 0.4 < songTime) {
+        const duration = event.duration || 0;
+        if (event.targetTime + duration + 0.4 < songTime && !this.activeHoldEventIds.has(event.id)) {
           this.notePool.release(event);
         }
       }
@@ -939,6 +966,7 @@ export class VisualEngine {
       const minVisibleTime = songTime - 0.2;
       const maxVisibleTime = songTime + this.leadTime;
       const startIndex = this.findFirstVisibleEventIndex(minVisibleTime);
+      const fallDistance = Math.min(600, Math.max(250, this.padY - 20));
 
       for (let i = startIndex; i < this.events.length; i++) {
         const event = this.events[i];
@@ -951,21 +979,58 @@ export class VisualEngine {
         if (!padConfig) continue;
 
         const color = this.hexToInt(padConfig.color);
-        this.notePool.acquire(event, color);
+        const initialTailHeight = event.duration ? (event.duration / this.leadTime) * fallDistance : 0;
+        this.notePool.acquire(event, color, initialTailHeight);
       }
 
       // 9. Event positions: fall from top towards pad center
       const targetY = this.padY + PAD_HEIGHT / 2;
-      const fallDistance = Math.min(600, Math.max(250, this.padY - 20));
       for (const { event, gfx } of this.notePool.getActiveNotes()) {
         const x = this.padXPositions.get(event.padId) ?? 0;
-        const progress = 1 - (event.targetTime - songTime) / this.leadTime;
-        const y = targetY - fallDistance * (1 - progress);
+        const isBeingHeld = this.activeHoldEventIds.has(event.id);
+        const pooled = this.notePool.get(event.id);
 
-        gfx.x = x + 50;
-        gfx.y = y;
-        gfx.scale.set(0.85 + Math.min(progress, 1) * 0.15);
-        gfx.alpha = progress < 0.08 ? progress * 12.5 : 1;
+        if (isBeingHeld && event.duration) {
+          // Sustained hold: Clamped at pad receptor line
+          gfx.x = x + 50;
+          gfx.y = targetY;
+          gfx.scale.set(1.05);
+          gfx.alpha = 1;
+
+          // Tail length shrinks dynamically as hold progresses
+          const remaining = (event.targetTime + event.duration) - songTime;
+          const currentTailHeight = Math.max(0, (remaining / this.leadTime) * fallDistance);
+          if (pooled) {
+            this.notePool.renderHoldTail(pooled, pooled.color, currentTailHeight);
+          }
+
+          // Continuous hold sparks
+          const pv = this.padVisuals.get(event.padId);
+          if (pv && Math.random() < 0.35) {
+            this.particlePool.spawn(x + 50, targetY, pv.baseColor, 2, 0.7);
+          }
+        } else {
+          const progress = 1 - (event.targetTime - songTime) / this.leadTime;
+          const y = targetY - fallDistance * (1 - progress);
+
+          gfx.x = x + 50;
+          gfx.y = y;
+          gfx.scale.set(0.85 + Math.min(progress, 1) * 0.15);
+          gfx.alpha = progress < 0.08 ? progress * 12.5 : 1;
+
+          // In flight hold note: ensure initial tail is drawn
+          if (event.behavior === 'hold' && event.duration && pooled) {
+            const desiredTailHeight = (event.duration / this.leadTime) * fallDistance;
+            if (Math.abs(pooled.currentTailHeight - desiredTailHeight) > 2) {
+              this.notePool.renderHoldTail(pooled, pooled.color, desiredTailHeight);
+            }
+          } else if (event.behavior === 'loop' && event.duration && pooled) {
+            const desiredTailHeight = (event.duration / this.leadTime) * fallDistance;
+            if (Math.abs(pooled.currentTailHeight - desiredTailHeight) > 2) {
+              this.notePool.renderLoopTail(pooled, pooled.color, desiredTailHeight);
+            }
+          }
+        }
       }
     }
 
