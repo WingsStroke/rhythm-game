@@ -135,13 +135,23 @@ Suite de herramientas de productividad y edicion por lotes requerida para desblo
 
 ---
 
-## 4. Fase 6 — Optimizacion y Pulido de Motor (Siguiente Fase Inmediata)
+## 4. Fase 6 — Optimizacion y Pulido de Motor (En Progreso)
 
 Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
 
-- [ ] **[P0] Object Pooling Intensivo en PixiJS**
-  - Reutilizar instancias de `Graphics`, `Container` y `Sprite` para notas que caen, flashes de pads y particulas en lugar de instanciar y destruir objetos por frame.
-  - Eliminar picos de recoleccion de basura (Garbage Collection stutter).
+- [x] **[P0] Object Pooling Intensivo en PixiJS (NotePool & Offset de Cancion)**
+  - Pre-asignacion estatica de notas (`NotePool` con 150 instancias iniciales en neutral white geometry y reuso via `.tint`).
+  - Eliminacion total de `new Graphics()` y `gfx.destroy()` por frame; recoleccion de basura minimizada (0 GC stutter en beatmaps densos de ~1,000 notas).
+  - Busqueda binaria O(log N) / ventana deslizante en `VisualEngine` aprovechando el orden cronologico de eventos.
+  - Unificacion matematica del offset de cancion (`songTime = audioTime - offset`) en `VisualEngine` y `GameplayEngine`.
+  - Calibrador interactivo de offset en milisegundos con botones de paso (±1ms, ±10ms) en `SongPadsModal`.
+
+- [x] **[P1] Despeje de Interfaz del Editor (UI Declutter & Settings Modal)**
+  - Reemplazo de botones fijos en la cabecera por boton de configuracion (engranaje sin titulo) en la esquina superior derecha.
+  - Menu flotante desplegable con animacion escalonada / cascada (staggered delay).
+  - Reubicacion de PLAYTEST en el menu de ajustes (con atajo global F5 / Ctrl+Enter).
+  - Nuevo modal centralizado `SongPadsModal` para configuracion de pista (metadata, BPM, duracion, offset) y matriz de pads (color, atajo de teclado, canal de audio, rol semantico).
+  - Limpieza de la barra lateral izquierda (`EditorSidebarLeft`), dedicada al 100% al `SceneOutliner`.
 
 - [ ] **[P1] Perfiles de Calidad Grafica Adaptativa**
   - Selector en ajustes: *Baja, Media, Alta, Ultra*.

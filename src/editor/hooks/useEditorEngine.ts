@@ -283,6 +283,17 @@ export function useEditorEngine({
     }
   }, [level.pads]);
 
+  // Sync timing offset in real-time when level.timing changes
+  useEffect(() => {
+    const offset = level.timing?.offset ?? 0;
+    if (gameplayRef.current) {
+      gameplayRef.current.setOffset(offset);
+    }
+    if (visualRef.current) {
+      visualRef.current.syncTiming(offset);
+    }
+  }, [level.timing?.offset]);
+
   // Main animation loop
   useEffect(() => {
     const loop = () => {

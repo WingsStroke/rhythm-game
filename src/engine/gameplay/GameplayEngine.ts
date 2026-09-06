@@ -27,6 +27,7 @@ import type { GameplayEventBus } from './GameplayEventBus';
 export class GameplayEngine {
   private events: PadEvent[];
   private windows: TimingWindows;
+  private songOffset = 0;
   private playerState: PlayerState;
   private pending: PadEvent[] = [];
   private getTime: () => number;
@@ -50,6 +51,7 @@ export class GameplayEngine {
   constructor(level: LevelData, getTime: () => number, eventBus?: GameplayEventBus) {
     this.events = [...level.events].sort((a, b) => a.targetTime - b.targetTime);
     this.windows = level.timing.windows;
+    this.songOffset = level.timing?.offset ?? 0;
     this.getTime = getTime;
     this.eventBus = eventBus;
     this.playerState = this.freshState();
@@ -58,6 +60,14 @@ export class GameplayEngine {
     for (const pad of level.pads) {
       this.padStates.set(pad.id, 'ready');
     }
+  }
+
+  public setOffset(offset: number): void {
+    this.songOffset = offset;
+  }
+
+  private getSongTime(): number {
+    return this.getTime() - this.songOffset;
   }
 
   reset(): void {
@@ -82,7 +92,7 @@ export class GameplayEngine {
 
   start(startTime?: number): void {
     this.reset();
-    const time = startTime ?? this.getTime();
+    const time = startTime ?? this.getSongTime();
     if (time > 0.05) {
       this.pending = this.events.filter((e) => e.targetTime >= time - this.windows.miss);
     } else {
@@ -105,7 +115,7 @@ export class GameplayEngine {
    * - Emits PAD_STATE_CHANGE for queued events approaching their target time.
    */
   update(): void {
-    const time = this.getTime();
+    const time = this.getSongTime();
     const missWindow = this.windows.miss;
     const queueLeadTime = 0.5; // seconds before targetTime to enter 'queued' state
 
@@ -151,7 +161,8 @@ export class GameplayEngine {
    * Handle a pad press or release from the player.
    */
   handleInput(inputEvent: PadInputEvent): void {
-    const { pad, pressed, time } = inputEvent;
+    const { pad, pressed, time: rawTime } = inputEvent;
+    const time = rawTime - this.songOffset;
 
     if (pressed) {
       this.pressedPads.add(pad);
@@ -257,7 +268,7 @@ export class GameplayEngine {
     this.eventBus?.emit({
       type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
       padId: evt.padId,
-      time: this.getTime(),
+      time: this.getSongTime(),
       event: evt,
       score: s.score,
       combo: s.combo,
@@ -282,7 +293,7 @@ export class GameplayEngine {
     this.eventBus?.emit({
       type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
       padId: evt.padId,
-      time: this.getTime(),
+      time: this.getSongTime(),
       event: evt,
       score: s.score,
       combo: s.combo,
@@ -302,7 +313,7 @@ export class GameplayEngine {
       this.eventBus?.emit({
         type: 'TRIGGER_TRIGGERED',
         padId: evt.padId,
-        time: this.getTime(),
+        time: this.getSongTime(),
         event: evt,
         triggerId: evt.triggerId,
       });
@@ -313,7 +324,7 @@ export class GameplayEngine {
 
   private judge(evt: PadEvent, judgement: Judgement, offset: number): void {
     const s = this.playerState;
-    const eventTime = this.getTime();
+    const eventTime = this.getSongTime();
     const prevState = this.padStates.get(evt.padId) ?? 'ready';
 
     if (judgement === 'perfect' || judgement === 'good') {
@@ -407,7 +418,7 @@ export class GameplayEngine {
     this.eventBus?.emit({
       type: 'PAD_STATE_CHANGE',
       padId,
-      time: this.getTime(),
+      time: this.getSongTime(),
       oldState,
       newState,
     });
@@ -432,7 +443,7 @@ export class GameplayEngine {
       this.pending.length === 0 &&
       this.activeHolds.size === 0 &&
       this.activeLoops.size === 0 &&
-      this.getTime() > (lastEvent?.targetTime ?? 0) + 2
+      this.getSongTime() > (lastEvent?.targetTime ?? 0) + 2
     );
   }
 

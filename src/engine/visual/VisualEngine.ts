@@ -19,6 +19,7 @@ import { SceneGraph } from './SceneGraph';
 import { Animator } from './Animator';
 import { TriggerDispatcher } from './TriggerDispatcher';
 import { ParticlePool } from './ParticlePool';
+import { NotePool } from './NotePool';
 import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
 
 /**
@@ -35,7 +36,6 @@ import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
  *    - hudLayer (zIndex: 30): Score, combo, and floating judgement labels
  */
 
-const NOTE_SIZE = 56;
 const PAD_HEIGHT = 90;
 
 interface PadVisual {
@@ -92,7 +92,7 @@ export class VisualEngine {
   private bgRect!: Graphics;
   private bgGrid!: Graphics;
   private laneGfx!: Graphics;
-  private noteGraphics: Map<PadEvent, Graphics> = new Map();
+  private notePool!: NotePool;
   private padVisuals: Map<PadId, PadVisual> = new Map();
   private judgementPopups: JudgementPopup[] = [];
   private scoreText!: Text;
@@ -162,11 +162,12 @@ export class VisualEngine {
   }
 
   public syncEvents(newEvents: PadEvent[]): void {
-    // Destroy graphics for events that are no longer in the new array
-    for (const [event, gfx] of this.noteGraphics) {
-      if (!newEvents.includes(event)) {
-        gfx.destroy();
-        this.noteGraphics.delete(event);
+    // Release active notes that are no longer present in the updated event list
+    if (this.notePool) {
+      for (const { event } of this.notePool.getActiveNotes()) {
+        if (!newEvents.includes(event)) {
+          this.notePool.release(event);
+        }
       }
     }
     this.events = newEvents;
@@ -192,6 +193,14 @@ export class VisualEngine {
   public syncVisualTriggers(triggers: TriggerData[]): void {
     this.level.visual.triggers = triggers;
     this.triggerDispatcher.setTriggers(triggers);
+  }
+
+  public syncTiming(offset: number): void {
+    if (!this.level.timing) {
+      this.level.timing = { bpm: 120, offset, windows: { perfect: 0.05, good: 0.1, miss: 0.15 } };
+    } else {
+      this.level.timing.offset = offset;
+    }
   }
 
   /**
@@ -437,8 +446,9 @@ export class VisualEngine {
     this.comboText.y = 60;
     this.hudLayer.addChild(this.comboText);
 
-    // 6. Pre-allocated Particle Pool
+    // 6. Pre-allocated Particle Pool & Note Pool
     this.particlePool = new ParticlePool(this.fxLayer, 80);
+    this.notePool = new NotePool(this.noteLayer, 150);
   }
 
   private handleVisualEffect(
@@ -638,6 +648,23 @@ export class VisualEngine {
     return parseInt(hex.replace('#', ''), 16);
   }
 
+  private findFirstVisibleEventIndex(minTime: number): number {
+    let low = 0;
+    let high = this.events.length - 1;
+    let result = this.events.length;
+
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (this.events[mid].targetTime >= minTime) {
+        result = mid;
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+    return result;
+  }
+
   pressPad(padId: PadId): void {
     const pv = this.padVisuals.get(padId);
     if (pv) {
@@ -652,11 +679,9 @@ export class VisualEngine {
   }
 
   showJudgement(event: PadEvent, judgement: Judgement): void {
-    // 1. Immediately remove note sprite from screen
-    const noteGfx = this.noteGraphics.get(event);
-    if (noteGfx) {
-      noteGfx.destroy();
-      this.noteGraphics.delete(event);
+    // 1. Immediately return note sprite to pool
+    if (this.notePool) {
+      this.notePool.release(event);
     }
 
     const pv = this.padVisuals.get(event.padId);
@@ -744,15 +769,10 @@ export class VisualEngine {
     if (this.particlePool) {
       this.particlePool.reset();
     }
-    // Destroy all active note graphics so they cleanly re-instantiate for the new timestamp
-    for (const [, gfx] of this.noteGraphics) {
-      try {
-        if (!gfx.destroyed) gfx.destroy();
-      } catch {
-        // Ignored
-      }
+    // Return all active notes to pool so they cleanly re-instantiate for the new timestamp
+    if (this.notePool) {
+      this.notePool.releaseAll();
     }
-    this.noteGraphics.clear();
   }
 
   update(audioTime: number, bands: AudioBands): void {
@@ -830,45 +850,50 @@ export class VisualEngine {
     // 5b. Apply declarative real-time Audio Mappings to SceneNodes
     this.applyAudioMappings(channels);
 
-    // 6. Cleanup events that fell past the pads
-    for (const [event, gfx] of this.noteGraphics) {
-      if (event.targetTime + 0.4 < audioTime) {
-        gfx.destroy();
-        this.noteGraphics.delete(event);
+    // 6. Compute song timing with calibration offset
+    const songOffset = this.level.timing?.offset ?? 0;
+    const songTime = audioTime - songOffset;
+
+    // 7. Cleanup events that fell past the pads
+    if (this.notePool) {
+      for (const { event } of this.notePool.getActiveNotes()) {
+        if (event.targetTime + 0.4 < songTime) {
+          this.notePool.release(event);
+        }
       }
-    }
 
-    // 7. Spawn event sprites approaching within leadTime window
-    for (const event of this.events) {
-      if (this.noteGraphics.has(event)) continue;
-      const timeUntilHit = event.targetTime - audioTime;
-      if (timeUntilHit > this.leadTime || timeUntilHit < -0.2) continue;
-      const padConfig = this.pads.find((p) => p.id === event.padId);
-      if (!padConfig) continue;
+      // 8. Acquire event sprites approaching within leadTime window using binary search
+      const minVisibleTime = songTime - 0.2;
+      const maxVisibleTime = songTime + this.leadTime;
+      const startIndex = this.findFirstVisibleEventIndex(minVisibleTime);
 
-      const gfx = new Graphics();
-      const color = this.hexToInt(padConfig.color);
-      // Note body with glow stroke
-      gfx
-        .roundRect(-NOTE_SIZE / 2, -NOTE_SIZE / 2, NOTE_SIZE, NOTE_SIZE, 8)
-        .fill({ color, alpha: 0.92 });
-      gfx.stroke({ color: 0xffffff, width: 2, alpha: 0.7 });
-      this.noteLayer.addChild(gfx);
-      this.noteGraphics.set(event, gfx);
-    }
+      for (let i = startIndex; i < this.events.length; i++) {
+        const event = this.events[i];
+        if (event.targetTime > maxVisibleTime) {
+          break; // Subsequent events cannot be visible since events are sorted
+        }
+        if (this.notePool.has(event)) continue;
 
-    // 8. Event positions: fall from top towards pad center
-    const targetY = this.padY + PAD_HEIGHT / 2;
-    const fallDistance = Math.min(600, Math.max(250, this.padY - 20));
-    for (const [event, gfx] of this.noteGraphics) {
-      const x = this.padXPositions.get(event.padId) ?? 0;
-      const progress = 1 - (event.targetTime - audioTime) / this.leadTime;
-      const y = targetY - fallDistance * (1 - progress);
+        const padConfig = this.pads.find((p) => p.id === event.padId);
+        if (!padConfig) continue;
 
-      gfx.x = x + 50;
-      gfx.y = y;
-      gfx.scale.set(0.85 + Math.min(progress, 1) * 0.15);
-      gfx.alpha = progress < 0.08 ? progress * 12.5 : 1;
+        const color = this.hexToInt(padConfig.color);
+        this.notePool.acquire(event, color);
+      }
+
+      // 9. Event positions: fall from top towards pad center
+      const targetY = this.padY + PAD_HEIGHT / 2;
+      const fallDistance = Math.min(600, Math.max(250, this.padY - 20));
+      for (const { event, gfx } of this.notePool.getActiveNotes()) {
+        const x = this.padXPositions.get(event.padId) ?? 0;
+        const progress = 1 - (event.targetTime - songTime) / this.leadTime;
+        const y = targetY - fallDistance * (1 - progress);
+
+        gfx.x = x + 50;
+        gfx.y = y;
+        gfx.scale.set(0.85 + Math.min(progress, 1) * 0.15);
+        gfx.alpha = progress < 0.08 ? progress * 12.5 : 1;
+      }
     }
 
     // 9. Pad animations driven by PadState and semantic modulated audio channels
@@ -1080,14 +1105,9 @@ export class VisualEngine {
       this.tickerCb = null;
     }
 
-    for (const [, gfx] of this.noteGraphics) {
-      try {
-        if (!gfx.destroyed) gfx.destroy();
-      } catch {
-        // Ignored
-      }
+    if (this.notePool) {
+      this.notePool.destroy();
     }
-    this.noteGraphics.clear();
     this.events = [];
 
     for (const popup of this.judgementPopups) {

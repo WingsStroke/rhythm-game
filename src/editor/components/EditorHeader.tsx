@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Activity,
   Clock,
@@ -15,6 +15,8 @@ import {
   Undo2,
   Redo2,
   Gauge,
+  Settings,
+  Sliders,
 } from 'lucide-react';
 import { formatTime } from '../utils';
 
@@ -38,6 +40,7 @@ interface EditorHeaderProps {
   onImportJson: (file: File) => void;
   onExport: () => void;
   onPlaytest?: () => void;
+  onOpenSongPadsModal?: () => void;
   onExit: () => void;
 }
 
@@ -61,16 +64,53 @@ export function EditorHeader({
   onImportJson,
   onExport,
   onPlaytest,
+  onOpenSongPadsModal,
   onExit,
 }: EditorHeaderProps) {
   const [localSpeed, setLocalSpeed] = useState<string>(playbackSpeed.toString());
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLocalSpeed(playbackSpeed.toString());
   }, [playbackSpeed]);
 
+  // Click outside and ESC key handlers for dropdown menu
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsSettingsOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSettingsOpen]);
+
   return (
-    <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 gap-3 bg-black/50 shrink-0 select-none overflow-x-auto overflow-y-hidden">
+    <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 gap-3 bg-black/50 shrink-0 select-none overflow-x-auto overflow-y-visible relative z-30">
+      <style>{`
+        @keyframes headerMenuStagger {
+          0% {
+            opacity: 0;
+            transform: translateY(-8px) scale(0.97);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
+
       {/* Brand & Time Badges */}
       <div className="flex items-center gap-4 shrink-0">
         <Activity className="w-5 h-5 text-[#00e5ff]" />
@@ -112,6 +152,7 @@ export function EditorHeader({
             <Redo2 className="w-3.5 h-3.5" />
           </button>
         </div>
+
         {/* REC Button */}
         <button
           onClick={onToggleRecord}
@@ -205,79 +246,155 @@ export function EditorHeader({
         )}
       </div>
 
-      {/* Action Buttons: Audio, Import, Export, Exit */}
-      <div className="flex items-center gap-2.5 shrink-0">
-        {/* Playtest / Test Play in Real Game */}
-        {onPlaytest && (
-          <button
-            onClick={onPlaytest}
-            title="Test play level in real game engine (Standalone Runtime)"
-            className="px-3.5 py-1.5 bg-gradient-to-r from-[#ff2d6f] to-[#00e5ff] text-white font-black rounded hover:scale-105 active:scale-95 transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#ff2d6f]/30 mr-1 whitespace-nowrap shrink-0"
+      {/* Top-Right Settings Gear & Actions Menu */}
+      <div className="relative shrink-0 flex items-center">
+        <button
+          onClick={() => setIsSettingsOpen((prev) => !prev)}
+          title="Settings & Actions"
+          className={`p-2 rounded-lg border transition-all cursor-pointer ${
+            isSettingsOpen
+              ? 'bg-[#00e5ff]/20 text-[#00e5ff] border-[#00e5ff]/50 shadow-[0_0_12px_rgba(0,229,255,0.3)]'
+              : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
+          }`}
+          aria-label="Settings and Actions"
+        >
+          <Settings className={`w-4 h-4 transition-transform duration-300 ${isSettingsOpen ? 'rotate-90 text-[#00e5ff]' : ''}`} />
+        </button>
+
+        {/* Dropdown Floating Menu with Staggered Cascading Animation */}
+        {isSettingsOpen && (
+          <div
+            ref={menuRef}
+            className="absolute right-0 top-full mt-2 w-64 bg-[#0c0d16]/95 backdrop-blur-md border border-[#25283c] rounded-xl shadow-2xl p-1.5 z-50 flex flex-col gap-0.5"
           >
-            <Play className="w-3.5 h-3.5 fill-white shrink-0" />
-            <span>PLAYTEST</span>
-          </button>
+            {/* 1. Playtest Action */}
+            {onPlaytest && (
+              <button
+                onClick={() => {
+                  setIsSettingsOpen(false);
+                  onPlaytest();
+                }}
+                style={{
+                  animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                  animationDelay: '0ms',
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gradient-to-r from-[#ff2d6f]/20 to-[#00e5ff]/20 hover:from-[#ff2d6f]/30 hover:to-[#00e5ff]/30 text-white font-semibold text-xs border border-white/10 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Play className="w-3.5 h-3.5 fill-white text-white group-hover:scale-110 transition-transform" />
+                  <span>Playtest Level</span>
+                </div>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/80 border border-white/10">
+                  F5
+                </span>
+              </button>
+            )}
+
+            {/* 2. Song & Pads Configuration */}
+            <button
+              onClick={() => {
+                setIsSettingsOpen(false);
+                onOpenSongPadsModal?.();
+              }}
+              style={{
+                animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                animationDelay: '35ms',
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors cursor-pointer"
+            >
+              <Sliders className="w-3.5 h-3.5 text-[#00e5ff]" />
+              <span>Song & Pads Setup</span>
+            </button>
+
+            {/* Divider */}
+            <div className="my-1 border-t border-white/10" />
+
+            {/* 3. Load Audio File */}
+            <label
+              style={{
+                animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                animationDelay: '70ms',
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors cursor-pointer"
+            >
+              <Music className="w-3.5 h-3.5 text-[#b388ff]" />
+              <span>Load Audio File</span>
+              <input
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    onLoadAudioFile(file);
+                    setIsSettingsOpen(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
+
+            {/* 4. Import Beatmap JSON */}
+            <label
+              style={{
+                animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                animationDelay: '105ms',
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5 text-[#00e5ff]" />
+              <span>Import Beatmap (JSON)</span>
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    onImportJson(file);
+                    setIsSettingsOpen(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
+
+            {/* 5. Export Beatmap JSON */}
+            <button
+              onClick={() => {
+                setIsSettingsOpen(false);
+                onExport();
+              }}
+              style={{
+                animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                animationDelay: '140ms',
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-[#00ff9d]" />
+              <span>Export Beatmap (JSON)</span>
+            </button>
+
+            {/* Divider */}
+            <div className="my-1 border-t border-white/10" />
+
+            {/* 6. Exit Editor */}
+            <button
+              onClick={() => {
+                setIsSettingsOpen(false);
+                onExit();
+              }}
+              style={{
+                animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                animationDelay: '175ms',
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/15 text-xs font-medium transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-400" />
+              <span>Exit Editor</span>
+            </button>
+          </div>
         )}
-
-        {/* Load Audio File */}
-        <label
-          title="Load Audio File (.mp3, .wav, .ogg)"
-          className="px-3 py-1.5 bg-[#00e5ff]/15 text-[#00e5ff] hover:bg-[#00e5ff]/25 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 border border-[#00e5ff]/30 cursor-pointer whitespace-nowrap shrink-0"
-        >
-          <Music className="w-3.5 h-3.5 shrink-0" />
-          <span>Load Audio</span>
-          <input
-            type="file"
-            accept="audio/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                onLoadAudioFile(file);
-                e.target.value = '';
-              }
-            }}
-          />
-        </label>
-
-        {/* Import JSON */}
-        <label
-          title="Import Beatmap JSON"
-          className="px-3 py-1.5 bg-white/10 text-white/80 hover:bg-white/20 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 border border-white/10 cursor-pointer whitespace-nowrap shrink-0"
-        >
-          <Upload className="w-3.5 h-3.5 text-white/70 shrink-0" />
-          <span>Import JSON</span>
-          <input
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                onImportJson(file);
-                e.target.value = '';
-              }
-            }}
-          />
-        </label>
-
-        {/* Export JSON */}
-        <button
-          onClick={onExport}
-          className="px-3 py-1.5 bg-[#00ff9d]/15 text-[#00ff9d] rounded hover:bg-[#00ff9d]/25 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-[#00ff9d]/30 whitespace-nowrap shrink-0 cursor-pointer"
-        >
-          <Download className="w-3.5 h-3.5 shrink-0" />
-          <span>Export JSON</span>
-        </button>
-
-        {/* Exit Button */}
-        <button
-          onClick={onExit}
-          className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-red-500/30 whitespace-nowrap shrink-0 cursor-pointer"
-        >
-          <LogOut className="w-3.5 h-3.5 shrink-0" />
-          <span>Exit</span>
-        </button>
       </div>
     </header>
   );

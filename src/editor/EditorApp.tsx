@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Timeline, type EditorTool } from './Timeline';
 import { snapTimeToGrid, getSnapInterval, type GridSubdivision } from './utils';
 import { EditorHeader } from './components/EditorHeader';
 import { EditorToolbar } from './components/EditorToolbar';
 import { EditorSidebarLeft } from './components/EditorSidebarLeft';
 import { EditorPropertiesPanel } from './components/EditorPropertiesPanel';
+import { SongPadsModal } from './components/SongPadsModal';
 import { useEditorEngine } from './hooks/useEditorEngine';
 import { useEditorShortcuts } from './hooks/useEditorShortcuts';
 import { useEditorHistory } from './hooks/useEditorHistory';
@@ -34,6 +35,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   } = useEditorHistory(initialLevel || INITIAL_LEVEL);
 
   const [activeTab, setActiveTab] = useState<EditorTab>('timeline');
+  const [isSongPadsModalOpen, setIsSongPadsModalOpen] = useState(false);
+  const [audioFileName, setAudioFileName] = useState<string>('');
 
   // Authoring tools state
   const [activeTool, setActiveTool] = useState<EditorTool>('select');
@@ -566,6 +569,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       const newSongId = `file-${file.name}-${file.size}-${file.lastModified}`;
       const res = await loadAudioFile(file, newSongId);
       if (res.success) {
+        setAudioFileName(file.name);
         const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
         setLevel((prev) => ({
           ...prev,
@@ -624,6 +628,21 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       (n) => (n.uid && n.uid === selectedNodeId) || n.id === selectedNodeId || n.name === selectedNodeId
     ) || null;
 
+  // Global shortcut: F5 or Ctrl+Enter to trigger Playtest
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (e.key === 'F5' || (e.ctrlKey && e.key === 'Enter')) {
+        e.preventDefault();
+        if (onPlaytest) {
+          handleStop();
+          onPlaytest(level);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, [level, onPlaytest, handleStop]);
+
   return (
     <div className="relative z-10 h-full max-h-screen w-full flex flex-col bg-[#0b0b12] text-white select-none overflow-hidden">
       {/* Top Header & Transport / Audio / Import / Export / History Controls */}
@@ -646,6 +665,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         onLoadAudioFile={handleAudioLoad}
         onImportJson={handleJsonImport}
         onExport={handleExport}
+        onOpenSongPadsModal={() => setIsSongPadsModalOpen(true)}
         onPlaytest={
           onPlaytest
             ? () => {
@@ -784,6 +804,15 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           onRemoveNode={handleRemoveNode}
         />
       </div>
+
+      {/* Song & Pads Settings Modal */}
+      <SongPadsModal
+        isOpen={isSongPadsModalOpen}
+        onClose={() => setIsSongPadsModalOpen(false)}
+        level={level}
+        onChangeLevel={setLevel}
+        audioFileName={audioFileName}
+      />
     </div>
   );
 }
