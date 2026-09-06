@@ -240,14 +240,16 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   // Load external audio file into editor
   const handleAudioLoad = useCallback(
     async (file: File) => {
-      const songId = level.songId || level.song.id;
-      const res = await loadAudioFile(file, songId);
+      const newSongId = `file-${file.name}-${file.size}-${file.lastModified}`;
+      const res = await loadAudioFile(file, newSongId);
       if (res.success) {
         const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
         setLevel((prev) => ({
           ...prev,
+          songId: newSongId,
           song: {
             ...prev.song,
+            id: newSongId,
             title: cleanTitle,
             duration: Math.ceil(res.duration) || prev.song.duration,
           },
@@ -256,7 +258,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         alert('Could not decode audio file. Make sure it is a valid MP3, WAV, or OGG.');
       }
     },
-    [loadAudioFile, setLevel, level.songId, level.song.id]
+    [loadAudioFile, setLevel]
   );
 
   // Import existing level JSON with safety parsing and deep validation

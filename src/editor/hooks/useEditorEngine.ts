@@ -332,14 +332,16 @@ export function useEditorEngine({
         transportRef.current = new AudioTransport();
         await transportRef.current.init();
         transportRef.current.setPlaybackSpeed(playbackSpeed);
+      }
 
-        const songId = level.songId || level.song.id;
-        const cached = SongRegistry.getInstance().getAudioBuffer(songId);
-        if (cached) {
-          transportRef.current.loadAudioBuffer(cached);
-        } else if (level.song.url) {
-          await transportRef.current.loadFile(level.song.url, songId);
-        }
+      // Always synchronize transport audio buffer with active level song identity
+      // (crucial for instant undo/redo track alignment and audio file replacement)
+      const songId = level.songId || level.song.id;
+      const cached = SongRegistry.getInstance().getAudioBuffer(songId);
+      if (cached) {
+        transportRef.current.loadAudioBuffer(cached);
+      } else if (level.song.url) {
+        await transportRef.current.loadFile(level.song.url, songId);
       }
       transportRef.current.onBeat((beatIndex: number) => {
         if (visualRef.current && activeTab === 'preview') {

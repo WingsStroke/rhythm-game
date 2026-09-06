@@ -69,7 +69,6 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     } else {
       // Procedural synthetic waveform envelope when in Zero-Asset mode
       const beatLen = 60 / bpm;
-      const beatPx = beatLen * pixelsPerSecond;
 
       ctx.fillStyle = 'rgba(0, 229, 255, 0.35)';
       for (let x = 0; x < widthPx; x++) {
