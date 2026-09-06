@@ -194,6 +194,17 @@ export interface SceneNodeTransform {
   pivotY?: number;
 }
 
+export interface SceneNodeLifespan {
+  /** Musical song timestamp in seconds when the object becomes active */
+  startTime: number;
+  /** Active duration in seconds */
+  duration: number;
+  /** Optional fade-in transition duration in milliseconds */
+  fadeInMs?: number;
+  /** Optional fade-out transition duration in milliseconds */
+  fadeOutMs?: number;
+}
+
 export interface SceneNodeData {
   /** Immutable internal unique key for React and SceneGraph (e.g. "node_1234"). */
   uid: string;
@@ -208,6 +219,10 @@ export interface SceneNodeData {
   group?: string | number;
   blendMode?: BlendModeType;
   visible?: boolean;
+  /** Target rendering layer in the scene hierarchy. Defaults to 'sceneBack'. */
+  layerId?: 'sceneBack' | 'sceneFront';
+  /** Optional temporal lifespan bounds. When absent, object is continuously active. */
+  lifespan?: SceneNodeLifespan;
   transform?: SceneNodeTransform;
   properties?: Record<string, unknown>;
 }

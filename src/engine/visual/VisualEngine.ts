@@ -71,12 +71,18 @@ export class VisualEngine {
 
   // Strict Layer Hierarchy
   private bgLayer!: Container;
-  private sceneLayer!: Container;
+  private sceneLayer!: Container; // sceneBackgroundLayer (zIndex: 2)
+  private sceneForegroundLayer!: Container; // sceneForegroundLayer (zIndex: 22)
   private laneLayer!: Container;
   private noteLayer!: Container;
   private padLayer!: Container;
   private fxLayer!: Container;
   private hudLayer!: Container;
+
+  // Editor tooling overlay (isolated from level serialization)
+  private editorOverlayContainer!: Container;
+  private selectionGraphics!: Graphics;
+  private selectedNodeId: string | null = null;
 
   // Scene Graph & Trigger Systems
   private sceneGraph!: SceneGraph;
@@ -278,7 +284,7 @@ export class VisualEngine {
     this.bgLayer.zIndex = 0;
 
     this.sceneLayer = new Container();
-    this.sceneLayer.zIndex = 5;
+    this.sceneLayer.zIndex = 2; // sceneBackgroundLayer
 
     this.laneLayer = new Container();
     this.laneLayer.zIndex = 10;
@@ -289,11 +295,19 @@ export class VisualEngine {
     this.padLayer = new Container();
     this.padLayer.zIndex = 20;
 
+    this.sceneForegroundLayer = new Container();
+    this.sceneForegroundLayer.zIndex = 22; // sceneForegroundLayer
+
     this.fxLayer = new Container();
     this.fxLayer.zIndex = 25;
 
     this.hudLayer = new Container();
     this.hudLayer.zIndex = 30;
+
+    this.editorOverlayContainer = new Container();
+    this.editorOverlayContainer.zIndex = 99;
+    this.selectionGraphics = new Graphics();
+    this.editorOverlayContainer.addChild(this.selectionGraphics);
 
     this.app.stage.sortableChildren = true;
     this.app.stage.addChild(
@@ -302,18 +316,24 @@ export class VisualEngine {
       this.laneLayer,
       this.noteLayer,
       this.padLayer,
+      this.sceneForegroundLayer,
       this.fxLayer,
-      this.hudLayer
+      this.hudLayer,
+      this.editorOverlayContainer
     );
 
-    // Scale and center sceneLayer to virtual 1920x1080 stage
+    // Scale and center scene layers to virtual 1920x1080 stage
     const sceneScale = Math.min(w / 1920, h / 1080);
     this.sceneLayer.scale.set(sceneScale);
     this.sceneLayer.x = (w - 1920 * sceneScale) / 2;
     this.sceneLayer.y = (h - 1080 * sceneScale) / 2;
 
+    this.sceneForegroundLayer.scale.set(sceneScale);
+    this.sceneForegroundLayer.x = (w - 1920 * sceneScale) / 2;
+    this.sceneForegroundLayer.y = (h - 1080 * sceneScale) / 2;
+
     // 2. Initialize SceneGraph, Animator, and TriggerDispatcher
-    this.sceneGraph = new SceneGraph(this.sceneLayer);
+    this.sceneGraph = new SceneGraph(this.sceneLayer, this.sceneForegroundLayer);
     this.animator = new Animator(this.sceneGraph);
     this.triggerDispatcher = new TriggerDispatcher(this.sceneGraph, this.animator);
 
@@ -545,12 +565,17 @@ export class VisualEngine {
     this.lastWidth = screenW;
     this.lastHeight = screenH;
 
-    // Scale and center sceneLayer to 1920x1080 reference stage
+    // Scale and center scene layers to 1920x1080 reference stage
+    const sceneScale = Math.min(screenW / 1920, screenH / 1080);
     if (this.sceneLayer) {
-      const sceneScale = Math.min(screenW / 1920, screenH / 1080);
       this.sceneLayer.scale.set(sceneScale);
       this.sceneLayer.x = (screenW - 1920 * sceneScale) / 2;
       this.sceneLayer.y = (screenH - 1080 * sceneScale) / 2;
+    }
+    if (this.sceneForegroundLayer) {
+      this.sceneForegroundLayer.scale.set(sceneScale);
+      this.sceneForegroundLayer.x = (screenW - 1920 * sceneScale) / 2;
+      this.sceneForegroundLayer.y = (screenH - 1080 * sceneScale) / 2;
     }
 
     const viewportH = Math.min(screenH, this.root.clientHeight || window.innerHeight, window.innerHeight);
@@ -855,6 +880,53 @@ export class VisualEngine {
     const songOffset = this.level.timing?.offset ?? 0;
     const songTime = audioTimeToSongTime(audioTime, songOffset);
 
+    // 6b. Evaluate temporal lifespan for all scene nodes
+    if (this.sceneGraph) {
+      for (const node of this.sceneGraph.getAllNodes()) {
+        const ls = node.data.lifespan;
+        const isSelectedInEditor =
+          this.selectedNodeId === node.uid ||
+          this.selectedNodeId === node.id ||
+          this.selectedNodeId === node.name;
+
+        if (!ls) {
+          node.container.visible = node.data.visible !== false;
+        } else {
+          const startTime = ls.startTime;
+          const endTime = ls.startTime + ls.duration;
+          if (songTime < startTime || songTime > endTime) {
+            if (isSelectedInEditor) {
+              node.container.visible = true;
+              node.container.alpha = 0.45;
+            } else {
+              node.container.visible = false;
+            }
+          } else {
+            node.container.visible = node.data.visible !== false;
+            let fadeMult = 1.0;
+            const fadeInSec = (ls.fadeInMs ?? 0) / 1000;
+            const fadeOutSec = (ls.fadeOutMs ?? 0) / 1000;
+            if (fadeInSec > 0 && songTime < startTime + fadeInSec) {
+              fadeMult = Math.min(fadeMult, (songTime - startTime) / fadeInSec);
+            }
+            if (fadeOutSec > 0 && songTime > endTime - fadeOutSec) {
+              fadeMult = Math.min(fadeMult, (endTime - songTime) / fadeOutSec);
+            }
+            fadeMult = Math.max(0, Math.min(1, fadeMult));
+
+            const baseAlpha =
+              node.data.layerId === 'sceneFront'
+                ? Math.min(0.35, node.data.transform?.opacity ?? 0.35)
+                : (node.data.transform?.opacity ?? 1.0);
+            node.container.alpha = baseAlpha * fadeMult;
+          }
+        }
+      }
+    }
+
+    // 6c. Real-time selection overlay update (bounding box & anchors)
+    this.updateSelectionOverlay();
+
     // 7. Cleanup events that fell past the pads
     if (this.notePool) {
       for (const { event } of this.notePool.getActiveNotes()) {
@@ -1082,6 +1154,100 @@ export class VisualEngine {
     if (this.tickerCb) this.app.ticker.remove(this.tickerCb);
     this.tickerCb = cb;
     this.app.ticker.add(cb);
+  }
+
+  /**
+   * Sets the currently selected SceneNode ID to display its editor bounding box overlay.
+   */
+  public setSelectedNode(nodeId: string | null): void {
+    this.selectedNodeId = nodeId;
+    this.updateSelectionOverlay();
+  }
+
+  public getSelectedNode(): string | null {
+    return this.selectedNodeId;
+  }
+
+  private updateSelectionOverlay(): void {
+    if (!this.selectionGraphics) return;
+    this.selectionGraphics.clear();
+    if (!this.selectedNodeId || !this.sceneGraph) return;
+
+    const node = this.sceneGraph.getNode(this.selectedNodeId);
+    if (!node) return;
+
+    // Get screen bounds of the selected container
+    const bounds = node.container.getBounds();
+    const bx = Number.isFinite(bounds.x) ? bounds.x : (Number.isFinite(bounds.minX) ? bounds.minX : 0);
+    const by = Number.isFinite(bounds.y) ? bounds.y : (Number.isFinite(bounds.minY) ? bounds.minY : 0);
+    const bw = Number.isFinite(bounds.width) ? bounds.width : (Number.isFinite(bounds.maxX) ? bounds.maxX - bounds.minX : 0);
+    const bh = Number.isFinite(bounds.height) ? bounds.height : (Number.isFinite(bounds.maxY) ? bounds.maxY - bounds.minY : 0);
+
+    if (bw <= 0 || bh <= 0) return;
+
+    // 1. Dashed bounding box outline (1.5px cyan #00e5ff, alpha 0.85)
+    const dashLen = 6;
+    const gapLen = 4;
+    this.drawDashedLine(bx, by, bx + bw, by, dashLen, gapLen);
+    this.drawDashedLine(bx, by + bh, bx + bw, by + bh, dashLen, gapLen);
+    this.drawDashedLine(bx, by, bx, by + bh, dashLen, gapLen);
+    this.drawDashedLine(bx + bw, by, bx + bw, by + bh, dashLen, gapLen);
+
+    // 2. Corner anchor handles (6x6 px filled squares)
+    const handleSize = 6;
+    const half = handleSize / 2;
+    const corners = [
+      { x: bx - half, y: by - half },
+      { x: bx + bw - half, y: by - half },
+      { x: bx - half, y: by + bh - half },
+      { x: bx + bw - half, y: by + bh - half },
+    ];
+
+    for (const c of corners) {
+      this.selectionGraphics
+        .rect(c.x, c.y, handleSize, handleSize)
+        .fill({ color: 0xffffff, alpha: 0.95 })
+        .stroke({ width: 1.5, color: 0x00e5ff, alpha: 1 });
+    }
+
+    // 3. Center pivot marker
+    const pivotPoint = node.container.toGlobal({ x: 0, y: 0 });
+    const px = pivotPoint.x;
+    const py = pivotPoint.y;
+    const pRadius = 4;
+
+    this.selectionGraphics
+      .circle(px, py, pRadius)
+      .fill({ color: 0x00e5ff, alpha: 0.5 })
+      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
+    this.selectionGraphics
+      .moveTo(px - 6, py)
+      .lineTo(px + 6, py)
+      .stroke({ width: 1, color: 0x00e5ff, alpha: 0.8 });
+    this.selectionGraphics
+      .moveTo(px, py - 6)
+      .lineTo(px, py + 6)
+      .stroke({ width: 1, color: 0x00e5ff, alpha: 0.8 });
+  }
+
+  private drawDashedLine(x1: number, y1: number, x2: number, y2: number, dash: number, gap: number): void {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= 0) return;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    let current = 0;
+    while (current < dist) {
+      const startX = x1 + nx * current;
+      const startY = y1 + ny * current;
+      const segLen = Math.min(dash, dist - current);
+      this.selectionGraphics
+        .moveTo(startX, startY)
+        .lineTo(startX + nx * segLen, startY + ny * segLen)
+        .stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.85 });
+      current += dash + gap;
+    }
   }
 
   dispose(): void {

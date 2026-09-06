@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType } from '../engine/types';
+import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType, SceneNodeData } from '../engine/types';
 import { SongRegistry } from '../engine/content/SongRegistry';
 import { WaveformCanvas } from './components/WaveformCanvas';
-import { Zap, Repeat, Volume2, VolumeX, Clock } from 'lucide-react';
+import { Zap, Repeat, Volume2, VolumeX, Clock, Layers } from 'lucide-react';
 
 import { getSnapInterval, snapTimeToGrid, type GridSubdivision } from './utils';
 import {
@@ -317,6 +317,149 @@ const TriggersLane = React.memo(function TriggersLane({
   );
 });
 
+interface VisualObjectsLaneProps {
+  nodes: SceneNodeData[];
+  widthPx: number;
+  activeTool: EditorTool;
+  selectedNodeId?: string | null;
+  songOrigin: number;
+  pixelsPerSecond: number;
+  totalDuration: number;
+  onSelectNode?: (node: SceneNodeData | null) => void;
+  onNodeMove?: (e: React.PointerEvent, node: SceneNodeData) => void;
+  onNodeResize?: (e: React.PointerEvent, node: SceneNodeData) => void;
+}
+
+const VisualObjectsLane = React.memo(function VisualObjectsLane({
+  nodes,
+  widthPx,
+  activeTool,
+  selectedNodeId,
+  songOrigin,
+  pixelsPerSecond,
+  totalDuration,
+  onSelectNode,
+  onNodeMove,
+  onNodeResize,
+}: VisualObjectsLaneProps) {
+  return (
+    <>
+      {/* Visual Objects Section Title Row */}
+      <div className="h-9 border-y border-emerald-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3 flex-shrink-0">
+        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-300">
+          SCENE OBJECTS & LIFESPAN
+        </span>
+        <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
+          {nodes.length} {nodes.length === 1 ? 'object' : 'objects'}
+        </span>
+      </div>
+
+      {/* Visual Objects Track Lane */}
+      <div
+        className="h-28 bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0"
+        style={{ width: widthPx, minWidth: widthPx }}
+      >
+        {nodes.map((node, index) => {
+          const isSelected = selectedNodeId === node.uid || selectedNodeId === node.id || selectedNodeId === node.name;
+          const isFront = node.layerId === 'sceneFront';
+          const layerColor = isFront ? '#00e5ff' : '#00ff9d';
+          const layerLabel = isFront ? 'FRONT' : 'BACK';
+          const zIndexVal = isFront ? 'z:22' : 'z:2';
+
+          const hasLifespan = Boolean(node.lifespan);
+          const startTime = node.lifespan ? node.lifespan.startTime : 0;
+          const duration = node.lifespan ? node.lifespan.duration : totalDuration;
+          const x = (startTime + songOrigin) * pixelsPerSecond;
+          const width = Math.max(54, duration * pixelsPerSecond);
+
+          // Stagger items into 2 visual tiers to prevent visual overlap
+          const topOffset = (index % 2) * 48 + 8;
+
+          return (
+            <div
+              key={node.uid || node.id || node.name || index}
+              data-node-item="true"
+              data-node-id={node.uid || node.id || node.name}
+              className={`absolute h-10 rounded-lg flex items-center z-20 cursor-pointer transition-all ${
+                isSelected
+                  ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
+                  : 'hover:brightness-125'
+              } ${hasLifespan ? '' : 'border-dashed opacity-85'}`}
+              style={{
+                top: `${topOffset}px`,
+                left: x,
+                width,
+                backgroundColor: `${layerColor}1a`,
+                border: `1.5px ${hasLifespan ? 'solid' : 'dashed'} ${layerColor}99`,
+              }}
+              onPointerDown={(e) => {
+                if (hasLifespan && onNodeMove) {
+                  onNodeMove(e, node);
+                } else {
+                  onSelectNode?.(node);
+                }
+              }}
+            >
+              {/* Fade-in visual ramp */}
+              {hasLifespan && (node.lifespan?.fadeInMs ?? 0) > 0 && (
+                <div
+                  className="absolute left-0 top-0 bottom-0 pointer-events-none rounded-l-md overflow-hidden bg-gradient-to-r from-white/25 to-transparent border-r border-white/20"
+                  style={{
+                    width: Math.min(width * 0.45, ((node.lifespan!.fadeInMs! / 1000) * pixelsPerSecond)),
+                  }}
+                />
+              )}
+
+              {/* Fade-out visual ramp */}
+              {hasLifespan && (node.lifespan?.fadeOutMs ?? 0) > 0 && (
+                <div
+                  className="absolute right-0 top-0 bottom-0 pointer-events-none rounded-r-md overflow-hidden bg-gradient-to-l from-white/25 to-transparent border-l border-white/20"
+                  style={{
+                    width: Math.min(width * 0.45, ((node.lifespan!.fadeOutMs! / 1000) * pixelsPerSecond)),
+                  }}
+                />
+              )}
+
+              {/* Layer Badge */}
+              <div
+                className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider ml-2 flex-shrink-0 uppercase"
+                style={{
+                  backgroundColor: `${layerColor}30`,
+                  color: layerColor,
+                  border: `1px solid ${layerColor}60`,
+                }}
+              >
+                {layerLabel}
+              </div>
+
+              {/* Object Details */}
+              <div className="flex flex-col px-2 overflow-hidden flex-1 select-none pointer-events-none">
+                <span className="text-[11px] font-mono font-bold truncate text-white">
+                  {node.name || node.uid || 'SceneObject'}
+                </span>
+                <span className="text-[9px] font-mono text-white/60 truncate">
+                  {node.type} • {zIndexVal} {hasLifespan ? `• ${(node.lifespan!.duration).toFixed(1)}s` : '• all time'}
+                </span>
+              </div>
+
+              {/* Resize Handle */}
+              {hasLifespan && activeTool === 'select' && onNodeResize && (
+                <div
+                  data-node-item="true"
+                  className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                  onPointerDown={(e) => onNodeResize(e, node)}
+                >
+                  <div className="w-1.5 h-6 bg-white/60 rounded-full" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+});
+
 interface TimelineProps {
   level: LevelData;
   currentTime: number;
@@ -330,10 +473,12 @@ interface TimelineProps {
   selectedEventIds?: Set<string>;
   selectedTriggerId?: string | null;
   selectedTriggerIds?: Set<string>;
+  selectedNodeId?: string | null;
   onSelectEvent: (event: PadEvent | null) => void;
   onSelectEvents?: (ids: Set<string>, additive?: boolean) => void;
   onSelectTrigger?: (trigger: TriggerData | null) => void;
   onSelectTriggers?: (ids: Set<string>, additive?: boolean) => void;
+  onSelectNode?: (node: SceneNodeData | null) => void;
   onToggleEventSelection?: (id: string, multi: boolean) => void;
   onToggleTriggerSelection?: (id: string, multi: boolean) => void;
   onSelectEventRange?: (targetId: string) => void;
@@ -346,6 +491,7 @@ interface TimelineProps {
   onUpdateTrigger?: (trigger: TriggerData) => void;
   onUpdateTriggersBatch?: (triggers: TriggerData[]) => void;
   onRemoveTrigger?: (id: string) => void;
+  onUpdateNode?: (id: string, updates: Partial<SceneNodeData>) => void;
   onChangePixelsPerSecond?: (fnOrValue: number | ((prev: number) => number)) => void;
 }
 
@@ -362,10 +508,12 @@ export function Timeline({
   selectedEventIds,
   selectedTriggerId,
   selectedTriggerIds,
+  selectedNodeId,
   onSelectEvent,
   onSelectEvents,
   onSelectTrigger,
   onSelectTriggers,
+  onSelectNode,
   onToggleEventSelection,
   onToggleTriggerSelection,
   onSelectEventRange,
@@ -378,6 +526,7 @@ export function Timeline({
   onUpdateTrigger,
   onUpdateTriggersBatch,
   onRemoveTrigger,
+  onUpdateNode,
   onChangePixelsPerSecond,
 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -411,10 +560,11 @@ export function Timeline({
   }, []);
 
   const [dragState, setDragState] = useState<{
-    targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers';
+    targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers' | 'node';
     mode: 'move' | 'resize';
     event?: PadEvent;
     trigger?: TriggerData;
+    node?: SceneNodeData;
     origEvents?: PadEvent[];
     origTriggers?: TriggerData[];
     startX: number;
@@ -497,6 +647,7 @@ export function Timeline({
   );
 
   const triggers = useMemo(() => level.visual?.triggers || [], [level.visual?.triggers]);
+  const sceneNodes = useMemo(() => level.visual?.nodes || [], [level.visual?.nodes]);
 
   // Precompute events grouped by padId once in O(events) time, avoiding O(pads * events) per render
   const eventsByPad = useMemo(() => {
@@ -673,13 +824,14 @@ export function Timeline({
   const handleCanvasPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest('[data-event-item], [data-trigger-item], [data-ruler]')) return;
+    if (target.closest('[data-event-item], [data-trigger-item], [data-node-item], [data-ruler]')) return;
 
     if (activeTool === 'select') {
       const isAdditive = e.shiftKey || e.ctrlKey || e.metaKey;
       if (!isAdditive) {
         onSelectEvent(null);
         onSelectTrigger?.(null);
+        onSelectNode?.(null);
         onSelectEvents?.(new Set(), false);
         onSelectTriggers?.(new Set(), false);
       }
@@ -698,7 +850,7 @@ export function Timeline({
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       }
     }
-  }, [activeTool, onSelectEvent, onSelectTrigger, onSelectEvents, onSelectTriggers]);
+  }, [activeTool, onSelectEvent, onSelectTrigger, onSelectNode, onSelectEvents, onSelectTriggers]);
 
   const startEventMove = useCallback((e: React.PointerEvent, event: PadEvent) => {
     e.stopPropagation();
@@ -815,6 +967,7 @@ export function Timeline({
     if (activeTool !== 'select') return;
     onSelectTrigger?.(trigger);
     onSelectEvent(null);
+    onSelectNode?.(null);
     setDragState({
       targetType: 'trigger',
       mode: 'resize',
@@ -824,7 +977,44 @@ export function Timeline({
       origDuration: trigger.duration || beatDuration,
     });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, [activeTool, onSelectTrigger, onSelectEvent, beatDuration]);
+  }, [activeTool, onSelectTrigger, onSelectEvent, onSelectNode, beatDuration]);
+
+  const startNodeMove = useCallback((e: React.PointerEvent, node: SceneNodeData) => {
+    e.stopPropagation();
+    onSelectNode?.(node);
+    onSelectEvent(null);
+    onSelectTrigger?.(null);
+
+    if (activeTool === 'select' && node.lifespan) {
+      setDragState({
+        targetType: 'node',
+        mode: 'move',
+        node,
+        startX: e.clientX,
+        origTargetTime: node.lifespan.startTime,
+        origDuration: node.lifespan.duration,
+      });
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+  }, [activeTool, onSelectNode, onSelectEvent, onSelectTrigger]);
+
+  const startNodeResize = useCallback((e: React.PointerEvent, node: SceneNodeData) => {
+    e.stopPropagation();
+    if (activeTool !== 'select' || !node.lifespan) return;
+    onSelectNode?.(node);
+    onSelectEvent(null);
+    onSelectTrigger?.(null);
+
+    setDragState({
+      targetType: 'node',
+      mode: 'resize',
+      node,
+      startX: e.clientX,
+      origTargetTime: node.lifespan.startTime,
+      origDuration: node.lifespan.duration,
+    });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [activeTool, onSelectNode, onSelectEvent, onSelectTrigger]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (marquee && innerCanvasRef.current) {
@@ -913,6 +1103,31 @@ export function Timeline({
         time: Math.max(0, Number((tr.time + validDelta).toFixed(4))),
       }));
       onUpdateTriggersBatch?.(updated);
+    } else if (dragState.targetType === 'node' && dragState.node && dragState.node.lifespan) {
+      if (dragState.mode === 'move') {
+        const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
+        if (snapped !== dragState.node.lifespan.startTime) {
+          onUpdateNode?.(dragState.node.uid, {
+            lifespan: {
+              ...dragState.node.lifespan,
+              startTime: snapped,
+            },
+          });
+        }
+      } else {
+        const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
+        const snapped = interval > 0
+          ? Math.max(interval, Math.round(Math.max(0.1, dragState.origDuration! + deltaTime) / interval) * interval)
+          : Math.max(0.1, dragState.origDuration! + deltaTime);
+        if (snapped !== dragState.node.lifespan.duration) {
+          onUpdateNode?.(dragState.node.uid, {
+            lifespan: {
+              ...dragState.node.lifespan,
+              duration: snapped,
+            },
+          });
+        }
+      }
     }
   }, [
     marquee,
@@ -926,6 +1141,7 @@ export function Timeline({
     onUpdateEventsBatch,
     onUpdateTrigger,
     onUpdateTriggersBatch,
+    onUpdateNode,
   ]);
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -945,6 +1161,13 @@ export function Timeline({
         if (dragState.trigger) {
           onSelectTrigger?.(dragState.trigger);
           onSelectEvent(null);
+          onSelectNode?.(null);
+        }
+      } else if (dragState.targetType === 'node' && Math.abs(e.clientX - dragState.startX) < 3) {
+        if (dragState.node) {
+          onSelectNode?.(dragState.node);
+          onSelectEvent(null);
+          onSelectTrigger?.(null);
         }
       }
       setDragState(null);
@@ -1161,6 +1384,21 @@ export function Timeline({
               <span className="text-xs font-mono font-bold text-white/90 tracking-wide">FX LANE</span>
             </div>
             <span className="text-[10px] text-white/40 font-mono mt-1">Scene & Effects</span>
+          </div>
+
+          {/* Visual Objects Section Header */}
+          <div className="h-9 my-1 flex items-center px-3.5 bg-black/95 border-y border-emerald-500/40 shadow-sm flex-shrink-0">
+            <Layers className="w-4 h-4 text-emerald-400 mr-2 flex-shrink-0" />
+            <span className="text-xs font-mono font-bold text-white/90 tracking-wider">VISUAL OBJECTS</span>
+          </div>
+
+          {/* Visual Objects Track Label */}
+          <div className="h-28 flex flex-col justify-center px-3.5 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="text-xs font-mono font-bold text-white/90 tracking-wide">SCENE ELEMENTS</span>
+            </div>
+            <span className="text-[10px] text-white/40 font-mono mt-1">Back & Front Layers</span>
           </div>
         </div>
       </div>
@@ -1411,6 +1649,20 @@ export function Timeline({
             onTriggerTrackClick={handleTriggerTrackClick}
             onTriggerMove={startTriggerMove}
             onTriggerResize={startTriggerResize}
+          />
+
+          {/* Visual Objects Lane (Scene Nodes Lifespan) */}
+          <VisualObjectsLane
+            nodes={sceneNodes}
+            widthPx={widthPx}
+            activeTool={activeTool}
+            selectedNodeId={selectedNodeId}
+            songOrigin={songOrigin}
+            pixelsPerSecond={pixelsPerSecond}
+            totalDuration={totalDuration}
+            onSelectNode={onSelectNode}
+            onNodeMove={startNodeMove}
+            onNodeResize={startNodeResize}
           />
 
           {/* Marquee Selection Rectangle */}

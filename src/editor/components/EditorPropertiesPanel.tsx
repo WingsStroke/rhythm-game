@@ -717,6 +717,168 @@ export function EditorPropertiesPanel({
             </span>
           </label>
 
+          {/* 3. Scene Layer */}
+          <div className="flex flex-col gap-1 text-white/70">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold">Scene Layer</span>
+              <span className="text-[10px] text-white/40 font-mono">
+                {selectedNode.layerId === 'sceneFront' ? 'Foreground (zIndex 22)' : 'Background (zIndex 2)'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 mt-1">
+              <button
+                type="button"
+                onClick={() => onUpdateNode({ layerId: 'sceneBack' })}
+                className={`px-2 py-1 rounded font-mono uppercase text-[10px] font-semibold border transition-colors cursor-pointer text-center ${
+                  selectedNode.layerId !== 'sceneFront'
+                    ? 'bg-[#00ff9d]/20 text-[#00ff9d] border-[#00ff9d]/50 shadow-[0_0_8px_rgba(0,255,157,0.2)]'
+                    : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                Background
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentOpacity = selectedNode.transform?.opacity ?? 1;
+                  const safeOpacity = Math.min(0.35, currentOpacity);
+                  const safeBlend = (selectedNode.blendMode === 'screen' || selectedNode.blendMode === 'add') ? selectedNode.blendMode : 'add';
+                  onUpdateNode({
+                    layerId: 'sceneFront',
+                    blendMode: safeBlend,
+                    transform: {
+                      ...selectedNode.transform,
+                      opacity: safeOpacity,
+                    },
+                  });
+                }}
+                className={`px-2 py-1 rounded font-mono uppercase text-[10px] font-semibold border transition-colors cursor-pointer text-center ${
+                  selectedNode.layerId === 'sceneFront'
+                    ? 'bg-[#00e5ff]/20 text-[#00e5ff] border-[#00e5ff]/50 shadow-[0_0_8px_rgba(0,229,255,0.2)]'
+                    : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                Foreground
+              </button>
+            </div>
+            {selectedNode.layerId === 'sceneFront' && (
+              <div className="mt-1 p-2 rounded bg-[#00e5ff]/10 border border-[#00e5ff]/20 text-[10px] text-[#00e5ff]/90 leading-tight font-mono">
+                Readability Safeguard: Foreground layer renders above gameplay pads. Opacity is clamped to max 0.35 with Add/Screen blend mode.
+              </div>
+            )}
+          </div>
+
+          {/* 4. Temporal Lifespan */}
+          <div className="flex flex-col gap-2 p-2.5 rounded bg-white/[0.03] border border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="font-semibold text-white/80">Temporal Lifespan</span>
+                <span className="text-[10px] text-white/40">Visible only during active time window</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={Boolean(selectedNode.lifespan)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    onUpdateNode({
+                      lifespan: {
+                        startTime: 0,
+                        duration: 10,
+                        fadeInMs: 500,
+                        fadeOutMs: 500,
+                      },
+                    });
+                  } else {
+                    onUpdateNode({ lifespan: undefined });
+                  }
+                }}
+                className="accent-[#00ff9d] cursor-pointer w-4 h-4"
+              />
+            </div>
+
+            {selectedNode.lifespan && (
+              <div className="flex flex-col gap-2 mt-1 pt-2 border-t border-white/5">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Start Time (s)
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={selectedNode.lifespan.startTime}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          lifespan: {
+                            ...selectedNode.lifespan!,
+                            startTime: Math.max(0, Number(e.target.value)),
+                          },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Duration (s)
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      value={selectedNode.lifespan.duration}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          lifespan: {
+                            ...selectedNode.lifespan!,
+                            duration: Math.max(0.1, Number(e.target.value)),
+                          },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Fade In (ms)
+                    <input
+                      type="number"
+                      step="50"
+                      min="0"
+                      value={selectedNode.lifespan.fadeInMs ?? 0}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          lifespan: {
+                            ...selectedNode.lifespan!,
+                            fadeInMs: Math.max(0, Number(e.target.value)),
+                          },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Fade Out (ms)
+                    <input
+                      type="number"
+                      step="50"
+                      min="0"
+                      value={selectedNode.lifespan.fadeOutMs ?? 0}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          lifespan: {
+                            ...selectedNode.lifespan!,
+                            fadeOutMs: Math.max(0, Number(e.target.value)),
+                          },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Transform */}
           <div className="flex flex-col gap-2">
             <h3 className="text-white/40 uppercase font-mono font-bold text-[10px]">Position (1920x1080 Space)</h3>
@@ -791,13 +953,18 @@ export function EditorPropertiesPanel({
 
           {/* Opacity */}
           <label className="flex flex-col gap-1 text-white/60">
-            Opacity ({((selectedNode.transform?.opacity ?? 1)).toFixed(2)})
+            <div className="flex justify-between items-center">
+              <span>Opacity ({((selectedNode.transform?.opacity ?? 1)).toFixed(2)})</span>
+              {selectedNode.layerId === 'sceneFront' && (
+                <span className="text-[10px] text-[#00e5ff] font-mono font-bold">Max 0.35 (Front Safeguard)</span>
+              )}
+            </div>
             <input
               type="range"
               min="0"
-              max="1"
-              step="0.05"
-              value={selectedNode.transform?.opacity ?? 1}
+              max={selectedNode.layerId === 'sceneFront' ? 0.35 : 1}
+              step="0.01"
+              value={Math.min(selectedNode.layerId === 'sceneFront' ? 0.35 : 1, selectedNode.transform?.opacity ?? 1)}
               onChange={(e) =>
                 onUpdateNode({
                   transform: {
@@ -893,7 +1060,7 @@ export function EditorPropertiesPanel({
             <label className="flex flex-col text-white/60">
               Blend Mode
               <select
-                value={selectedNode.blendMode || 'normal'}
+                value={selectedNode.blendMode || (selectedNode.layerId === 'sceneFront' ? 'add' : 'normal')}
                 onChange={(e) =>
                   onUpdateNode({
                     blendMode: e.target.value as BlendModeType,
@@ -901,10 +1068,10 @@ export function EditorPropertiesPanel({
                 }
                 className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
               >
-                <option value="normal">Normal</option>
+                {selectedNode.layerId !== 'sceneFront' && <option value="normal">Normal</option>}
                 <option value="add">Add (Additive Glow)</option>
                 <option value="screen">Screen (Lighten)</option>
-                <option value="multiply">Multiply (Darken)</option>
+                {selectedNode.layerId !== 'sceneFront' && <option value="multiply">Multiply (Darken)</option>}
               </select>
             </label>
           </div>

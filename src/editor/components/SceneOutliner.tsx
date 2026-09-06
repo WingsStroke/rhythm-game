@@ -200,6 +200,15 @@ export function SceneOutliner({
                       null
                     </span>
                   )}
+                  <span
+                    className={`px-1 py-0.5 rounded font-mono text-[9px] font-bold shrink-0 ${
+                      node.layerId === 'sceneFront'
+                        ? 'bg-[#00e5ff]/20 text-[#00e5ff] border border-[#00e5ff]/40'
+                        : 'bg-[#00ff9d]/15 text-[#00ff9d] border border-[#00ff9d]/30'
+                    }`}
+                  >
+                    {node.layerId === 'sceneFront' ? 'FRONT' : 'BACK'}
+                  </span>
                   {node.type !== 'group' && (
                     <div
                       className="w-2 h-2 rounded-full flex-shrink-0 ml-auto"

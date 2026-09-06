@@ -346,6 +346,26 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
   }, [selectedNodeId, setLevel]);
 
+  const handleUpdateNodeById = useCallback((id: string, updates: Partial<SceneNodeData>) => {
+    setLevel((prev) => {
+      const currentNodes = prev.visual?.nodes || [];
+      const idx = currentNodes.findIndex(
+        (n) => (n.uid && n.uid === id) || n.id === id || n.name === id
+      );
+      if (idx === -1) return prev;
+      const updated = { ...currentNodes[idx], ...updates } as SceneNodeData;
+      const newNodes = [...currentNodes];
+      newNodes[idx] = updated;
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          nodes: newNodes,
+        },
+      };
+    });
+  }, [setLevel]);
+
   const handleRemoveNode = useCallback((id: string) => {
     setLevel((prev) => ({
       ...prev,
@@ -404,6 +424,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     creationBehavior,
     gridSubdivision,
     selectedTriggerId,
+    selectedNodeId,
     onSelectNode: (id) => selectNode(id),
     onRecordEvent: handleAddEvent,
   });
@@ -819,10 +840,12 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 selectedEventIds={selectedEventIds}
                 selectedTriggerId={selectedTriggerId}
                 selectedTriggerIds={selectedTriggerIds}
+                selectedNodeId={selectedNodeId}
                 onSelectEvent={(evt) => selectEvent(evt?.id || null)}
                 onSelectEvents={selectEventsBatch}
                 onSelectTrigger={(trig) => selectTrigger(trig?.id || null)}
                 onSelectTriggers={selectTriggersBatch}
+                onSelectNode={(node) => selectNode(node?.uid || null)}
                 onToggleEventSelection={toggleEventSelection}
                 onToggleTriggerSelection={toggleTriggerSelection}
                 onSelectEventRange={selectEventRange}
@@ -835,6 +858,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 onUpdateTrigger={handleUpdateTrigger}
                 onUpdateTriggersBatch={handleUpdateTriggersBatch}
                 onRemoveTrigger={handleRemoveTrigger}
+                onUpdateNode={handleUpdateNodeById}
                 onChangePixelsPerSecond={setPixelsPerSecond}
               />
             </div>

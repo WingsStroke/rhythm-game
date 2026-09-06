@@ -7,11 +7,13 @@ import type { LevelData, SceneNodeData } from '../types';
  */
 export class SceneGraph {
   public root: Container;
+  public foregroundRoot?: Container;
   public onNodeSelect?: (nodeId: string) => void;
   private nodes: Map<string, SceneNode> = new Map();
 
-  constructor(container: Container) {
+  constructor(container: Container, foregroundContainer?: Container) {
     this.root = container;
+    this.foregroundRoot = foregroundContainer;
   }
 
   /**
@@ -37,16 +39,21 @@ export class SceneGraph {
     for (const nodeData of nodesData) {
       const node = this.getNode(nodeData.uid);
       if (node) {
+        const targetRoot =
+          this.foregroundRoot && nodeData.layerId === 'sceneFront'
+            ? this.foregroundRoot
+            : this.root;
+
         if (nodeData.parentId) {
           const parent = this.getNode(nodeData.parentId);
           if (parent) {
             parent.container.addChild(node.container);
           } else {
             console.warn(`Parent node ${nodeData.parentId} not found for node ${node.uid}`);
-            this.root.addChild(node.container);
+            targetRoot.addChild(node.container);
           }
         } else {
-          this.root.addChild(node.container);
+          targetRoot.addChild(node.container);
         }
       }
     }
@@ -55,9 +62,9 @@ export class SceneGraph {
   public getNode(key: string): SceneNode | undefined {
     // 1. Direct O(1) lookup by internal uid
     if (this.nodes.has(key)) return this.nodes.get(key);
-    // 2. Fallback lookup by human-readable name
+    // 2. Fallback lookup by human-readable name or legacy id
     for (const node of this.nodes.values()) {
-      if (node.uid === key || node.name === key) {
+      if (node.uid === key || node.name === key || (node.id !== null && String(node.id) === String(key))) {
         return node;
       }
     }
@@ -100,15 +107,20 @@ export class SceneGraph {
     });
     this.nodes.set(node.uid, node);
     
+    const targetRoot =
+      this.foregroundRoot && nodeData.layerId === 'sceneFront'
+        ? this.foregroundRoot
+        : this.root;
+
     if (nodeData.parentId) {
       const parent = this.getNode(nodeData.parentId);
       if (parent) {
         parent.container.addChild(node.container);
       } else {
-        this.root.addChild(node.container);
+        targetRoot.addChild(node.container);
       }
     } else {
-      this.root.addChild(node.container);
+      targetRoot.addChild(node.container);
     }
   }
 

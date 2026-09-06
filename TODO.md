@@ -195,7 +195,37 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
 
 ---
 
-## 5. Pipeline de Contenido y Empaquetado Avanzado
+## 5. Fase 6B — Consolidacion de Autoria Visual (Beta del Editor)
+
+- [x] **[P0] Fase 6B.1 — Nucleo de Autoria Visual y Bounding Box (Completado)**
+  - [x] **Overlay Indicador (Bounding Box) en Canvas:**
+    - [x] Contenedor de herramientas `editorOverlayContainer` (zIndex 99) desacoplado del runtime del juego.
+    - [x] Caja delimitadora con linea discontinua cian `#00e5ff` adaptada al bounding box global del nodo seleccionado.
+    - [x] Cuatro anclas en esquinas (`corner anchors`) y punto pivote central para referencia espacial.
+    - [x] Actualizacion por frame y sincronizacion bidireccional via `setSelectedNode(nodeId)`.
+  - [x] **Modelo de Capas Escenicas y Salvaguarda de Legibilidad:**
+    - [x] Sistema de 2 capas escenicas fijas: `sceneBackgroundLayer` (zIndex 2) y `sceneForegroundLayer` (zIndex 22).
+    - [x] Salvaguarda de legibilidad en `LevelValidator`: restriccion forzada de opacidad (`alpha <= 0.35`) y blendMode (`add` o `screen`) para elementos en primer plano (`sceneFront`).
+  - [x] **Vida Util Temporal (`SceneNodeLifespan`):**
+    - [x] Extension del esquema de `SceneNodeData` con `lifespan` (`startTime`, `duration`, `fadeInMs`, `fadeOutMs`).
+    - [x] Evaluacion y modulacion de opacidad/visibilidad temporal en cada frame en `VisualEngine`.
+  - [x] **Pista de Timeline para Objetos Visuales:**
+    - [x] Carril dedicado `SCENE OBJECTS & LIFESPAN` en `Timeline.tsx` con bloques horizontales de duracion.
+    - [x] Insignias de capa (`BACK` verde esmeralda / `FRONT` cian) y rampas visuales de fade in/out.
+    - [x] Arrastre interactivo en la linea de tiempo: mover tiempo de inicio (`startTime`) y redimensionar duracion (`duration`).
+  - [x] **Inspector de Propiedades y Outliner:**
+    - [x] Selector de capa (`Background` / `Foreground`) y toggle/campos numericos de lifespan en `EditorPropertiesPanel`.
+    - [x] Limitacion interactiva de opacidad a 0.35 y filtrado de modos de fusion en modo primer plano.
+    - [x] Insignias de capa integradas en la lista del `SceneOutliner`.
+
+- [ ] **[P1] Fase 6B.2 — Transformacion Interactiva y Modulacion Dinamica**
+  - [ ] Arrastre interactivo en canvas (`Gizmo / Transform Handles`): mover por posicion X/Y arrastrando la caja, escalar desde las esquinas y rotar con handle superior.
+  - [ ] Snapping opcional a la cuadricula espacial (e.g. 16px, 32px, centros de pantalla).
+  - [ ] Multi-seleccion de nodos escenicos en outliner y canvas con caja delimitadora combinada.
+
+---
+
+## 6. Pipeline de Contenido y Empaquetado Avanzado
 
 - [ ] **[P1] Formato de Archivo Unificado .rhythm / .zip**
   - Empaquetador que comprima: `level.json` + `audio.mp3` + `cover.png` + `background.png` en un solo archivo descargable y cargable con drag & drop directo en la ventana del navegador.
@@ -205,7 +235,7 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
 
 ---
 
-## 6. Fase 7 — Infraestructura Online y Backend (Hacia la Primera Beta)
+## 7. Fase 7 — Infraestructura Online y Backend (Hacia la Primera Beta)
 
 - [ ] **[P1] Base de Datos y Autenticacion con Supabase**
   - Inicio de sesion con correo o proveedores OAuth (Discord / Google).
@@ -220,7 +250,7 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
 
 ---
 
-## 7. Fase 8 — Multijugador, Repeticiones y Comunidad
+## 8. Fase 8 — Multijugador, Repeticiones y Comunidad
 
 - [ ] **[P1] Sistema de Repeticiones (Replay System)**
   - Grabar la lista de entradas del jugador (`time`, `padId`, `action`) durante una partida.
@@ -237,7 +267,7 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
 
 ---
 
-## 8. Banco de Ideas Creativas (Equipo y Antigravity)
+## 9. Banco de Ideas Creativas (Equipo y Antigravity)
 
 Ideas y conceptos complementarios para evaluar durante el desarrollo:
 
@@ -254,7 +284,7 @@ Ideas y conceptos complementarios para evaluar durante el desarrollo:
 
 ---
 
-## 9. Registro de Decisiones de Diseno Vigentes
+## 10. Registro de Decisiones de Diseno Vigentes
 
 1. **Idioma de la Experiencia (Language Standard):**
    - Frontend del usuario (menus, botones, HUD, modales, alertas): **100% Ingles nativo**.
@@ -272,7 +302,7 @@ Ideas y conceptos complementarios para evaluar durante el desarrollo:
    - Cada conjunto de cambios funcionales debe confirmarse en git inmediatamente tras verificar `npx tsc -b`.
    - `git push` y `npm run dev` nunca deben ejecutarse mediante agentes automatizados; son controlados por el propietario del repositorio.
 
-## 10. Visualizadores de Espectro de Audio (Audio Spectrum & Decorative Vectors)
+## 11. Visualizadores de Espectro de Audio (Audio Spectrum & Decorative Vectors)
 - [ ] **Procesamiento y Balística Espectral:**
   - [ ] Agrupar datos FFT del `AnalyserNode` en bandas logarítmicas (32, 48 o 64 bandas) cubriendo sub-graves, medios y agudos en escala musical.
   - [ ] Integrar balística asimétrica (attack instantáneo con decay exponencial suave) para evitar parpadeo errático en pantalla.

@@ -23,6 +23,7 @@ interface UseEditorEngineOptions {
   creationBehavior: PadBehavior;
   gridSubdivision: GridSubdivision;
   selectedTriggerId?: string | null;
+  selectedNodeId?: string | null;
   customKeybindings?: KeybindingMap;
   onSelectNode?: (nodeId: string | null) => void;
   onRecordEvent?: (event: PadEvent) => void;
@@ -34,6 +35,7 @@ export function useEditorEngine({
   creationBehavior,
   gridSubdivision,
   selectedTriggerId,
+  selectedNodeId,
   customKeybindings,
   onSelectNode,
   onRecordEvent,
@@ -222,6 +224,7 @@ export function useEditorEngine({
 
       ve.init().then(() => {
         visualRef.current = ve;
+        ve.setSelectedNode(selectedNodeId ?? null);
         if (activeTab === 'preview' || isRecording) {
           inputRef.current?.attach();
         }
@@ -235,6 +238,11 @@ export function useEditorEngine({
     // structural dependency that must reinitialize the engine.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // Synchronize selection overlay with active selectedNodeId
+  useEffect(() => {
+    visualRef.current?.setSelectedNode(selectedNodeId ?? null);
+  }, [selectedNodeId]);
 
   // Attach input listener in preview mode OR when recording is active in timeline mode
   useEffect(() => {

@@ -1,4 +1,4 @@
-import type { LevelData, PadConfig, PadEvent, SceneNodeData, TimingWindows } from '../types';
+import type { LevelData, PadConfig, PadEvent, SceneNodeData, SceneNodeLifespan, TimingWindows } from '../types';
 
 export interface ValidationResult {
   valid: boolean;
@@ -246,11 +246,53 @@ export class LevelValidator {
           .sort((a, b) => a.targetTime - b.targetTime)
       : [];
 
-    // Clean visual nodes ensuring immutable uid
+    // Clean visual nodes ensuring immutable uid, layerId, and optional lifespan
     const rawNodes = Array.isArray(visualRaw.nodes) ? visualRaw.nodes : [];
     const nodes: SceneNodeData[] = rawNodes.map((n, idx) => {
       const node = n as Record<string, unknown>;
       const uid = String(node.uid || node.id || `node_${idx}_${Date.now()}`);
+
+      // Sanitize layerId ('sceneBack' | 'sceneFront')
+      const rawLayerId = node.layerId;
+      const layerId: 'sceneBack' | 'sceneFront' =
+        rawLayerId === 'sceneFront' ? 'sceneFront' : 'sceneBack';
+
+      // Sanitize transform and blendMode with readability safeguard for sceneFront
+      const rawTransform = (node.transform as SceneNodeData['transform']) || { x: 960, y: 540 };
+      const transform = { ...rawTransform };
+      let blendMode: SceneNodeData['blendMode'] =
+        (node.blendMode as SceneNodeData['blendMode']) || 'normal';
+
+      if (layerId === 'sceneFront') {
+        // Enforce readability safeguard:
+        // 1. Cap opacity to max 0.35 so gameplay elements behind are fully legible
+        if (typeof transform.opacity === 'number') {
+          transform.opacity = Math.min(0.35, Math.max(0, transform.opacity));
+        } else {
+          transform.opacity = 0.35;
+        }
+        // 2. Restrict blendMode to additive/screen modes
+        if (blendMode !== 'add' && blendMode !== 'screen') {
+          blendMode = 'add';
+        }
+      }
+
+      // Sanitize optional lifespan: startTime >= 0, duration > 0, fadeInMs, fadeOutMs
+      let lifespan: SceneNodeLifespan | undefined;
+      if (node.lifespan && typeof node.lifespan === 'object') {
+        const ls = node.lifespan as Record<string, unknown>;
+        const startTime = Math.max(0, Number(ls.startTime) || 0);
+        const duration = Math.max(0.01, Number(ls.duration) || 1);
+        const fadeInMs = ls.fadeInMs !== undefined ? Math.max(0, Number(ls.fadeInMs) || 0) : undefined;
+        const fadeOutMs = ls.fadeOutMs !== undefined ? Math.max(0, Number(ls.fadeOutMs) || 0) : undefined;
+        lifespan = {
+          startTime,
+          duration,
+          fadeInMs,
+          fadeOutMs,
+        };
+      }
+
       return {
         uid,
         name: typeof node.name === 'string' ? node.name : `node-${idx + 1}`,
@@ -263,9 +305,11 @@ export class LevelValidator {
         id: typeof node.id === 'number' ? node.id : null,
         type: String(node.type || 'rectangle'),
         parentId: node.parentId ? String(node.parentId) : undefined,
-        blendMode: (node.blendMode as SceneNodeData['blendMode']) || 'normal',
+        blendMode,
         visible: node.visible !== false,
-        transform: (node.transform as SceneNodeData['transform']) || { x: 960, y: 540 },
+        layerId,
+        lifespan,
+        transform,
         properties: (node.properties as Record<string, unknown>) || {},
       };
     });
