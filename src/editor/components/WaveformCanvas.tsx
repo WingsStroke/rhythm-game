@@ -1,24 +1,91 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { extractWaveformPeaks } from '../utils/waveform';
 
 interface WaveformCanvasProps {
   audioBuffer?: AudioBuffer | null;
-  widthPx: number;
+  scrollContainerRef?: React.RefObject<HTMLDivElement>;
+  totalWidth?: number;
+  widthPx?: number;
   height: number;
   pixelsPerSecond: number;
   currentTime: number;
   bpm: number;
 }
 
+/**
+ * Virtualized / Windowed Waveform Canvas.
+ *
+ * Rather than creating a giant canvas spanning the entire song (which crashes when
+ * totalWidth > 32,767px under high zoom or long audio files), this component renders
+ * only the visible viewport slice (+ safe overscan margin) dynamically positioned
+ * at container scrollLeft.
+ */
 export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
   audioBuffer,
+  scrollContainerRef,
+  totalWidth,
   widthPx,
   height,
   pixelsPerSecond,
   currentTime,
   bpm,
 }) => {
+  const fullWidth = totalWidth ?? widthPx ?? 1200;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [scrollState, setScrollState] = useState<{ scrollLeft: number; clientWidth: number }>({
+    scrollLeft: 0,
+    clientWidth: typeof window !== 'undefined' ? window.innerWidth : 1920,
+  });
+
+  // Track horizontal scroll and container resize to adjust the virtualized render window
+  useEffect(() => {
+    const container = scrollContainerRef?.current;
+    if (!container) return;
+
+    let rafId: number | null = null;
+
+    const updateScroll = () => {
+      const newScroll = container.scrollLeft;
+      const newWidth = container.clientWidth;
+      setScrollState((prev) => {
+        if (Math.abs(prev.scrollLeft - newScroll) < 1 && prev.clientWidth === newWidth) {
+          return prev;
+        }
+        return { scrollLeft: newScroll, clientWidth: newWidth };
+      });
+    };
+
+    const onScrollOrResize = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateScroll();
+      });
+    };
+
+    updateScroll();
+
+    container.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize);
+
+    const resizeObserver = new ResizeObserver(onScrollOrResize);
+    resizeObserver.observe(container);
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      container.removeEventListener('scroll', onScrollOrResize);
+      window.removeEventListener('resize', onScrollOrResize);
+      resizeObserver.disconnect();
+    };
+  }, [scrollContainerRef]);
+
+  const viewportWidth = scrollState.clientWidth > 0 ? scrollState.clientWidth : 1920;
+  const overscan = 800; // Pre-render 800px on each side so rapid scrolling never flashes
+  const visibleWidth = Math.min(fullWidth, viewportWidth + overscan * 2);
+  const renderLeft = Math.max(
+    0,
+    Math.min(Math.max(0, fullWidth - visibleWidth), scrollState.scrollLeft - overscan)
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,51 +95,59 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = widthPx * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
+    const targetWidth = Math.round(visibleWidth * dpr);
+    const targetHeight = Math.round(height * dpr);
 
-    ctx.clearRect(0, 0, widthPx, height);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, visibleWidth, height);
 
     const centerY = height / 2;
     const currentPx = currentTime * pixelsPerSecond;
 
-    // Draw Center Baseline
+    // Draw Center Baseline across the rendered slice
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, centerY);
-    ctx.lineTo(widthPx, centerY);
+    ctx.lineTo(visibleWidth, centerY);
     ctx.stroke();
 
     if (audioBuffer) {
-      // Real AudioBuffer waveform rendering
+      // Real AudioBuffer waveform rendering for the visible window
       const { peaks } = extractWaveformPeaks(audioBuffer, pixelsPerSecond);
-      const len = Math.min(widthPx, peaks.length);
+      const startX = Math.floor(renderLeft);
+      const endX = Math.min(peaks.length, Math.ceil(renderLeft + visibleWidth));
 
-      for (let x = 0; x < len; x++) {
-        const amp = peaks[x];
+      for (let worldPx = startX; worldPx < endX; worldPx++) {
+        const amp = peaks[worldPx];
         if (amp <= 0.005) continue;
 
         const barHeight = Math.max(2, amp * (height * 0.88));
         const yTop = centerY - barHeight / 2;
+        const xOnCanvas = worldPx - renderLeft;
 
-        const isPast = x <= currentPx;
+        const isPast = worldPx <= currentPx;
         if (isPast) {
           ctx.fillStyle = amp > 0.6 ? '#ff2d6f' : '#00e5ff';
         } else {
           ctx.fillStyle = amp > 0.6 ? 'rgba(255, 45, 111, 0.45)' : 'rgba(0, 229, 255, 0.45)';
         }
 
-        ctx.fillRect(x, yTop, 1, barHeight);
+        ctx.fillRect(xOnCanvas, yTop, 1, barHeight);
       }
     } else {
       // Procedural synthetic waveform envelope when in Zero-Asset mode
       const beatLen = 60 / bpm;
+      const startX = Math.floor(renderLeft);
+      const endX = Math.min(fullWidth, Math.ceil(renderLeft + visibleWidth));
 
-      ctx.fillStyle = 'rgba(0, 229, 255, 0.35)';
-      for (let x = 0; x < widthPx; x++) {
-        const t = x / pixelsPerSecond;
+      for (let worldPx = startX; worldPx < endX; worldPx++) {
+        const t = worldPx / pixelsPerSecond;
         const inBeat = (t % beatLen) / beatLen; // 0..1 in current beat
         const barIndex = Math.floor(t / (beatLen * 4));
         const beatIndex = Math.floor((t % (beatLen * 4)) / beatLen);
@@ -88,19 +163,35 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
 
         const barHeight = Math.max(2, transient * (height * 0.8));
         const yTop = centerY - barHeight / 2;
-        const isPast = x <= currentPx;
+        const xOnCanvas = worldPx - renderLeft;
+        const isPast = worldPx <= currentPx;
 
         ctx.fillStyle = isPast ? 'rgba(0, 229, 255, 0.7)' : 'rgba(0, 229, 255, 0.25)';
-        ctx.fillRect(x, yTop, 1, barHeight);
+        ctx.fillRect(xOnCanvas, yTop, 1, barHeight);
       }
     }
-  }, [audioBuffer, widthPx, height, pixelsPerSecond, currentTime, bpm]);
+  }, [
+    audioBuffer,
+    visibleWidth,
+    renderLeft,
+    fullWidth,
+    height,
+    pixelsPerSecond,
+    currentTime,
+    bpm,
+  ]);
 
   return (
     <canvas
       ref={canvasRef}
-      style={{ width: widthPx, height }}
-      className="absolute top-0 left-0 pointer-events-none"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: renderLeft,
+        width: visibleWidth,
+        height,
+      }}
+      className="pointer-events-none"
     />
   );
 };

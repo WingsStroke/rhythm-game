@@ -523,7 +523,8 @@ export function Timeline({
           >
             <WaveformCanvas
               audioBuffer={audioBuffer}
-              widthPx={widthPx}
+              scrollContainerRef={containerRef}
+              totalWidth={widthPx}
               height={48}
               pixelsPerSecond={pixelsPerSecond}
               currentTime={currentTime}
