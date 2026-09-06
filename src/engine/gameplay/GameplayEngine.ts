@@ -119,9 +119,13 @@ export class GameplayEngine {
     const missWindow = this.windows.miss;
     const queueLeadTime = 0.5; // seconds before targetTime to enter 'queued' state
 
-    // Pre-cue upcoming events
+    // Pre-cue upcoming events (this.pending is sorted ascending by targetTime)
     for (const evt of this.pending) {
-      if (evt.targetTime - time <= queueLeadTime && evt.targetTime - time > 0) {
+      const timeToEvent = evt.targetTime - time;
+      if (timeToEvent > queueLeadTime) {
+        break;
+      }
+      if (timeToEvent > 0) {
         const current = this.padStates.get(evt.padId);
         if (current === 'ready') {
           this.emitPadStateChange(evt.padId, 'ready', 'queued');

@@ -8,7 +8,7 @@ interface WaveformCanvasProps {
   widthPx?: number;
   height: number;
   pixelsPerSecond: number;
-  currentTime: number;
+  currentTime?: number;
   bpm: number;
   offset?: number;
   leadIn?: number;
@@ -113,7 +113,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     ctx.clearRect(0, 0, visibleWidth, height);
 
     const centerY = height / 2;
-    const currentPx = currentTime * pixelsPerSecond;
+    const currentPx = currentTime !== undefined ? currentTime * pixelsPerSecond : -1;
 
     // Draw Center Baseline across the rendered slice
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
@@ -139,11 +139,11 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         const yTop = centerY - barHeight / 2;
         const xOnCanvas = worldPx - renderLeft;
 
-        const isPast = worldPx <= currentPx;
+        const isPast = currentTime !== undefined && worldPx <= currentPx;
         if (isPast) {
           ctx.fillStyle = amp > 0.6 ? 'rgba(255, 45, 111, 0.28)' : 'rgba(0, 229, 255, 0.18)';
         } else {
-          ctx.fillStyle = amp > 0.6 ? 'rgba(255, 45, 111, 0.10)' : 'rgba(0, 229, 255, 0.06)';
+          ctx.fillStyle = amp > 0.6 ? 'rgba(255, 45, 111, 0.20)' : 'rgba(0, 229, 255, 0.12)';
         }
 
         ctx.fillRect(xOnCanvas, yTop, 1, barHeight);
@@ -177,9 +177,9 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         const barHeight = Math.max(2, transient * (height * 0.85));
         const yTop = centerY - barHeight / 2;
         const xOnCanvas = worldPx - renderLeft;
-        const isPast = worldPx <= currentPx;
+        const isPast = currentTime !== undefined && worldPx <= currentPx;
 
-        ctx.fillStyle = isPast ? 'rgba(0, 229, 255, 0.16)' : 'rgba(0, 229, 255, 0.05)';
+        ctx.fillStyle = isPast ? 'rgba(0, 229, 255, 0.18)' : 'rgba(0, 229, 255, 0.12)';
         ctx.fillRect(xOnCanvas, yTop, 1, barHeight);
       }
     }

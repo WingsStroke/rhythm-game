@@ -22,6 +22,7 @@ export interface ActiveNote {
 export class NotePool {
   private container: Container;
   private pool: PooledNote[] = [];
+  private freeList: PooledNote[] = [];
   private eventMap: Map<PadEvent, PooledNote> = new Map();
 
   constructor(container: Container, capacity = 150) {
@@ -40,22 +41,25 @@ export class NotePool {
       gfx.visible = false;
       this.container.addChild(gfx);
 
-      this.pool.push({
+      const item: PooledNote = {
         gfx,
         active: false,
         event: null,
-      });
+      };
+      this.pool.push(item);
+      this.freeList.push(item);
     }
   }
 
   /**
    * Borrows a note from the pool for a given PadEvent and sets its tint.
+   * O(1) operation using the pre-allocated freeList stack.
    */
   public acquire(event: PadEvent, color: number): PooledNote | null {
     const existing = this.eventMap.get(event);
     if (existing) return existing;
 
-    let item = this.pool.find((n) => !n.active);
+    let item = this.freeList.pop();
 
     // Expand pool capacity if high-density stream exceeds initial estimate
     if (!item) {
@@ -87,6 +91,7 @@ export class NotePool {
 
   /**
    * Releases a note associated with an event back to the pool.
+   * O(1) operation returning the note to the freeList stack.
    */
   public release(event: PadEvent): void {
     const item = this.eventMap.get(event);
@@ -96,6 +101,7 @@ export class NotePool {
     item.event = null;
     item.gfx.visible = false;
     this.eventMap.delete(event);
+    this.freeList.push(item);
   }
 
   /**
@@ -121,6 +127,7 @@ export class NotePool {
       item.gfx.visible = false;
     }
     this.eventMap.clear();
+    this.freeList = [...this.pool];
   }
 
   /**
@@ -136,6 +143,7 @@ export class NotePool {
       }
     }
     this.pool = [];
+    this.freeList = [];
     this.eventMap.clear();
   }
 }

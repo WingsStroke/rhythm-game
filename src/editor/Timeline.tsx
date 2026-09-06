@@ -1,13 +1,303 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import type { LevelData, PadId, PadEvent, PadBehavior, TriggerData, TriggerActionType } from '../engine/types';
+import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType } from '../engine/types';
 import { SongRegistry } from '../engine/content/SongRegistry';
 import { WaveformCanvas } from './components/WaveformCanvas';
-import { Zap, Repeat, Clock, Volume2, VolumeX } from 'lucide-react';
+import { Zap, Repeat, Volume2, VolumeX, Clock } from 'lucide-react';
 
 import { getSnapInterval, snapTimeToGrid, type GridSubdivision } from './utils';
 
 export type { GridSubdivision };
 export type EditorTool = 'select' | 'pen' | 'eraser';
+
+function getTriggerColor(action: TriggerActionType): string {
+  switch (action) {
+    case 'transform': return '#00e5ff';
+    case 'color': return '#ff007f';
+    case 'pulse': return '#ffea00';
+    default: return '#00ff9d';
+  }
+}
+
+interface PlayheadProps {
+  currentTime: number;
+  pixelsPerSecond: number;
+}
+
+const Playhead = React.memo(function Playhead({ currentTime, pixelsPerSecond }: PlayheadProps) {
+  return (
+    <div
+      className="absolute top-0 bottom-0 w-px bg-red-500 z-40 pointer-events-none"
+      style={{ left: currentTime * pixelsPerSecond }}
+    >
+      <div className="w-4 h-4 bg-red-500 rotate-45 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_#ff0000]" />
+    </div>
+  );
+});
+
+interface PadTracksLaneProps {
+  pads: PadConfig[];
+  eventsByPad: Map<string, PadEvent[]>;
+  widthPx: number;
+  activeTool: EditorTool;
+  effectiveEventIds: Set<string>;
+  songOrigin: number;
+  pixelsPerSecond: number;
+  beatDuration: number;
+  onTrackClick: (e: React.MouseEvent, padId: PadId) => void;
+  onEventMove: (e: React.PointerEvent, event: PadEvent) => void;
+  onEventResize: (e: React.PointerEvent, event: PadEvent) => void;
+}
+
+const PadTracksLane = React.memo(function PadTracksLane({
+  pads,
+  eventsByPad,
+  widthPx,
+  activeTool,
+  effectiveEventIds,
+  songOrigin,
+  pixelsPerSecond,
+  beatDuration,
+  onTrackClick,
+  onEventMove,
+  onEventResize,
+}: PadTracksLaneProps) {
+  return (
+    <>
+      {pads.map((pad) => {
+        const trackEvents = eventsByPad.get(pad.id) || [];
+        return (
+          <div
+            key={pad.id}
+            className={`flex-1 min-h-[68px] bg-white/[0.025] border-y border-white/10 relative transition-colors ${
+              activeTool === 'pen' ? 'hover:bg-white/[0.06] cursor-crosshair' : ''
+            }`}
+            style={{ width: widthPx, minWidth: widthPx }}
+            onClick={(e) => onTrackClick(e, pad.id)}
+          >
+            {trackEvents.map((event) => {
+              const isSelected = effectiveEventIds.has(event.id);
+              const x = (event.targetTime + songOrigin) * pixelsPerSecond;
+              const width = Math.max(16, (event.duration ?? beatDuration) * pixelsPerSecond);
+
+              if (event.behavior === 'tap') {
+                return (
+                  <div
+                    key={event.id}
+                    data-event-item="true"
+                    data-event-id={event.id}
+                    className={`absolute top-1/2 -translate-y-1/2 w-5 h-12 rounded-lg transition-all z-20 cursor-grab active:cursor-grabbing ${
+                      isSelected
+                        ? 'ring-2 ring-white scale-105 shadow-[0_0_20px_#ffffff]'
+                        : 'hover:brightness-125 hover:scale-102'
+                    }`}
+                    style={{
+                      left: Math.max(0, x - 10),
+                      backgroundColor: pad.color,
+                      boxShadow: `0 0 14px ${pad.color}90`,
+                    }}
+                    onPointerDown={(e) => onEventMove(e, event)}
+                  >
+                    <div className="w-full h-full border border-white/30 rounded-lg flex items-center justify-center">
+                      <div className="w-1.5 h-6 rounded-full bg-white/70" />
+                    </div>
+                  </div>
+                );
+              }
+              if (event.behavior === 'hold') {
+                return (
+                  <div
+                    key={event.id}
+                    data-event-item="true"
+                    data-event-id={event.id}
+                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center border z-20 cursor-grab active:cursor-grabbing transition-all ${
+                      isSelected
+                        ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffffff]'
+                        : 'border-white/30 hover:brightness-110'
+                    }`}
+                    style={{
+                      left: x,
+                      width,
+                      backgroundColor: `${pad.color}40`,
+                      borderLeft: `5px solid ${pad.color}`,
+                    }}
+                    onPointerDown={(e) => onEventMove(e, event)}
+                  >
+                    <span className="text-[11px] font-mono font-bold text-white/90 px-2 truncate flex-1 pointer-events-none">
+                      HOLD ({(event.duration || 0).toFixed(2)}s)
+                    </span>
+                    {activeTool === 'select' && (
+                      <div
+                        data-event-item="true"
+                        className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                        onPointerDown={(e) => onEventResize(e, event)}
+                      >
+                        <div className="w-1.5 h-6 bg-white/70 rounded-full pointer-events-none" />
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              if (event.behavior === 'loop') {
+                return (
+                  <div
+                    key={event.id}
+                    data-event-item="true"
+                    data-event-id={event.id}
+                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center border border-dashed z-20 cursor-grab active:cursor-grabbing transition-all ${
+                      isSelected
+                        ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffffff]'
+                        : 'border-white/40 hover:brightness-110'
+                    }`}
+                    style={{
+                      left: x,
+                      width,
+                      backgroundColor: `${pad.color}30`,
+                      borderLeft: `5px solid ${pad.color}`,
+                    }}
+                    onPointerDown={(e) => onEventMove(e, event)}
+                  >
+                    <div className="pl-1.5 flex items-center pointer-events-none">
+                      <Repeat className="w-3 h-3 text-white" />
+                    </div>
+                    <span className="text-[11px] font-mono font-bold text-white/90 px-2 truncate flex-1 pointer-events-none">
+                      LOOP ({(event.duration || 0).toFixed(2)}s)
+                    </span>
+                    {activeTool === 'select' && (
+                      <div
+                        data-event-item="true"
+                        className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                        onPointerDown={(e) => onEventResize(e, event)}
+                      >
+                        <div className="w-1.5 h-6 bg-white/70 rounded-full pointer-events-none" />
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              if (event.behavior === 'trigger') {
+                return (
+                  <div
+                    key={event.id}
+                    data-event-item="true"
+                    data-event-id={event.id}
+                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center gap-1.5 px-2.5 border-2 z-20 cursor-grab active:cursor-grabbing transition-all ${
+                      isSelected
+                        ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffea00]'
+                        : 'border-yellow-400/80 bg-yellow-500/25 hover:scale-105'
+                    }`}
+                    style={{ left: x }}
+                    onPointerDown={(e) => onEventMove(e, event)}
+                  >
+                    <Zap className="w-3.5 h-3.5 -rotate-45 text-yellow-300 font-bold pointer-events-none" />
+                    <span className="text-[11px] font-mono font-bold text-yellow-300 pointer-events-none">
+                      {event.triggerId}
+                    </span>
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+        );
+      })}
+    </>
+  );
+});
+
+interface TriggersLaneProps {
+  triggers: TriggerData[];
+  widthPx: number;
+  activeTool: EditorTool;
+  effectiveTriggerIds: Set<string>;
+  songOrigin: number;
+  pixelsPerSecond: number;
+  onTriggerTrackClick: (e: React.MouseEvent) => void;
+  onTriggerMove: (e: React.PointerEvent, trigger: TriggerData) => void;
+  onTriggerResize: (e: React.PointerEvent, trigger: TriggerData) => void;
+}
+
+const TriggersLane = React.memo(function TriggersLane({
+  triggers,
+  widthPx,
+  activeTool,
+  effectiveTriggerIds,
+  songOrigin,
+  pixelsPerSecond,
+  onTriggerTrackClick,
+  onTriggerMove,
+  onTriggerResize,
+}: TriggersLaneProps) {
+  return (
+    <>
+      {/* Triggers Section Title Row */}
+      <div className="h-9 border-y border-violet-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3 flex-shrink-0">
+        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-violet-300">
+          SCENE TRIGGERS & FX AUTOMATION
+        </span>
+        <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
+          {triggers.length} {triggers.length === 1 ? 'trigger' : 'triggers'}
+        </span>
+      </div>
+
+      {/* FX Lane Track */}
+      <div
+        className={`h-32 bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
+          activeTool === 'pen' ? 'hover:bg-violet-950/[0.16] cursor-crosshair' : ''
+        }`}
+        style={{ width: widthPx, minWidth: widthPx }}
+        onClick={onTriggerTrackClick}
+      >
+        {triggers.map((trigger) => {
+          const isSelected = effectiveTriggerIds.has(trigger.id);
+          const x = (trigger.time + songOrigin) * pixelsPerSecond;
+          const width = Math.max(32, (trigger.duration || 0) * pixelsPerSecond);
+          const color = getTriggerColor(trigger.action);
+          return (
+            <div
+              key={trigger.id}
+              data-trigger-item="true"
+              data-trigger-id={trigger.id}
+              className={`absolute top-1/2 -translate-y-1/2 h-16 rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all ${
+                isSelected
+                  ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
+                  : 'hover:brightness-110'
+              }`}
+              style={{
+                left: x,
+                width,
+                backgroundColor: `${color}25`,
+                border: `2px solid ${color}`,
+              }}
+              onPointerDown={(e) => onTriggerMove(e, trigger)}
+            >
+              <div
+                className="w-6 h-6 rounded-md flex items-center justify-center ml-2 flex-shrink-0 shadow"
+                style={{ backgroundColor: color }}
+              >
+                <Zap className="w-3.5 h-3.5 -rotate-45 text-black font-bold" />
+              </div>
+              <div className="flex flex-col px-2.5 overflow-hidden flex-1">
+                <span className="text-[11px] font-mono font-bold uppercase truncate text-white">
+                  {trigger.action}
+                </span>
+                <span className="text-[10px] font-mono text-white/60 truncate">{trigger.targetId}</span>
+              </div>
+              {activeTool === 'select' && (
+                <div
+                  data-trigger-item="true"
+                  className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                  onPointerDown={(e) => onTriggerResize(e, trigger)}
+                >
+                  <div className="w-1.5 h-6 bg-white/60 rounded-full" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+});
 
 interface TimelineProps {
   level: LevelData;
@@ -188,7 +478,24 @@ export function Timeline({
     [level.songId, level.song.id]
   );
 
-  const triggers = level.visual?.triggers || [];
+  const triggers = useMemo(() => level.visual?.triggers || [], [level.visual?.triggers]);
+
+  // Precompute events grouped by padId once in O(events) time, avoiding O(pads * events) per render
+  const eventsByPad = useMemo(() => {
+    const map = new Map<string, PadEvent[]>();
+    for (const pad of level.pads) {
+      map.set(pad.id, []);
+    }
+    for (const event of level.events) {
+      const list = map.get(event.padId);
+      if (list) {
+        list.push(event);
+      } else {
+        map.set(event.padId, [event]);
+      }
+    }
+    return map;
+  }, [level.pads, level.events]);
 
   useEffect(() => {
     if (!isPlaying || !containerRef.current) return;
@@ -296,7 +603,7 @@ export function Timeline({
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* intentional no-op */ }
   };
 
-  const handleTrackClick = (e: React.MouseEvent, padId: PadId) => {
+  const handleTrackClick = useCallback((e: React.MouseEvent, padId: PadId) => {
     if (dragState) return;
     if ((e.target as HTMLElement).closest('[data-event-item]')) return;
 
@@ -319,9 +626,9 @@ export function Timeline({
       onSelectEvent(newEvent);
       onSelectTrigger?.(null);
     }
-  };
+  }, [dragState, activeTool, pixelsPerSecond, songOrigin, level.timing.bpm, gridSubdivision, creationBehavior, beatDuration, triggers, onAddEvent, onSelectEvent, onSelectTrigger]);
 
-  const handleTriggerTrackClick = (e: React.MouseEvent) => {
+  const handleTriggerTrackClick = useCallback((e: React.MouseEvent) => {
     if (dragState) return;
     if ((e.target as HTMLElement).closest('[data-trigger-item]')) return;
 
@@ -345,9 +652,9 @@ export function Timeline({
       onSelectTrigger?.(newTrigger);
       onSelectEvent(null);
     }
-  };
+  }, [dragState, activeTool, pixelsPerSecond, songOrigin, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, onAddTrigger, onSelectTrigger, onSelectEvent]);
 
-  const handleCanvasPointerDown = (e: React.PointerEvent) => {
+  const handleCanvasPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest('[data-event-item], [data-trigger-item], [data-ruler]')) return;
@@ -375,9 +682,9 @@ export function Timeline({
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       }
     }
-  };
+  }, [activeTool, onSelectEvent, onSelectTrigger, onSelectEvents, onSelectTriggers]);
 
-  const startEventMove = (e: React.PointerEvent, event: PadEvent) => {
+  const startEventMove = useCallback((e: React.PointerEvent, event: PadEvent) => {
     e.stopPropagation();
     if (activeTool === 'eraser') {
       onRemoveEvent(event.id);
@@ -426,9 +733,9 @@ export function Timeline({
       }
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
-  };
+  }, [activeTool, onRemoveEvent, onSelectEventRange, onToggleEventSelection, effectiveEventIds, onSelectEvent, onSelectTrigger, level.events, beatDuration]);
 
-  const startEventResize = (e: React.PointerEvent, event: PadEvent) => {
+  const startEventResize = useCallback((e: React.PointerEvent, event: PadEvent) => {
     e.stopPropagation();
     if (activeTool !== 'select') return;
     onSelectEvent(event);
@@ -441,9 +748,9 @@ export function Timeline({
       origDuration: event.duration || beatDuration,
     });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
+  }, [activeTool, onSelectEvent, beatDuration]);
 
-  const startTriggerMove = (e: React.PointerEvent, trigger: TriggerData) => {
+  const startTriggerMove = useCallback((e: React.PointerEvent, trigger: TriggerData) => {
     e.stopPropagation();
     if (activeTool === 'eraser') {
       onRemoveTrigger?.(trigger.id);
@@ -485,9 +792,9 @@ export function Timeline({
       }
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
-  };
+  }, [activeTool, onRemoveTrigger, onToggleTriggerSelection, effectiveTriggerIds, onSelectTrigger, onSelectEvent, triggers, beatDuration]);
 
-  const startTriggerResize = (e: React.PointerEvent, trigger: TriggerData) => {
+  const startTriggerResize = useCallback((e: React.PointerEvent, trigger: TriggerData) => {
     e.stopPropagation();
     if (activeTool !== 'select') return;
     onSelectTrigger?.(trigger);
@@ -501,7 +808,7 @@ export function Timeline({
       origDuration: trigger.duration || beatDuration,
     });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
+  }, [activeTool, onSelectTrigger, onSelectEvent, beatDuration]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (marquee && innerCanvasRef.current) {
@@ -625,15 +932,6 @@ export function Timeline({
         }
       }
       setDragState(null);
-    }
-  };
-
-  const getTriggerColor = (action: TriggerActionType) => {
-    switch (action) {
-      case 'transform': return '#00e5ff';
-      case 'color': return '#ff007f';
-      case 'pulse': return '#ffea00';
-      default: return '#00ff9d';
     }
   };
 
@@ -906,7 +1204,6 @@ export function Timeline({
                   totalWidth={widthPx}
                   height={padAreaHeight}
                   pixelsPerSecond={pixelsPerSecond}
-                  currentTime={currentTime}
                   bpm={level.timing.bpm}
                   offset={offset}
                   leadIn={leadIn}
@@ -1072,222 +1369,33 @@ export function Timeline({
                 </svg>
               </div>
             )}
-            {level.pads.map((pad) => {
-              const trackEvents = level.events.filter((e) => e.padId === pad.id);
-              return (
-                <div
-                  key={pad.id}
-                  className={`flex-1 min-h-[68px] bg-white/[0.025] border-y border-white/10 relative transition-colors ${
-                    activeTool === 'pen' ? 'hover:bg-white/[0.06] cursor-crosshair' : ''
-                  }`}
-                  style={{ width: widthPx, minWidth: widthPx }}
-                  onClick={(e) => handleTrackClick(e, pad.id)}
-                >
-                  {trackEvents.map((event) => {
-                    const isSelected = effectiveEventIds.has(event.id);
-                    const x = (event.targetTime + songOrigin) * pixelsPerSecond;
-                    const width = Math.max(16, (event.duration ?? beatDuration) * pixelsPerSecond);
-
-                    if (event.behavior === 'tap') {
-                      return (
-                        <div
-                          key={event.id}
-                          data-event-item="true"
-                          data-event-id={event.id}
-                          className={`absolute top-1/2 -translate-y-1/2 w-5 h-12 rounded-lg transition-all z-20 cursor-grab active:cursor-grabbing ${
-                            isSelected
-                              ? 'ring-2 ring-white scale-105 shadow-[0_0_20px_#ffffff]'
-                              : 'hover:brightness-125 hover:scale-102'
-                          }`}
-                          style={{
-                            left: Math.max(0, x - 10),
-                            backgroundColor: pad.color,
-                            boxShadow: `0 0 14px ${pad.color}90`,
-                          }}
-                          onPointerDown={(e) => startEventMove(e, event)}
-                        >
-                          <div className="w-full h-full border border-white/30 rounded-lg flex items-center justify-center">
-                            <div className="w-1.5 h-6 rounded-full bg-white/70" />
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (event.behavior === 'hold') {
-                      return (
-                        <div
-                          key={event.id}
-                          data-event-item="true"
-                          data-event-id={event.id}
-                          className={`absolute top-1/2 -translate-y-1/2 h-12 rounded-lg border-2 flex items-center transition-all z-20 cursor-grab active:cursor-grabbing ${
-                            isSelected
-                              ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffffff]'
-                              : 'border-white/40'
-                          }`}
-                          style={{
-                            left: x,
-                            width,
-                            backgroundColor: `${pad.color}35`,
-                            borderColor: pad.color,
-                            boxShadow: `0 0 12px ${pad.color}40`,
-                          }}
-                          onPointerDown={(e) => startEventMove(e, event)}
-                        >
-                          <div
-                            className="w-4 h-full rounded-l-md flex items-center justify-center flex-shrink-0 shadow"
-                            style={{ backgroundColor: pad.color }}
-                          >
-                            <div className="w-2 h-2 rounded-full bg-white" />
-                          </div>
-                          <span className="text-[11px] font-mono font-bold text-white/90 px-2 truncate flex-1 pointer-events-none">
-                            HOLD ({(event.duration || 0).toFixed(2)}s)
-                          </span>
-                          {activeTool === 'select' && (
-                            <div
-                              data-event-item="true"
-                              className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
-                              onPointerDown={(e) => startEventResize(e, event)}
-                            >
-                              <div className="w-1.5 h-6 bg-white/70 rounded-full pointer-events-none" />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (event.behavior === 'loop') {
-                      return (
-                        <div
-                          key={event.id}
-                          data-event-item="true"
-                          data-event-id={event.id}
-                          className={`absolute top-1/2 -translate-y-1/2 h-12 rounded-lg border-2 border-dashed flex items-center transition-all z-20 cursor-grab active:cursor-grabbing ${
-                            isSelected
-                              ? 'ring-2 ring-white border-solid shadow-[0_0_20px_#ffffff]'
-                              : 'border-white/50'
-                          }`}
-                          style={{
-                            left: x,
-                            width,
-                            backgroundColor: `${pad.color}25`,
-                            borderColor: pad.color,
-                            boxShadow: `0 0 12px ${pad.color}35`,
-                          }}
-                          onPointerDown={(e) => startEventMove(e, event)}
-                        >
-                          <div
-                            className="w-4 h-full rounded-l-md flex items-center justify-center flex-shrink-0 shadow"
-                            style={{ backgroundColor: pad.color }}
-                          >
-                            <Repeat className="w-3 h-3 text-white" />
-                          </div>
-                          <span className="text-[11px] font-mono font-bold text-white/90 px-2 truncate flex-1 pointer-events-none">
-                            LOOP ({(event.duration || 0).toFixed(2)}s)
-                          </span>
-                          {activeTool === 'select' && (
-                            <div
-                              data-event-item="true"
-                              className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
-                              onPointerDown={(e) => startEventResize(e, event)}
-                            >
-                              <div className="w-1.5 h-6 bg-white/70 rounded-full pointer-events-none" />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (event.behavior === 'trigger') {
-                      return (
-                        <div
-                          key={event.id}
-                          data-event-item="true"
-                          data-event-id={event.id}
-                          className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center gap-1.5 px-2.5 border-2 z-20 cursor-grab active:cursor-grabbing transition-all ${
-                            isSelected
-                              ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffea00]'
-                              : 'border-yellow-400/80 bg-yellow-500/25 hover:scale-105'
-                          }`}
-                          style={{ left: x }}
-                          onPointerDown={(e) => startEventMove(e, event)}
-                        >
-                          <Zap className="w-4 h-4 text-yellow-400" />
-                          <span className="text-[10px] font-mono font-bold text-yellow-300">
-                            {event.triggerId || 'trig'}
-                          </span>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-              );
-            })}
+            <PadTracksLane
+              pads={level.pads}
+              eventsByPad={eventsByPad}
+              widthPx={widthPx}
+              activeTool={activeTool}
+              effectiveEventIds={effectiveEventIds}
+              songOrigin={songOrigin}
+              pixelsPerSecond={pixelsPerSecond}
+              beatDuration={beatDuration}
+              onTrackClick={handleTrackClick}
+              onEventMove={startEventMove}
+              onEventResize={startEventResize}
+            />
           </div>
 
-          {/* Triggers Section Title Row */}
-          <div className="h-9 border-y border-violet-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3 flex-shrink-0">
-            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-violet-300">
-              SCENE TRIGGERS & FX AUTOMATION
-            </span>
-            <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
-              {triggers.length} {triggers.length === 1 ? 'trigger' : 'triggers'}
-            </span>
-          </div>
-
-          {/* FX Lane Track */}
-          <div
-            className={`h-32 bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
-              activeTool === 'pen' ? 'hover:bg-violet-950/[0.16] cursor-crosshair' : ''
-            }`}
-            style={{ width: widthPx, minWidth: widthPx }}
-            onClick={handleTriggerTrackClick}
-          >
-            {triggers.map((trigger) => {
-              const isSelected = effectiveTriggerIds.has(trigger.id);
-              const x = (trigger.time + songOrigin) * pixelsPerSecond;
-              const width = Math.max(32, (trigger.duration || 0) * pixelsPerSecond);
-              const color = getTriggerColor(trigger.action);
-              return (
-                <div
-                  key={trigger.id}
-                  data-trigger-item="true"
-                  data-trigger-id={trigger.id}
-                  className={`absolute top-1/2 -translate-y-1/2 h-16 rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all ${
-                    isSelected
-                      ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
-                      : 'hover:brightness-110'
-                  }`}
-                  style={{
-                    left: x,
-                    width,
-                    backgroundColor: `${color}25`,
-                    border: `2px solid ${color}`,
-                  }}
-                  onPointerDown={(e) => startTriggerMove(e, trigger)}
-                >
-                  <div
-                    className="w-6 h-6 rounded-md flex items-center justify-center ml-2 flex-shrink-0 shadow"
-                    style={{ backgroundColor: color }}
-                  >
-                    <Zap className="w-3.5 h-3.5 -rotate-45 text-black font-bold" />
-                  </div>
-                  <div className="flex flex-col px-2.5 overflow-hidden flex-1">
-                    <span className="text-[11px] font-mono font-bold uppercase truncate text-white">
-                      {trigger.action}
-                    </span>
-                    <span className="text-[10px] font-mono text-white/60 truncate">{trigger.targetId}</span>
-                  </div>
-                  {activeTool === 'select' && (
-                    <div
-                      data-trigger-item="true"
-                      className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
-                      onPointerDown={(e) => startTriggerResize(e, trigger)}
-                    >
-                      <div className="w-1.5 h-6 bg-white/60 rounded-full" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {/* Triggers & FX Automation Lane (Memoized) */}
+          <TriggersLane
+            triggers={triggers}
+            widthPx={widthPx}
+            activeTool={activeTool}
+            effectiveTriggerIds={effectiveTriggerIds}
+            songOrigin={songOrigin}
+            pixelsPerSecond={pixelsPerSecond}
+            onTriggerTrackClick={handleTriggerTrackClick}
+            onTriggerMove={startTriggerMove}
+            onTriggerResize={startTriggerResize}
+          />
 
           {/* Marquee Selection Rectangle */}
           {marquee && (
@@ -1303,13 +1411,11 @@ export function Timeline({
             />
           )}
 
-          {/* Playhead */}
-          <div
-            className="absolute top-0 bottom-0 w-px bg-red-500 z-40 pointer-events-none"
-            style={{ left: currentTime * pixelsPerSecond }}
-          >
-            <div className="w-4 h-4 bg-red-500 rotate-45 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_#ff0000]" />
-          </div>
+          {/* Playhead (Memoized) */}
+          <Playhead
+            currentTime={currentTime}
+            pixelsPerSecond={pixelsPerSecond}
+          />
         </div>
       </div>
     </div>
