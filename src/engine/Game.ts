@@ -5,7 +5,7 @@ import { GameplayEventBus } from './gameplay/GameplayEventBus';
 import { VisualEngine } from './visual/VisualEngine';
 import { SongRegistry } from './content/SongRegistry';
 
-import type { LevelData, PlayerState, PadId } from './types';
+import type { LevelData, PlayerState, PadId, AudioBands } from './types';
 import type { Ticker } from 'pixi.js';
 
 /**
@@ -37,6 +37,10 @@ export class Game {
   public onPauseChange: ((paused: boolean) => void) | null = null;
   public onTimeUpdate: ((currentTime: number, duration: number) => void) | null = null;
 
+  private isPreRolling = false;
+  private preRollRemaining = 0;
+  private preRollStartPerformanceTime = 0;
+
   get songSource(): 'file' | 'procedural' {
     return this.transport.isUsingFile ? 'file' : 'procedural';
   }
@@ -58,6 +62,15 @@ export class Game {
   }
 
   get currentTime(): number {
+    return this.getCurrentGameTime();
+  }
+
+  private getCurrentGameTime(): number {
+    if (this.isPreRolling) {
+      const elapsedSec = (performance.now() - this.preRollStartPerformanceTime) / 1000;
+      const leadIn = this.level.timing?.leadIn ?? 0;
+      return elapsedSec - leadIn;
+    }
     return this.transport.getTime();
   }
 
@@ -66,8 +79,8 @@ export class Game {
     this.level = level;
     this.eventBus = new GameplayEventBus();
     this.transport = new AudioTransport();
-    this.input = new InputManager(() => this.transport.getTime());
-    this.gameplay = new GameplayEngine(level, () => this.transport.getTime(), this.eventBus);
+    this.input = new InputManager(() => this.getCurrentGameTime());
+    this.gameplay = new GameplayEngine(level, () => this.getCurrentGameTime(), this.eventBus);
     this.visual = new VisualEngine(container, level, this.transport.audioEngine);
   }
 
@@ -103,10 +116,26 @@ export class Game {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     this.visual.setUpdateCallback((_ticker: Ticker) => this.frameUpdate());
 
-    // 6. Start gameplay and transport
-    this.gameplay.start();
+    // 6. Start gameplay and transport with pre-roll & audio envelope
+    const leadIn = this.level.timing?.leadIn ?? 0;
+    const envelope = {
+      fadeIn: this.level.timing?.fadeIn ?? 0,
+      fadeOut: this.level.timing?.fadeOut ?? 0,
+      totalDuration: this.level.song.duration,
+    };
+
     this.transport.onBeat((beatIndex: number) => this.visual.onBeat(beatIndex));
-    await this.transport.play(this.level.song.bpm, 0);
+
+    if (leadIn > 0) {
+      this.isPreRolling = true;
+      this.preRollRemaining = leadIn;
+      this.preRollStartPerformanceTime = performance.now();
+      this.gameplay.start(-leadIn);
+    } else {
+      this.isPreRolling = false;
+      this.gameplay.start();
+      await this.transport.play(this.level.song.bpm, 0, envelope);
+    }
 
     this.running = true;
     this._isPaused = false;
@@ -116,26 +145,51 @@ export class Game {
   pause(): void {
     if (!this.running || this._isPaused) return;
     this._isPaused = true;
-    this.transport.pause();
+    if (this.isPreRolling) {
+      this.preRollRemaining = Math.max(0, -this.getCurrentGameTime());
+    } else {
+      this.transport.pause();
+    }
     this.onPauseChange?.(true);
   }
 
   async resume(): Promise<void> {
     if (!this.running || !this._isPaused) return;
     this._isPaused = false;
-    await this.transport.play();
+    if (this.isPreRolling) {
+      const leadIn = this.level.timing?.leadIn ?? 0;
+      this.preRollStartPerformanceTime = performance.now() - (leadIn - this.preRollRemaining) * 1000;
+    } else {
+      await this.transport.play();
+    }
     this.onPauseChange?.(false);
   }
 
   async restart(): Promise<void> {
     this.stop();
     this.gameplay.reset();
-    this.gameplay.start(0);
+    const leadIn = this.level.timing?.leadIn ?? 0;
+    const envelope = {
+      fadeIn: this.level.timing?.fadeIn ?? 0,
+      fadeOut: this.level.timing?.fadeOut ?? 0,
+      totalDuration: this.level.song.duration,
+    };
+
     this._isPaused = false;
     this.onPauseChange?.(false);
-    await this.transport.play(this.level.song.bpm, 0);
     this.input.attach();
     this.running = true;
+
+    if (leadIn > 0) {
+      this.isPreRolling = true;
+      this.preRollRemaining = leadIn;
+      this.preRollStartPerformanceTime = performance.now();
+      this.gameplay.start(-leadIn);
+    } else {
+      this.isPreRolling = false;
+      this.gameplay.start(0);
+      await this.transport.play(this.level.song.bpm, 0, envelope);
+    }
   }
 
   private setupInput(): void {
@@ -180,21 +234,36 @@ export class Game {
   private frameUpdate(): void {
     if (!this.running || this._isPaused) return;
 
-    const audioTime = this.transport.getTime();
-    const bands = this.transport.getAudioBands();
+    if (this.isPreRolling) {
+      const currentPreTime = this.getCurrentGameTime();
+      if (currentPreTime >= 0) {
+        this.isPreRolling = false;
+        const envelope = {
+          fadeIn: this.level.timing?.fadeIn ?? 0,
+          fadeOut: this.level.timing?.fadeOut ?? 0,
+          totalDuration: this.level.song.duration,
+        };
+        this.transport.play(this.level.song.bpm, 0, envelope);
+      }
+    }
+
+    const gameTime = this.getCurrentGameTime();
+    const bands: AudioBands = this.isPreRolling
+      ? { bass: 0, mids: 0, treble: 0, amplitude: 0, freqData: new Uint8Array(0), waveData: new Uint8Array(0) }
+      : this.transport.getAudioBands();
 
     // Emit live time update for HUD progress bar
-    this.onTimeUpdate?.(audioTime, this.level.song.duration);
+    this.onTimeUpdate?.(Math.max(0, gameTime), this.level.song.duration);
 
     // Update gameplay (check for misses, loop/hold expiry, pre-cue states)
     this.gameplay.update();
 
     // Update visuals
-    this.visual.update(audioTime, bands);
+    this.visual.update(gameTime, bands);
 
-    // Check for game completion: either all notes consumed and expired, or audioTime >= duration
+    // Check for game completion: either all notes consumed and expired, or gameTime >= duration
     const songDuration = this.level.song.duration;
-    if (this.gameplay.isComplete || (songDuration > 0 && audioTime >= songDuration)) {
+    if (this.gameplay.isComplete || (songDuration > 0 && gameTime >= songDuration)) {
       this.running = false;
       this.stop();
       const finalState = this.gameplay.state;

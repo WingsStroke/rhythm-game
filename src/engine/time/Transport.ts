@@ -15,6 +15,12 @@ export type TransportState = 'stopped' | 'playing' | 'paused';
  * level previewer) depends only on this interface, never on AudioEngine directly.
  * This decouples the timing contract from the Web Audio implementation.
  */
+export interface AudioEnvelope {
+  fadeIn?: number;
+  fadeOut?: number;
+  totalDuration?: number;
+}
+
 export interface Transport {
   /** Current playback state. */
   readonly state: TransportState;
@@ -27,10 +33,11 @@ export interface Transport {
 
   /**
    * Starts or resumes playback.
-   * @param bpm    Tempo in beats per minute. Required when starting from stopped.
-   * @param offset Playback start position in seconds. Defaults to 0.
+   * @param bpm      Tempo in beats per minute. Required when starting from stopped.
+   * @param offset   Playback start position in seconds. Defaults to 0.
+   * @param envelope Optional volume envelope (fadeIn, fadeOut, totalDuration).
    */
-  play(bpm?: number, offset?: number): Promise<void>;
+  play(bpm?: number, offset?: number, envelope?: AudioEnvelope): Promise<void>;
 
   /**
    * Pauses playback, preserving the current position.

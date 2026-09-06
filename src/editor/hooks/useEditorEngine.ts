@@ -362,13 +362,18 @@ export function useEditorEngine({
           visualRef.current.onBeat(beatIndex);
         }
       });
-      await transportRef.current.play(level.timing.bpm, currentTime);
+      const envelope = {
+        fadeIn: level.timing?.fadeIn ?? 0,
+        fadeOut: level.timing?.fadeOut ?? 0,
+        totalDuration: level.song.duration,
+      };
+      await transportRef.current.play(level.timing.bpm, currentTime, envelope);
       setIsPlaying(true);
       if (activeTab === 'preview') {
         gameplayRef.current?.start(currentTime);
       }
     }
-  }, [isPlaying, currentTime, level.songId, level.song.id, level.song.url, level.timing.bpm, activeTab, playbackSpeed]);
+  }, [isPlaying, currentTime, level.songId, level.song.id, level.song.url, level.timing.bpm, level.timing?.fadeIn, level.timing?.fadeOut, level.song.duration, activeTab, playbackSpeed]);
 
   const setPlaybackSpeed = useCallback((speed: number) => {
     const clamped = Math.max(0.25, Math.min(4.0, Number(speed.toFixed(2))));

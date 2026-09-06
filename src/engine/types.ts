@@ -144,6 +144,12 @@ export interface LevelData {
     bpm: number;
     offset: number;
     windows: TimingWindows;
+    /** Preparation lead-in / pre-roll duration in seconds before audio starts (e.g. 0 to 5s). */
+    leadIn?: number;
+    /** Volume fade-in ramp duration in seconds from track start. */
+    fadeIn?: number;
+    /** Volume fade-out ramp duration in seconds before track end. */
+    fadeOut?: number;
   };
   visual: {
     nodes: SceneNodeData[];

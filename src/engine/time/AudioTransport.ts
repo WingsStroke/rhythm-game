@@ -1,6 +1,6 @@
 import { AudioEngine } from '../audio/AudioEngine';
 import type { AudioBands } from '../types';
-import type { Transport, TransportState } from './Transport';
+import type { Transport, TransportState, AudioEnvelope } from './Transport';
 
 /**
  * AudioTransport — concrete Transport implementation backed by AudioEngine.
@@ -24,6 +24,7 @@ export class AudioTransport implements Transport {
   private readonly audio: AudioEngine;
   private _state: TransportState = 'stopped';
   private _bpm = 120;
+  private currentEnvelope?: AudioEnvelope;
 
   // Listener sets
   private stateListeners: Set<(state: TransportState) => void> = new Set();
@@ -97,12 +98,13 @@ export class AudioTransport implements Transport {
     return this.audio.getAudioBands();
   }
 
-  async play(bpm?: number, offset?: number): Promise<void> {
+  async play(bpm?: number, offset?: number, envelope?: AudioEnvelope): Promise<void> {
     if (bpm !== undefined) this._bpm = bpm;
+    if (envelope !== undefined) this.currentEnvelope = envelope;
 
     const startOffset = offset ?? (this._state === 'paused' ? this.pausedTime : 0);
 
-    this.audio.start(this._bpm, startOffset);
+    this.audio.start(this._bpm, startOffset, this.currentEnvelope);
     this._setState('playing');
   }
 
@@ -134,7 +136,7 @@ export class AudioTransport implements Transport {
 
     if (wasPlaying) {
       // Restart playback from new position immediately
-      this.audio.start(this._bpm, clampedTime);
+      this.audio.start(this._bpm, clampedTime, this.currentEnvelope);
       this._setState('playing');
     } else {
       // Freeze position at the requested time without playing

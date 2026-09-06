@@ -1,5 +1,6 @@
 import type { AudioBands } from '../types';
 import type { TimeSource } from '../time/TimeSource';
+import type { AudioEnvelope } from '../time/Transport';
 import { SongRegistry } from '../content/SongRegistry';
 
 /**
@@ -296,11 +297,15 @@ export class AudioEngine implements TimeSource {
    * Start playback. If an audio file was loaded via loadFile(), plays that
    * file. Otherwise, starts the procedural synthesizer.
    */
-  start(bpm: number, offset: number = 0): void {
+  start(bpm: number, offset: number = 0, envelope?: AudioEnvelope): void {
     if (!this.ctx || !this.masterGain) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
 
-    this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+    const TARGET_GAIN = 0.35;
+    const fadeIn = envelope?.fadeIn ?? 0;
+    const fadeOut = envelope?.fadeOut ?? 0;
+    const totalDuration = envelope?.totalDuration ?? 0;
+
     this.bpm = bpm;
     this.playing = true;
     
@@ -315,6 +320,40 @@ export class AudioEngine implements TimeSource {
     
     this.pauseOffset = offset;
     this.isResuming = true;
+
+    // Apply Fade In / Fade Out volume curves on masterGain
+    try {
+      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+
+      let startGain = TARGET_GAIN;
+      if (fadeIn > 0 && offset < fadeIn) {
+        const progress = Math.max(0, offset / fadeIn);
+        startGain = Math.max(0.0001, TARGET_GAIN * progress);
+        this.masterGain.gain.setValueAtTime(startGain, scheduledStart);
+        const remainingFadeIn = (fadeIn - offset) / this._playbackSpeed;
+        this.masterGain.gain.linearRampToValueAtTime(TARGET_GAIN, scheduledStart + remainingFadeIn);
+      } else {
+        this.masterGain.gain.setValueAtTime(TARGET_GAIN, scheduledStart);
+      }
+
+      if (fadeOut > 0 && totalDuration > fadeOut) {
+        const fadeStart = totalDuration - fadeOut;
+        if (offset < fadeStart) {
+          const timeToFadeStart = (fadeStart - offset) / this._playbackSpeed;
+          const timeToFadeEnd = (totalDuration - offset) / this._playbackSpeed;
+          this.masterGain.gain.setValueAtTime(TARGET_GAIN, scheduledStart + timeToFadeStart);
+          this.masterGain.gain.linearRampToValueAtTime(0.0001, scheduledStart + timeToFadeEnd);
+        } else if (offset < totalDuration) {
+          const remainingDuration = (totalDuration - offset) / this._playbackSpeed;
+          const progress = Math.max(0, (totalDuration - offset) / fadeOut);
+          const currentFadeGain = Math.max(0.0001, TARGET_GAIN * progress);
+          this.masterGain.gain.setValueAtTime(currentFadeGain, scheduledStart);
+          this.masterGain.gain.linearRampToValueAtTime(0.0001, scheduledStart + Math.max(0.01, remainingDuration));
+        }
+      }
+    } catch {
+      this.masterGain.gain.setValueAtTime(TARGET_GAIN, scheduledStart);
+    }
 
     if (this.useFile && this.audioBuffer) {
       this.startFilePlayback(scheduledStart, offset);

@@ -155,6 +155,9 @@ export function Timeline({
   const beatDuration = 60 / level.timing.bpm;
   const totalDuration = level.song.duration || 120;
   const offset = level.timing?.offset ?? 0;
+  const leadIn = level.timing?.leadIn ?? 0;
+  const fadeIn = level.timing?.fadeIn ?? 0;
+  const fadeOut = level.timing?.fadeOut ?? 0;
   const widthPx = Math.max(1200, totalDuration * pixelsPerSecond);
 
   const audioBuffer = useMemo(
@@ -740,9 +743,19 @@ export function Timeline({
       >
         <div className="min-h-full flex flex-col">
           {/* TIME Header */}
-          <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/95 flex items-center px-3.5 gap-2 shadow-md flex-shrink-0">
-            <Clock className="w-4 h-4 text-[#00e5ff]" />
-            <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIME</span>
+          <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/95 flex items-center justify-between px-3.5 gap-2 shadow-md flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#00e5ff]" />
+              <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIME</span>
+            </div>
+            {leadIn > 0 && (
+              <span
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#00ff9d]/15 text-[#00ff9d] border border-[#00ff9d]/30 font-bold"
+                title={`Pre-roll lead-in: ${leadIn}s`}
+              >
+                +{leadIn}s
+              </span>
+            )}
           </div>
 
           {/* Pad Track Labels (flex-1 to distribute vertical space generously, min-h-[68px] for responsive windowed mode) */}
@@ -851,6 +864,46 @@ export function Timeline({
                   bpm={level.timing.bpm}
                   offset={offset}
                 />
+              </div>
+            )}
+
+            {/* Fade In Shading & Volume Curve Overlay */}
+            {fadeIn > 0 && (
+              <div
+                className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-r border-[#00e5ff]/50 bg-gradient-to-r from-black/85 via-black/40 to-transparent"
+                style={{
+                  left: offset * pixelsPerSecond,
+                  width: Math.max(12, fadeIn * pixelsPerSecond),
+                }}
+              >
+                <div className="flex items-center gap-1.5 px-2 pt-1 z-10">
+                  <span className="font-mono text-[9px] font-bold text-[#00e5ff] uppercase tracking-wider bg-black/75 px-1.5 py-0.5 rounded border border-[#00e5ff]/40 shadow-sm">
+                    Fade In {fadeIn.toFixed(1)}s
+                  </span>
+                </div>
+                <svg className="w-full h-full absolute inset-0 pointer-events-none opacity-40" preserveAspectRatio="none" viewBox="0 0 100 100">
+                  <line x1="0" y1="100" x2="100" y2="0" stroke="#00e5ff" strokeWidth="2" strokeDasharray="3 3" />
+                </svg>
+              </div>
+            )}
+
+            {/* Fade Out Shading & Volume Curve Overlay */}
+            {fadeOut > 0 && totalDuration > fadeOut && (
+              <div
+                className="absolute top-0 bottom-0 pointer-events-none z-15 overflow-hidden flex flex-col justify-between border-l border-pink-500/50 bg-gradient-to-l from-black/85 via-black/40 to-transparent"
+                style={{
+                  left: (totalDuration - fadeOut) * pixelsPerSecond,
+                  width: Math.max(12, fadeOut * pixelsPerSecond),
+                }}
+              >
+                <div className="flex items-center justify-end gap-1.5 px-2 pt-1 z-10">
+                  <span className="font-mono text-[9px] font-bold text-pink-400 uppercase tracking-wider bg-black/75 px-1.5 py-0.5 rounded border border-pink-500/40 shadow-sm">
+                    Fade Out {fadeOut.toFixed(1)}s
+                  </span>
+                </div>
+                <svg className="w-full h-full absolute inset-0 pointer-events-none opacity-40" preserveAspectRatio="none" viewBox="0 0 100 100">
+                  <line x1="0" y1="0" x2="100" y2="100" stroke="#ff2d6f" strokeWidth="2" strokeDasharray="3 3" />
+                </svg>
               </div>
             )}
             {level.pads.map((pad) => {

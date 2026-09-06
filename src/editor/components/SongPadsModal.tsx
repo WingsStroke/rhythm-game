@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   FileAudio,
   Keyboard,
+  Timer,
+  Volume2,
 } from 'lucide-react';
 import type { LevelData, PadConfig, PadId, ModulationChannel } from '../../engine/types';
 
@@ -59,9 +61,12 @@ export function SongPadsModal({
 
   if (!isOpen) return null;
 
-  // Offset in milliseconds (stored as seconds in level.timing.offset)
+  // Timing and audio envelope values
   const currentOffsetSec = level.timing?.offset ?? 0;
   const currentOffsetMs = Math.round(currentOffsetSec * 1000);
+  const currentLeadIn = level.timing?.leadIn ?? 0;
+  const currentFadeIn = level.timing?.fadeIn ?? 0;
+  const currentFadeOut = level.timing?.fadeOut ?? 0;
 
   const setOffsetMs = (ms: number) => {
     const sec = Number((ms / 1000).toFixed(4));
@@ -70,6 +75,39 @@ export function SongPadsModal({
       timing: {
         ...level.timing,
         offset: sec,
+      },
+    });
+  };
+
+  const setLeadInSec = (sec: number) => {
+    const clamped = Math.max(0, Math.min(10, Number(sec.toFixed(2))));
+    onChangeLevel({
+      ...level,
+      timing: {
+        ...level.timing,
+        leadIn: clamped,
+      },
+    });
+  };
+
+  const setFadeInSec = (sec: number) => {
+    const clamped = Math.max(0, Math.min(30, Number(sec.toFixed(2))));
+    onChangeLevel({
+      ...level,
+      timing: {
+        ...level.timing,
+        fadeIn: clamped,
+      },
+    });
+  };
+
+  const setFadeOutSec = (sec: number) => {
+    const clamped = Math.max(0, Math.min(60, Number(sec.toFixed(2))));
+    onChangeLevel({
+      ...level,
+      timing: {
+        ...level.timing,
+        fadeOut: clamped,
       },
     });
   };
@@ -275,6 +313,155 @@ export function SongPadsModal({
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                   </button>
+                </div>
+
+                {/* Pre-Roll Preparation (Lead-In) */}
+                <div className="border-t border-white/10 pt-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Timer className="w-4 h-4 text-[#00e5ff]" />
+                      <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                        Pre-Roll Preparation (Lead-In)
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-[#00e5ff]/10 border border-[#00e5ff]/30 text-[#00e5ff] font-bold">
+                      {currentLeadIn > 0 ? `${currentLeadIn.toFixed(1)} s` : 'Off (0.0s)'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-white/50 leading-relaxed">
+                    Provides a preparation countdown before audio starts, allowing incoming notes to travel smoothly towards the pads for songs starting immediately at 0.0s.
+                  </p>
+
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <div className="relative w-32">
+                      <input
+                        type="number"
+                        step={0.5}
+                        min={0}
+                        max={10}
+                        value={currentLeadIn}
+                        onChange={(e) => setLeadInSec(Number(e.target.value))}
+                        className="w-full bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-center text-sm font-mono font-bold text-[#00e5ff] focus:border-[#00e5ff] outline-none"
+                      />
+                      <span className="absolute right-3 top-2 text-xs font-mono text-white/40 pointer-events-none">s</span>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-1.5 flex-1">
+                      {[0, 1.0, 1.5, 2.0, 3.0].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setLeadInSec(preset)}
+                          className={`px-2.5 py-1.5 rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer border ${
+                            currentLeadIn === preset
+                              ? 'bg-[#00e5ff]/20 text-[#00e5ff] border-[#00e5ff]/40'
+                              : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border-white/10'
+                          }`}
+                        >
+                          {preset === 0 ? 'Off' : `${preset.toFixed(1)}s`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Audio Volume Envelope (Fade In & Fade Out) Section */}
+              <div className="border border-[#2a2f47] bg-[#111422] rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-[#ff2d6f]" />
+                    <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                      Volume Envelope (Fade In / Fade Out)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white/40">
+                    Timeline Visual Ramps
+                  </span>
+                </div>
+
+                <p className="text-xs text-white/50 leading-relaxed">
+                  Smooths track start and end volumes with visual ramp curves directly rendered across the timeline.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  {/* Fade In Column */}
+                  <div className="p-3 bg-black/40 border border-white/10 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white/90 font-mono">Fade In</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#00e5ff]/15 text-[#00e5ff] font-semibold border border-[#00e5ff]/30">
+                        {currentFadeIn > 0 ? `${currentFadeIn.toFixed(1)}s` : 'Off'}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step={0.5}
+                        min={0}
+                        max={30}
+                        value={currentFadeIn}
+                        onChange={(e) => setFadeInSec(Number(e.target.value))}
+                        className="w-full bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-center text-xs font-mono font-bold text-white focus:border-[#00e5ff] outline-none"
+                      />
+                      <span className="absolute right-3 top-1.5 text-xs font-mono text-white/40 pointer-events-none">s</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[0, 1.0, 2.0, 3.0].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setFadeInSec(preset)}
+                          className={`flex-1 py-1 rounded text-[10px] font-mono font-semibold transition-colors cursor-pointer border ${
+                            currentFadeIn === preset
+                              ? 'bg-[#00e5ff]/20 text-[#00e5ff] border-[#00e5ff]/40'
+                              : 'bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border-white/10'
+                          }`}
+                        >
+                          {preset === 0 ? 'Off' : `${preset}s`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Fade Out Column */}
+                  <div className="p-3 bg-black/40 border border-white/10 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white/90 font-mono">Fade Out</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-400 font-semibold border border-pink-500/30">
+                        {currentFadeOut > 0 ? `${currentFadeOut.toFixed(1)}s` : 'Off'}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step={0.5}
+                        min={0}
+                        max={60}
+                        value={currentFadeOut}
+                        onChange={(e) => setFadeOutSec(Number(e.target.value))}
+                        className="w-full bg-black/60 border border-white/15 rounded-lg px-3 py-1.5 text-center text-xs font-mono font-bold text-white focus:border-pink-500 outline-none"
+                      />
+                      <span className="absolute right-3 top-1.5 text-xs font-mono text-white/40 pointer-events-none">s</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[0, 2.0, 4.0, 6.0].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setFadeOutSec(preset)}
+                          className={`flex-1 py-1 rounded text-[10px] font-mono font-semibold transition-colors cursor-pointer border ${
+                            currentFadeOut === preset
+                              ? 'bg-pink-500/20 text-pink-400 border-pink-500/40'
+                              : 'bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border-white/10'
+                          }`}
+                        >
+                          {preset === 0 ? 'Off' : `${preset}s`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
