@@ -25,10 +25,12 @@ interface UseEditorEngineOptions {
   selectedTriggerId?: string | null;
   selectedNodeId?: string | null;
   selectedNodeIds?: Set<string>;
+  activeTool?: string;
   customKeybindings?: KeybindingMap;
   onSelectNode?: (nodeId: string | null, isShift?: boolean) => void;
   onUpdateNodesBatch?: (nodes: SceneNodeData[]) => void;
   onRecordEvent?: (event: PadEvent) => void;
+  onCanvasClick?: (stageX: number, stageY: number) => void;
 }
 
 export function useEditorEngine({
@@ -39,10 +41,12 @@ export function useEditorEngine({
   selectedTriggerId,
   selectedNodeId,
   selectedNodeIds,
+  activeTool,
   customKeybindings,
   onSelectNode,
   onUpdateNodesBatch,
   onRecordEvent,
+  onCanvasClick,
 }: UseEditorEngineOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -82,6 +86,9 @@ export function useEditorEngine({
 
   const creationBehaviorRef = useRef(creationBehavior);
   creationBehaviorRef.current = creationBehavior;
+
+  const onCanvasClickRef = useRef(onCanvasClick);
+  onCanvasClickRef.current = onCanvasClick;
 
   const gridSubdivisionRef = useRef(gridSubdivision);
   gridSubdivisionRef.current = gridSubdivision;
@@ -221,6 +228,9 @@ export function useEditorEngine({
       ve.onNodesTransformCommit = (updatedNodes) => {
         onUpdateNodesBatchRef.current?.(updatedNodes);
       };
+      ve.onCanvasClick = (stageX, stageY) => {
+        onCanvasClickRef.current?.(stageX, stageY);
+      };
 
       ve.onPadInput = (padId, pressed) => {
         if (pressed) {
@@ -273,6 +283,13 @@ export function useEditorEngine({
       visualRef.current?.setSelectedNode(selectedNodeId ?? null);
     }
   }, [selectedNodeIds, selectedNodeId]);
+
+  // Synchronize active tool cursor style on the Live Preview canvas
+  useEffect(() => {
+    if (visualRef.current && activeTool) {
+      visualRef.current.setActiveTool(activeTool);
+    }
+  }, [activeTool]);
 
   // Attach input listener in preview mode OR when recording is active in timeline mode
   useEffect(() => {

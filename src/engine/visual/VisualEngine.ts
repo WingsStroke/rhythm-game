@@ -137,9 +137,12 @@ export class VisualEngine {
   /** Emitted when player clicks/touches a pad directly */
   public onPadInput: ((padId: PadId, pressed: boolean) => void) | null = null;
   /** Emitted when a SceneNode is clicked */
-  public onNodeSelect: ((nodeId: string, isShift?: boolean) => void) | null = null;
+  public onNodeSelect: ((nodeId: string | null, isShift?: boolean) => void) | null = null;
   /** Emitted when node transforms are modified and committed via Live Preview gizmo */
   public onNodesTransformCommit?: ((nodes: SceneNodeData[]) => void) | null = null;
+  /** Emitted when player/creator clicks on the canvas background outside interactive elements */
+  public onCanvasClick?: ((stageX: number, stageY: number) => void) | null = null;
+  private currentTool: string = 'select';
 
   constructor(root: HTMLElement, level: LevelData, audio?: AudioEngine | null) {
     this.root = root;
@@ -422,6 +425,16 @@ export class VisualEngine {
     this.laneGfx = new Graphics();
 
     this.bgRect.rect(0, 0, w, h).fill({ color: 0x070714 });
+    this.bgRect.eventMode = 'static';
+    this.bgRect.cursor = this.currentTool === 'object' ? 'crosshair' : 'default';
+    this.bgRect.on('pointerdown', (e) => {
+      const localPos = this.sceneLayer.toLocal(e.global);
+      const stageX = Math.max(0, Math.min(1920, Math.round(localPos.x)));
+      const stageY = Math.max(0, Math.min(1080, Math.round(localPos.y)));
+      if (this.onCanvasClick) {
+        this.onCanvasClick(stageX, stageY);
+      }
+    });
     this.bgLayer.addChild(this.bgRect);
     this.bgLayer.addChild(this.bgGrid);
 
@@ -1373,6 +1386,13 @@ export class VisualEngine {
       for (const id of nodeIds) this.selectedNodeIds.add(id);
     }
     this.updateSelectionOverlay();
+  }
+
+  public setActiveTool(tool: string): void {
+    this.currentTool = tool;
+    if (this.bgRect) {
+      this.bgRect.cursor = tool === 'object' ? 'crosshair' : 'default';
+    }
   }
 
   public setSelectedNode(nodeId: string | null): void {

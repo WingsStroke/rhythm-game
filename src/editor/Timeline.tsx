@@ -468,7 +468,7 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
                 onToggleNodeSelection?.(node.uid, true);
                 return;
               }
-              if (hasLifespan && onNodeMove) {
+              if (onNodeMove) {
                 onNodeMove(e, node);
               } else {
                 onSelectNode?.(node);
@@ -1239,10 +1239,10 @@ export function Timeline({
       (Boolean(node.id) && effectiveNodeIds.has(String(node.id))) ||
       (Boolean(node.name) && effectiveNodeIds.has(node.name!));
 
+    onSelectEvent(null);
+    onSelectTrigger?.(null);
     if (!isAlreadySelected) {
       onSelectNode?.(node);
-      onSelectEvent(null);
-      onSelectTrigger?.(null);
     }
 
     if (activeTool === 'select' && node.lifespan) {

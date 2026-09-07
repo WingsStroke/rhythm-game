@@ -9,7 +9,7 @@ import type { LevelData, SceneNodeData } from '../types';
 export class SceneGraph {
   public root: Container;
   public foregroundRoot?: Container;
-  public onNodeSelect?: (nodeId: string, isShift?: boolean) => void;
+  public onNodeSelect?: (nodeId: string | null, isShift?: boolean) => void;
   private nodes: Map<string, SceneNode> = new Map();
   private spectrumNodes: Set<SceneNode> = new Set();
 

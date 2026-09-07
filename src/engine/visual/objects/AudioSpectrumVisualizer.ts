@@ -15,7 +15,14 @@ export interface AudioSpectrumProperties {
   gain?: number;
   minFreq?: number;
   maxFreq?: number;
+  frequencyBand?: string;
   sampleRate?: number;
+}
+
+interface BandBinMapping {
+  binStart: number;
+  binEnd: number;
+  fractionalBin: number;
 }
 
 /**
@@ -40,6 +47,7 @@ export class AudioSpectrumVisualizer extends Container {
   private currentFftSize = 512;
   private smoothedBands: Float32Array;
   private binRanges: [number, number][] = [];
+  private bandMappings: BandBinMapping[] = [];
 
   constructor(props: Record<string, unknown> = {}) {
     super();
@@ -55,6 +63,8 @@ export class AudioSpectrumVisualizer extends Container {
   }
 
   public applyProperties(props: Record<string, unknown>): void {
+    let needsRecompute = false;
+
     if (props.width !== undefined) this.spectrumWidth = Math.max(20, props.width as number);
     if (props.height !== undefined) this.spectrumHeight = Math.max(10, props.height as number);
     if (props.color !== undefined) this.color = safeParseColor(props.color, 0x00e5ff);
@@ -68,10 +78,28 @@ export class AudioSpectrumVisualizer extends Container {
     if (props.attack !== undefined) this.attack = Math.max(0.1, Math.min(1.0, props.attack as number));
     if (props.decay !== undefined) this.decay = Math.max(0.1, Math.min(0.99, props.decay as number));
     if (props.gain !== undefined) this.gain = Math.max(0.1, Math.min(5.0, props.gain as number));
+
+    if (props.minFreq !== undefined) {
+      const mf = Math.max(20, Math.min(20000, Number(props.minFreq)));
+      if (mf !== this.minFreq) {
+        this.minFreq = mf;
+        needsRecompute = true;
+      }
+    }
+
+    if (props.maxFreq !== undefined) {
+      const mf = Math.max(20, Math.min(20000, Number(props.maxFreq)));
+      if (mf !== this.maxFreq) {
+        this.maxFreq = mf;
+        needsRecompute = true;
+      }
+    }
+
     if (props.sampleRate !== undefined) {
       const sr = Number(props.sampleRate);
       if (sr > 0 && sr !== this.currentSampleRate) {
         this.currentSampleRate = sr;
+        needsRecompute = true;
       }
     }
 
@@ -80,8 +108,12 @@ export class AudioSpectrumVisualizer extends Container {
       if (newBands !== this.bandsCount) {
         this.bandsCount = newBands;
         this.smoothedBands = new Float32Array(this.bandsCount);
-        this.recomputeBinRanges(this.currentSampleRate, this.currentFftSize);
+        needsRecompute = true;
       }
+    }
+
+    if (needsRecompute) {
+      this.recomputeBinRanges(this.currentSampleRate, this.currentFftSize);
     }
   }
 
@@ -94,22 +126,28 @@ export class AudioSpectrumVisualizer extends Container {
   /**
    * Precomputes logarithmic/Mel bin boundaries across the FFT frequency range
    * to avoid any runtime allocation in per-frame update cycles.
+   * Supports both discrete bin averaging and fractional interpolation for narrow bands.
    */
   public recomputeBinRanges(sampleRate = 44100, fftSize = 512): void {
     const totalBins = fftSize / 2;
     const binWidth = sampleRate / fftSize;
     this.binRanges = [];
+    this.bandMappings = [];
 
-    const minF = Math.max(20, this.minFreq);
-    const maxF = Math.min(sampleRate / 2, this.maxFreq);
+    const minF = Math.max(20, Math.min(this.minFreq, this.maxFreq - 10));
+    const maxF = Math.min(sampleRate / 2, Math.max(minF + 10, this.maxFreq));
 
     for (let k = 0; k < this.bandsCount; k++) {
       const fStart = minF * Math.pow(maxF / minF, k / this.bandsCount);
       const fEnd = minF * Math.pow(maxF / minF, (k + 1) / this.bandsCount);
+      const fCenter = Math.sqrt(fStart * fEnd);
 
-      const binStart = Math.min(totalBins - 1, Math.max(1, Math.floor(fStart / binWidth)));
+      const fractionalBin = Math.max(0, Math.min(totalBins - 1, fCenter / binWidth));
+      const binStart = Math.min(totalBins - 1, Math.max(0, Math.floor(fStart / binWidth)));
       const binEnd = Math.min(totalBins, Math.max(binStart + 1, Math.ceil(fEnd / binWidth)));
+
       this.binRanges.push([binStart, binEnd]);
+      this.bandMappings.push({ binStart, binEnd, fractionalBin });
     }
   }
 
@@ -124,20 +162,33 @@ export class AudioSpectrumVisualizer extends Container {
 
     const n = this.bandsCount;
     for (let k = 0; k < n; k++) {
-      const range = this.binRanges[k];
-      if (!range) continue;
-      const [start, end] = range;
+      const mapping = this.bandMappings[k];
+      if (!mapping) continue;
+      const { binStart, binEnd, fractionalBin } = mapping;
 
-      let sum = 0;
-      let count = 0;
-      for (let b = start; b < end; b++) {
-        if (b < fftData.length) {
-          sum += fftData[b];
-          count++;
+      let val = 0;
+      if (binEnd - binStart > 1) {
+        // Average across the span of bins
+        let sum = 0;
+        let count = 0;
+        for (let b = binStart; b < binEnd; b++) {
+          if (b < fftData.length) {
+            sum += fftData[b];
+            count++;
+          }
         }
+        val = count > 0 ? (sum / count) / 255.0 : 0;
+      } else {
+        // Sub-bin fractional interpolation for silky smooth resolution in narrow bands
+        const i0 = Math.max(0, Math.min(fftData.length - 1, Math.floor(fractionalBin)));
+        const i1 = Math.max(0, Math.min(fftData.length - 1, Math.ceil(fractionalBin)));
+        const frac = fractionalBin - i0;
+        const v0 = (fftData[i0] ?? 0) / 255.0;
+        const v1 = (fftData[i1] ?? 0) / 255.0;
+        val = v0 * (1 - frac) + v1 * frac;
       }
 
-      const raw = count > 0 ? Math.min(1.2, ((sum / count) / 255.0) * this.gain) : 0;
+      const raw = Math.min(1.2, val * this.gain);
 
       // Asymmetric ballistics: fast attack on onset, smooth exponential decay on release
       if (raw > this.smoothedBands[k]) {

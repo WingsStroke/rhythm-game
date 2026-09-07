@@ -1301,6 +1301,101 @@ export function EditorPropertiesPanel({
                     />
                   </label>
                 </div>
+
+                {/* Frequency Analysis Focus & Range */}
+                <div className="flex flex-col gap-1 text-white/70 bg-white/[0.03] p-2.5 rounded-lg border border-white/10">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-white/90">Frequency Focus</span>
+                    <span className="font-mono text-[10px] text-[#00e5ff]">
+                      {((selectedNode.properties?.minFreq as number) ?? 40)}Hz - {((selectedNode.properties?.maxFreq as number) ?? 14000)}Hz
+                    </span>
+                  </div>
+                  <select
+                    value={(selectedNode.properties?.frequencyBand as string) || 'full'}
+                    onChange={(e) => {
+                      const band = e.target.value;
+                      let minF = (selectedNode.properties?.minFreq as number) ?? 40;
+                      let maxF = (selectedNode.properties?.maxFreq as number) ?? 14000;
+                      if (band === 'full') {
+                        minF = 40;
+                        maxF = 14000;
+                      } else if (band === 'bass') {
+                        minF = 20;
+                        maxF = 250;
+                      } else if (band === 'lowMids') {
+                        minF = 250;
+                        maxF = 1000;
+                      } else if (band === 'highMids') {
+                        minF = 1000;
+                        maxF = 4000;
+                      } else if (band === 'treble') {
+                        minF = 4000;
+                        maxF = 16000;
+                      }
+                      onUpdateNode({
+                        properties: {
+                          ...selectedNode.properties,
+                          frequencyBand: band,
+                          minFreq: minF,
+                          maxFreq: maxF,
+                        },
+                      });
+                    }}
+                    className="mt-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-white font-mono cursor-pointer"
+                  >
+                    <option value="full">Full Spectrum (20 Hz - 14 kHz)</option>
+                    <option value="bass">Sub & Bass (20 Hz - 250 Hz)</option>
+                    <option value="lowMids">Low Mids (250 Hz - 1 kHz)</option>
+                    <option value="highMids">High Mids (1 kHz - 4 kHz)</option>
+                    <option value="treble">Treble & Highs (4 kHz - 16 kHz)</option>
+                    <option value="custom">Custom Range (Manual Hz)</option>
+                  </select>
+
+                  <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
+                    <label className="flex flex-col text-white/60 text-[11px]">
+                      Min Freq (Hz)
+                      <input
+                        type="number"
+                        min={20}
+                        max={20000}
+                        step={10}
+                        value={(selectedNode.properties?.minFreq as number) ?? 40}
+                        onChange={(e) => {
+                          const val = Math.max(20, Number(e.target.value));
+                          onUpdateNode({
+                            properties: {
+                              ...selectedNode.properties,
+                              minFreq: val,
+                              frequencyBand: 'custom',
+                            },
+                          });
+                        }}
+                        className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                      />
+                    </label>
+                    <label className="flex flex-col text-white/60 text-[11px]">
+                      Max Freq (Hz)
+                      <input
+                        type="number"
+                        min={20}
+                        max={20000}
+                        step={50}
+                        value={(selectedNode.properties?.maxFreq as number) ?? 14000}
+                        onChange={(e) => {
+                          const val = Math.max(20, Number(e.target.value));
+                          onUpdateNode({
+                            properties: {
+                              ...selectedNode.properties,
+                              maxFreq: val,
+                              frequencyBand: 'custom',
+                            },
+                          });
+                        }}
+                        className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                      />
+                    </label>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Bar Gap (px)

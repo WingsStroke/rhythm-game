@@ -12,6 +12,8 @@ import { useAutoSave } from './hooks/useAutoSave';
 import { INITIAL_LEVEL } from './constants';
 import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData, ScenePrimitiveType } from '../engine/types';
 import { LevelValidator } from '../engine/content/LevelValidator';
+import { timelineTimeToSongTime } from '../engine/time/timeUtils';
+import { PrimitiveRegistry } from '../engine/visual/objects/PrimitiveRegistry';
 import { ListVideo, Gamepad2, Zap, Layers } from 'lucide-react';
 
 type EditorTab = 'timeline' | 'preview';
@@ -508,7 +510,83 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     }
   }, [selectedEventIds, selectedTriggerIds, selectedNodeIds, selectedNodeId, setLevel, handleRemoveNode]);
 
+  // Mutable ref to keep current audio timeline time accessible in callbacks
+  const currentTimeRef = useRef(0);
+
   // Modular Engine hook
+  const handleLivePreviewCanvasClick = useCallback(
+    (stageX: number, stageY: number) => {
+      if (activeTool === 'object') {
+        const bpm = level.timing?.bpm || 120;
+        const leadIn = level.timing?.leadIn ?? 0;
+        const offset = level.timing?.offset ?? 0;
+        const rawSongTime = Math.max(0, timelineTimeToSongTime(currentTimeRef.current, leadIn, offset));
+        const snappedTime = snapTimeToGrid(rawSongTime, bpm, gridSubdivision);
+
+        const type = selectedPrimitiveType || 'rectangle';
+        const nodes = level.visual?.nodes || [];
+        let max = 0;
+        const prefix = type.toLowerCase();
+        for (const node of nodes) {
+          const name = node.name || (typeof node.id === 'string' ? node.id : '');
+          if (name.startsWith(`${prefix}-`)) {
+            const num = parseInt(name.replace(`${prefix}-`, ''), 10);
+            if (!Number.isNaN(num) && num > max) max = num;
+          }
+        }
+        const counter = max + 1;
+        const uid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`;
+
+        const beatSec = 60 / bpm;
+        const defaultDuration = Math.max(1, Number((beatSec * 4).toFixed(3)));
+        const defaultProps = PrimitiveRegistry.get(type)?.defaultProperties || {};
+
+        const newNode: SceneNodeData = {
+          uid,
+          name: `${prefix}-${counter}`,
+          targetId: null,
+          id: null,
+          type,
+          layer: activeLayer,
+          subLane: 0,
+          visible: true,
+          lifespan: {
+            startTime: snappedTime,
+            duration: defaultDuration,
+            fadeInMs: 200,
+            fadeOutMs: 200,
+          },
+          transform: {
+            x: stageX,
+            y: stageY,
+            scaleX: 1,
+            scaleY: 1,
+            rotation: 0,
+            opacity: type === 'pointLight' || type === 'beamLight' ? 1.0 : 0.9,
+          },
+          properties: { ...defaultProps },
+        };
+
+        handleAddNode(newNode);
+        selectNode(newNode.uid);
+      } else if (activeTool === 'select') {
+        selectNode(null);
+      }
+    },
+    [
+      activeTool,
+      level.timing?.bpm,
+      level.timing?.leadIn,
+      level.timing?.offset,
+      level.visual?.nodes,
+      gridSubdivision,
+      selectedPrimitiveType,
+      activeLayer,
+      handleAddNode,
+      selectNode,
+    ]
+  );
+
   const {
     canvasContainerRef,
     isPlaying,
@@ -527,6 +605,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   } = useEditorEngine({
     level,
     activeTab,
+    activeTool,
     creationBehavior,
     gridSubdivision,
     selectedTriggerId,
@@ -535,7 +614,10 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     onSelectNode: (id, isShift) => selectNode(id, isShift),
     onUpdateNodesBatch: handleUpdateNodesBatch,
     onRecordEvent: handleAddEvent,
+    onCanvasClick: handleLivePreviewCanvasClick,
   });
+
+  currentTimeRef.current = currentTime;
 
   // Clipboard Engine
   interface ClipboardData {
@@ -783,12 +865,19 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   }, [level]);
 
   // Selected item lookup
-  const selectedEvent = level.events.find((e) => e.id === selectedEventId) || null;
-  const selectedTrigger = (level.visual?.triggers || []).find((t) => t.id === selectedTriggerId) || null;
-  const selectedNode =
-    (level.visual?.nodes || []).find(
-      (n) => (n.uid && n.uid === selectedNodeId) || n.id === selectedNodeId || n.name === selectedNodeId
-    ) || null;
+  const selectedEvent = selectedEventId ? (level.events.find((e) => e.id === selectedEventId) || null) : null;
+  const selectedTrigger = selectedTriggerId ? ((level.visual?.triggers || []).find((t) => t.id === selectedTriggerId) || null) : null;
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return (
+      (level.visual?.nodes || []).find(
+        (n) =>
+          (n.uid && n.uid === selectedNodeId) ||
+          (n.id !== null && n.id !== undefined && String(n.id) === selectedNodeId) ||
+          (n.name && n.name === selectedNodeId)
+      ) || null
+    );
+  }, [level.visual?.nodes, selectedNodeId]);
 
   // Global shortcut: F5 or Ctrl+Enter to trigger Playtest
   useEffect(() => {
