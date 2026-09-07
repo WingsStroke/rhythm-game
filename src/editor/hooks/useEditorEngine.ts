@@ -24,8 +24,10 @@ interface UseEditorEngineOptions {
   gridSubdivision: GridSubdivision;
   selectedTriggerId?: string | null;
   selectedNodeId?: string | null;
+  selectedNodeIds?: Set<string>;
   customKeybindings?: KeybindingMap;
-  onSelectNode?: (nodeId: string | null) => void;
+  onSelectNode?: (nodeId: string | null, isShift?: boolean) => void;
+  onUpdateNodesBatch?: (nodes: SceneNodeData[]) => void;
   onRecordEvent?: (event: PadEvent) => void;
 }
 
@@ -36,8 +38,10 @@ export function useEditorEngine({
   gridSubdivision,
   selectedTriggerId,
   selectedNodeId,
+  selectedNodeIds,
   customKeybindings,
   onSelectNode,
+  onUpdateNodesBatch,
   onRecordEvent,
 }: UseEditorEngineOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -81,6 +85,9 @@ export function useEditorEngine({
 
   const gridSubdivisionRef = useRef(gridSubdivision);
   gridSubdivisionRef.current = gridSubdivision;
+
+  const onUpdateNodesBatchRef = useRef(onUpdateNodesBatch);
+  onUpdateNodesBatchRef.current = onUpdateNodesBatch;
 
   // Ref kept in sync with currentTime so the rAF loop always reads the latest
   // value without being listed as a dependency (which would recreate the loop
@@ -208,8 +215,11 @@ export function useEditorEngine({
       }
 
       const ve = new VisualEngine(canvasContainerRef.current, level, transportRef.current?.audioEngine ?? null);
-      ve.onNodeSelect = (id) => {
-        onSelectNode?.(id);
+      ve.onNodeSelect = (id, isShift) => {
+        onSelectNode?.(id, isShift);
+      };
+      ve.onNodesTransformCommit = (updatedNodes) => {
+        onUpdateNodesBatchRef.current?.(updatedNodes);
       };
 
       ve.onPadInput = (padId, pressed) => {
@@ -224,7 +234,11 @@ export function useEditorEngine({
 
       ve.init().then(() => {
         visualRef.current = ve;
-        ve.setSelectedNode(selectedNodeId ?? null);
+        if (selectedNodeIds && selectedNodeIds.size > 0) {
+          ve.setSelectedNodes(selectedNodeIds);
+        } else {
+          ve.setSelectedNode(selectedNodeId ?? null);
+        }
         if (activeTab === 'preview' || isRecording) {
           inputRef.current?.attach();
         }
@@ -239,10 +253,14 @@ export function useEditorEngine({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // Synchronize selection overlay with active selectedNodeId
+  // Synchronize selection overlay with active selectedNodeIds / selectedNodeId
   useEffect(() => {
-    visualRef.current?.setSelectedNode(selectedNodeId ?? null);
-  }, [selectedNodeId]);
+    if (selectedNodeIds && selectedNodeIds.size > 0) {
+      visualRef.current?.setSelectedNodes(selectedNodeIds);
+    } else {
+      visualRef.current?.setSelectedNode(selectedNodeId ?? null);
+    }
+  }, [selectedNodeIds, selectedNodeId]);
 
   // Attach input listener in preview mode OR when recording is active in timeline mode
   useEffect(() => {

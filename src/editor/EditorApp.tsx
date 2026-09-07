@@ -129,9 +129,21 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     }
   }, []);
 
-  const selectNode = useCallback((id: string | null) => {
+  const selectNode = useCallback((id: string | null, isShift: boolean = false) => {
     if (!id) {
       setSelectedNodeIds(new Set());
+    } else if (isShift) {
+      setSelectedNodeIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
     } else {
       setSelectedNodeIds(new Set([id]));
       setSelectedEventIds(new Set());
@@ -519,7 +531,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     gridSubdivision,
     selectedTriggerId,
     selectedNodeId,
-    onSelectNode: (id) => selectNode(id),
+    selectedNodeIds,
+    onSelectNode: (id, isShift) => selectNode(id, isShift),
+    onUpdateNodesBatch: handleUpdateNodesBatch,
     onRecordEvent: handleAddEvent,
   });
 

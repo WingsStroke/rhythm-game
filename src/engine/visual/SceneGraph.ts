@@ -8,7 +8,7 @@ import type { LevelData, SceneNodeData } from '../types';
 export class SceneGraph {
   public root: Container;
   public foregroundRoot?: Container;
-  public onNodeSelect?: (nodeId: string) => void;
+  public onNodeSelect?: (nodeId: string, isShift?: boolean) => void;
   private nodes: Map<string, SceneNode> = new Map();
 
   constructor(container: Container, foregroundContainer?: Container) {
@@ -30,7 +30,7 @@ export class SceneGraph {
       const node = new SceneNode(nodeData);
       node.container.on('pointerdown', (e) => {
         e.stopPropagation();
-        this.onNodeSelect?.(node.uid);
+        this.onNodeSelect?.(node.uid, Boolean((e as unknown as { shiftKey?: boolean }).shiftKey));
       });
       this.nodes.set(node.uid, node);
     }
@@ -103,7 +103,7 @@ export class SceneGraph {
     const node = new SceneNode(nodeData);
     node.container.on('pointerdown', (e) => {
       e.stopPropagation();
-      this.onNodeSelect?.(node.uid);
+      this.onNodeSelect?.(node.uid, Boolean((e as unknown as { shiftKey?: boolean }).shiftKey));
     });
     this.nodes.set(node.uid, node);
     

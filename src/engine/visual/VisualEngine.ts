@@ -23,6 +23,8 @@ import { ParticlePool } from './ParticlePool';
 import { NotePool } from './NotePool';
 import { EffectRegistry } from './effects/EffectRegistry';
 import { AudioSpectrumVisualizer } from './objects/AudioSpectrumVisualizer';
+import { TransformGizmo } from './editor/TransformGizmo';
+import type { SceneNode } from './objects/SceneNode';
 import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
 import { audioTimeToSongTime } from '../time/timeUtils';
 
@@ -84,8 +86,8 @@ export class VisualEngine {
 
   // Editor tooling overlay (isolated from level serialization)
   private editorOverlayContainer!: Container;
-  private selectionGraphics!: Graphics;
-  private selectedNodeId: string | null = null;
+  private transformGizmo!: TransformGizmo;
+  private selectedNodeIds: Set<string> = new Set();
 
   // Scene Graph & Trigger Systems
   private sceneGraph!: SceneGraph;
@@ -135,7 +137,9 @@ export class VisualEngine {
   /** Emitted when player clicks/touches a pad directly */
   public onPadInput: ((padId: PadId, pressed: boolean) => void) | null = null;
   /** Emitted when a SceneNode is clicked */
-  public onNodeSelect: ((nodeId: string) => void) | null = null;
+  public onNodeSelect: ((nodeId: string, isShift?: boolean) => void) | null = null;
+  /** Emitted when node transforms are modified and committed via Live Preview gizmo */
+  public onNodesTransformCommit?: ((nodes: SceneNodeData[]) => void) | null = null;
 
   constructor(root: HTMLElement, level: LevelData, audio?: AudioEngine | null) {
     this.root = root;
@@ -210,12 +214,14 @@ export class VisualEngine {
     }
     this.setupFilters();
     this.setupVisualEffects();
+    this.updateSelectionOverlay();
   }
 
   public syncVisualNodes(nodes: SceneNodeData[]): void {
     this.level.visual.nodes = nodes;
     this.sceneGraph.buildFromData(this.level);
     this.setupVisualEffects();
+    this.updateSelectionOverlay();
   }
 
   public syncVisualTriggers(triggers: TriggerData[]): void {
@@ -351,8 +357,11 @@ export class VisualEngine {
 
     this.editorOverlayContainer = new Container();
     this.editorOverlayContainer.zIndex = 99;
-    this.selectionGraphics = new Graphics();
-    this.editorOverlayContainer.addChild(this.selectionGraphics);
+    this.transformGizmo = new TransformGizmo(this.app, this.sceneLayer);
+    this.transformGizmo.onCommit = (updated) => {
+      this.onNodesTransformCommit?.(updated);
+    };
+    this.editorOverlayContainer.addChild(this.transformGizmo);
 
     this.app.stage.sortableChildren = true;
     this.mainStage = new Container();
@@ -413,8 +422,8 @@ export class VisualEngine {
     // Dedicated lane layer
     this.laneLayer.addChild(this.laneGfx);
 
-    this.sceneGraph.onNodeSelect = (id) => {
-      if (this.onNodeSelect) this.onNodeSelect(id);
+    this.sceneGraph.onNodeSelect = (id, isShift) => {
+      if (this.onNodeSelect) this.onNodeSelect(id, isShift);
     };
 
     // 4. Pads
@@ -627,6 +636,10 @@ export class VisualEngine {
       this.sceneForegroundLayer.scale.set(sceneScale);
       this.sceneForegroundLayer.x = (screenW - 1920 * sceneScale) / 2;
       this.sceneForegroundLayer.y = (screenH - 1080 * sceneScale) / 2;
+    }
+
+    if (this.transformGizmo) {
+      this.transformGizmo.update();
     }
 
     const viewportH = Math.min(screenH, this.root.clientHeight || window.innerHeight, window.innerHeight);
@@ -1033,9 +1046,9 @@ export class VisualEngine {
       for (const node of this.sceneGraph.getAllNodes()) {
         const ls = node.data.lifespan;
         const isSelectedInEditor =
-          this.selectedNodeId === node.uid ||
-          this.selectedNodeId === node.id ||
-          this.selectedNodeId === node.name;
+          this.selectedNodeIds.has(node.uid) ||
+          (Boolean(node.id) && this.selectedNodeIds.has(String(node.id))) ||
+          (Boolean(node.name) && this.selectedNodeIds.has(node.name!));
 
         if (!ls) {
           node.container.visible = node.data.visible !== false;
@@ -1344,97 +1357,36 @@ export class VisualEngine {
   }
 
   /**
-   * Sets the currently selected SceneNode ID to display its editor bounding box overlay.
+   * Sets the currently selected SceneNode IDs to display the interactive transform gizmo.
    */
-  public setSelectedNode(nodeId: string | null): void {
-    this.selectedNodeId = nodeId;
+  public setSelectedNodes(nodeIds: string[] | Set<string> | null): void {
+    this.selectedNodeIds.clear();
+    if (nodeIds) {
+      for (const id of nodeIds) this.selectedNodeIds.add(id);
+    }
     this.updateSelectionOverlay();
   }
 
+  public setSelectedNode(nodeId: string | null): void {
+    this.setSelectedNodes(nodeId ? [nodeId] : null);
+  }
+
   public getSelectedNode(): string | null {
-    return this.selectedNodeId;
+    return this.selectedNodeIds.size === 1 ? Array.from(this.selectedNodeIds)[0] : null;
+  }
+
+  public getSelectedNodes(): Set<string> {
+    return this.selectedNodeIds;
   }
 
   private updateSelectionOverlay(): void {
-    if (!this.selectionGraphics) return;
-    this.selectionGraphics.clear();
-    if (!this.selectedNodeId || !this.sceneGraph) return;
-
-    const node = this.sceneGraph.getNode(this.selectedNodeId);
-    if (!node) return;
-
-    // Get screen bounds of the selected container
-    const bounds = node.container.getBounds();
-    const bx = Number.isFinite(bounds.x) ? bounds.x : (Number.isFinite(bounds.minX) ? bounds.minX : 0);
-    const by = Number.isFinite(bounds.y) ? bounds.y : (Number.isFinite(bounds.minY) ? bounds.minY : 0);
-    const bw = Number.isFinite(bounds.width) ? bounds.width : (Number.isFinite(bounds.maxX) ? bounds.maxX - bounds.minX : 0);
-    const bh = Number.isFinite(bounds.height) ? bounds.height : (Number.isFinite(bounds.maxY) ? bounds.maxY - bounds.minY : 0);
-
-    if (bw <= 0 || bh <= 0) return;
-
-    // 1. Dashed bounding box outline (1.5px cyan #00e5ff, alpha 0.85)
-    const dashLen = 6;
-    const gapLen = 4;
-    this.drawDashedLine(bx, by, bx + bw, by, dashLen, gapLen);
-    this.drawDashedLine(bx, by + bh, bx + bw, by + bh, dashLen, gapLen);
-    this.drawDashedLine(bx, by, bx, by + bh, dashLen, gapLen);
-    this.drawDashedLine(bx + bw, by, bx + bw, by + bh, dashLen, gapLen);
-
-    // 2. Corner anchor handles (6x6 px filled squares)
-    const handleSize = 6;
-    const half = handleSize / 2;
-    const corners = [
-      { x: bx - half, y: by - half },
-      { x: bx + bw - half, y: by - half },
-      { x: bx - half, y: by + bh - half },
-      { x: bx + bw - half, y: by + bh - half },
-    ];
-
-    for (const c of corners) {
-      this.selectionGraphics
-        .rect(c.x, c.y, handleSize, handleSize)
-        .fill({ color: 0xffffff, alpha: 0.95 })
-        .stroke({ width: 1.5, color: 0x00e5ff, alpha: 1 });
+    if (!this.transformGizmo || !this.sceneGraph) return;
+    const nodes: SceneNode[] = [];
+    for (const id of this.selectedNodeIds) {
+      const node = this.sceneGraph.getNode(id);
+      if (node) nodes.push(node);
     }
-
-    // 3. Center pivot marker
-    const pivotPoint = node.container.toGlobal({ x: 0, y: 0 });
-    const px = pivotPoint.x;
-    const py = pivotPoint.y;
-    const pRadius = 4;
-
-    this.selectionGraphics
-      .circle(px, py, pRadius)
-      .fill({ color: 0x00e5ff, alpha: 0.5 })
-      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
-    this.selectionGraphics
-      .moveTo(px - 6, py)
-      .lineTo(px + 6, py)
-      .stroke({ width: 1, color: 0x00e5ff, alpha: 0.8 });
-    this.selectionGraphics
-      .moveTo(px, py - 6)
-      .lineTo(px, py + 6)
-      .stroke({ width: 1, color: 0x00e5ff, alpha: 0.8 });
-  }
-
-  private drawDashedLine(x1: number, y1: number, x2: number, y2: number, dash: number, gap: number): void {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist <= 0) return;
-    const nx = dx / dist;
-    const ny = dy / dist;
-    let current = 0;
-    while (current < dist) {
-      const startX = x1 + nx * current;
-      const startY = y1 + ny * current;
-      const segLen = Math.min(dash, dist - current);
-      this.selectionGraphics
-        .moveTo(startX, startY)
-        .lineTo(startX + nx * segLen, startY + ny * segLen)
-        .stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.85 });
-      current += dash + gap;
-    }
+    this.transformGizmo.setSelectedNodes(nodes);
   }
 
   dispose(): void {
@@ -1457,6 +1409,10 @@ export class VisualEngine {
         // Ticker already stopped
       }
       this.tickerCb = null;
+    }
+
+    if (this.transformGizmo) {
+      this.transformGizmo.destroy();
     }
 
     if (this.notePool) {
