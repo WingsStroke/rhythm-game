@@ -70,11 +70,11 @@ PrimitiveRegistry.register({
   type: 'circle',
   label: 'Circle',
   category: 'basic',
-  defaultProperties: { radius: 70, color: '#ff007f' },
+  defaultProperties: { width: 140, height: 140, radius: 70, color: '#ff007f' },
   createDisplayObject: (props) => {
     const g = new Graphics();
     const color = safeParseColor(props.color, 0xff007f);
-    const radius = (props.radius as number) || 70;
+    const radius = (props.radius as number) || (typeof props.width === 'number' ? props.width / 2 : 70);
     g.circle(0, 0, radius);
     g.fill({ color });
     return g;
@@ -133,12 +133,12 @@ PrimitiveRegistry.register({
   type: 'star',
   label: 'Star',
   category: 'polygon',
-  defaultProperties: { points: 5, outerRadius: 60, innerRadius: 28, color: '#ffaa00' },
+  defaultProperties: { width: 120, height: 120, points: 5, outerRadius: 60, innerRadius: 28, color: '#ffaa00' },
   createDisplayObject: (props) => {
     const g = new Graphics();
     const color = safeParseColor(props.color, 0xffaa00);
     const pointsCount = Math.max(3, Math.min(20, (props.points as number) || 5));
-    const outerR = (props.outerRadius as number) || 60;
+    const outerR = (props.outerRadius as number) || (typeof props.width === 'number' ? props.width / 2 : 60);
     const innerR = (props.innerRadius as number) || Math.round(outerR * 0.45);
 
     const step = Math.PI / pointsCount;
@@ -165,11 +165,11 @@ PrimitiveRegistry.register({
   type: 'hexagon',
   label: 'Hexagon',
   category: 'polygon',
-  defaultProperties: { radius: 60, color: '#00ff9d' },
+  defaultProperties: { width: 120, height: 120, radius: 60, color: '#00ff9d' },
   createDisplayObject: (props) => {
     const g = new Graphics();
     const color = safeParseColor(props.color, 0x00ff9d);
-    const radius = (props.radius as number) || 60;
+    const radius = (props.radius as number) || (typeof props.width === 'number' ? props.width / 2 : 60);
     const polyPoints: number[] = [];
     for (let i = 0; i < 6; i++) {
       const angle = (Math.PI / 3) * i - Math.PI / 6;
@@ -189,11 +189,11 @@ PrimitiveRegistry.register({
   type: 'pointLight',
   label: 'Point Light',
   category: 'lighting',
-  defaultProperties: { radius: 100, color: '#00e5ff', intensity: 1.0 },
+  defaultProperties: { width: 200, height: 200, radius: 100, color: '#00e5ff', intensity: 1.0 },
   createDisplayObject: (props) => {
     const texture = GlowTextureCache.getRadialTexture();
     const sprite = new Sprite(texture);
-    const radius = (props.radius as number) || 100;
+    const radius = (props.radius as number) || (typeof props.width === 'number' ? props.width / 2 : 100);
     sprite.anchor.set(0.5);
     sprite.width = radius * 2;
     sprite.height = radius * 2;
@@ -211,11 +211,11 @@ PrimitiveRegistry.register({
   type: 'beamLight',
   label: 'Beam Light',
   category: 'lighting',
-  defaultProperties: { length: 320, width: 70, color: '#ff007f', intensity: 1.0 },
+  defaultProperties: { width: 70, height: 320, length: 320, color: '#ff007f', intensity: 1.0 },
   createDisplayObject: (props) => {
     const texture = GlowTextureCache.getLinearTexture();
     const sprite = new Sprite(texture);
-    const length = (props.length as number) || 320;
+    const length = (props.length as number) || (props.height as number) || 320;
     const width = (props.width as number) || 70;
     sprite.anchor.set(0.5);
     sprite.width = length;

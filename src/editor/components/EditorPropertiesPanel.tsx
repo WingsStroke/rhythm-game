@@ -1051,18 +1051,28 @@ export function EditorPropertiesPanel({
           {/* Dimensions / Color */}
           <div className="flex flex-col gap-2">
             <h3 className="text-white/40 uppercase font-mono font-bold text-[10px]">Geometry & Color</h3>
-            {(selectedNode.type === 'rectangle' || selectedNode.type === 'triangle' || selectedNode.type === 'diamond') && (
+            {(selectedNode.type === 'rectangle' || selectedNode.type === 'triangle' || selectedNode.type === 'diamond' || selectedNode.type === 'sprite' || selectedNode.type === 'circle' || selectedNode.type === 'hexagon') && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col text-white/60">
                   Width
                   <input
                     type="number"
-                    value={(selectedNode.properties?.width as number) ?? 120}
-                    onChange={(e) =>
-                      onUpdateNode({
-                        properties: { ...selectedNode.properties, width: Number(e.target.value) },
-                      })
+                    value={
+                      (selectedNode.properties?.width as number) ??
+                      ((selectedNode.properties?.radius as number) ? (selectedNode.properties?.radius as number) * 2 : 120)
                     }
+                    onChange={(e) => {
+                      const val = Math.max(10, Number(e.target.value));
+                      const props: Record<string, unknown> = {
+                        ...selectedNode.properties,
+                        width: val,
+                      };
+                      if (selectedNode.type === 'circle' || selectedNode.type === 'hexagon') {
+                        props.height = val;
+                        props.radius = Math.round(val / 2);
+                      }
+                      onUpdateNode({ properties: props });
+                    }}
                     className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
                   />
                 </label>
@@ -1070,12 +1080,22 @@ export function EditorPropertiesPanel({
                   Height
                   <input
                     type="number"
-                    value={(selectedNode.properties?.height as number) ?? 120}
-                    onChange={(e) =>
-                      onUpdateNode({
-                        properties: { ...selectedNode.properties, height: Number(e.target.value) },
-                      })
+                    value={
+                      (selectedNode.properties?.height as number) ??
+                      ((selectedNode.properties?.radius as number) ? (selectedNode.properties?.radius as number) * 2 : 120)
                     }
+                    onChange={(e) => {
+                      const val = Math.max(10, Number(e.target.value));
+                      const props: Record<string, unknown> = {
+                        ...selectedNode.properties,
+                        height: val,
+                      };
+                      if (selectedNode.type === 'circle' || selectedNode.type === 'hexagon') {
+                        props.width = val;
+                        props.radius = Math.round(val / 2);
+                      }
+                      onUpdateNode({ properties: props });
+                    }}
                     className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
                   />
                 </label>
@@ -1087,12 +1107,21 @@ export function EditorPropertiesPanel({
                 Radius
                 <input
                   type="number"
-                  value={(selectedNode.properties?.radius as number) ?? 60}
-                  onChange={(e) =>
-                    onUpdateNode({
-                      properties: { ...selectedNode.properties, radius: Number(e.target.value) },
-                    })
+                  value={
+                    (selectedNode.properties?.radius as number) ??
+                    ((selectedNode.properties?.width as number) ? Math.round((selectedNode.properties?.width as number) / 2) : 60)
                   }
+                  onChange={(e) => {
+                    const r = Math.max(5, Number(e.target.value));
+                    onUpdateNode({
+                      properties: {
+                        ...selectedNode.properties,
+                        radius: r,
+                        width: r * 2,
+                        height: r * 2,
+                      },
+                    });
+                  }}
                   className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
                 />
               </label>
@@ -1100,6 +1129,62 @@ export function EditorPropertiesPanel({
 
             {selectedNode.type === 'star' && (
               <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Width
+                    <input
+                      type="number"
+                      value={
+                        (selectedNode.properties?.width as number) ??
+                        ((selectedNode.properties?.outerRadius as number) ? (selectedNode.properties?.outerRadius as number) * 2 : 120)
+                      }
+                      onChange={(e) => {
+                        const val = Math.max(10, Number(e.target.value));
+                        const outerR = Math.round(val / 2);
+                        const oldOuter = (selectedNode.properties?.outerRadius as number) || 60;
+                        const oldInner = (selectedNode.properties?.innerRadius as number) || 28;
+                        const ratio = oldOuter > 0 ? oldInner / oldOuter : 0.45;
+                        onUpdateNode({
+                          properties: {
+                            ...selectedNode.properties,
+                            width: val,
+                            height: val,
+                            outerRadius: outerR,
+                            innerRadius: Math.round(outerR * ratio),
+                          },
+                        });
+                      }}
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Height
+                    <input
+                      type="number"
+                      value={
+                        (selectedNode.properties?.height as number) ??
+                        ((selectedNode.properties?.outerRadius as number) ? (selectedNode.properties?.outerRadius as number) * 2 : 120)
+                      }
+                      onChange={(e) => {
+                        const val = Math.max(10, Number(e.target.value));
+                        const outerR = Math.round(val / 2);
+                        const oldOuter = (selectedNode.properties?.outerRadius as number) || 60;
+                        const oldInner = (selectedNode.properties?.innerRadius as number) || 28;
+                        const ratio = oldOuter > 0 ? oldInner / oldOuter : 0.45;
+                        onUpdateNode({
+                          properties: {
+                            ...selectedNode.properties,
+                            width: val,
+                            height: val,
+                            outerRadius: outerR,
+                            innerRadius: Math.round(outerR * ratio),
+                          },
+                        });
+                      }}
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                </div>
                 <label className="flex flex-col text-white/60">
                   Star Points (Spikes)
                   <input
@@ -1121,11 +1206,17 @@ export function EditorPropertiesPanel({
                     <input
                       type="number"
                       value={(selectedNode.properties?.outerRadius as number) ?? 60}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const r = Math.max(5, Number(e.target.value));
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, outerRadius: Number(e.target.value) },
-                        })
-                      }
+                          properties: {
+                            ...selectedNode.properties,
+                            outerRadius: r,
+                            width: r * 2,
+                            height: r * 2,
+                          },
+                        });
+                      }}
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
                     />
                   </label>
@@ -1148,18 +1239,73 @@ export function EditorPropertiesPanel({
 
             {selectedNode.type === 'pointLight' && (
               <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Width
+                    <input
+                      type="number"
+                      value={
+                        (selectedNode.properties?.width as number) ??
+                        ((selectedNode.properties?.radius as number) ? (selectedNode.properties?.radius as number) * 2 : 200)
+                      }
+                      onChange={(e) => {
+                        const val = Math.max(10, Number(e.target.value));
+                        onUpdateNode({
+                          properties: {
+                            ...selectedNode.properties,
+                            width: val,
+                            height: val,
+                            radius: Math.round(val / 2),
+                          },
+                        });
+                      }}
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Height
+                    <input
+                      type="number"
+                      value={
+                        (selectedNode.properties?.height as number) ??
+                        ((selectedNode.properties?.radius as number) ? (selectedNode.properties?.radius as number) * 2 : 200)
+                      }
+                      onChange={(e) => {
+                        const val = Math.max(10, Number(e.target.value));
+                        onUpdateNode({
+                          properties: {
+                            ...selectedNode.properties,
+                            width: val,
+                            height: val,
+                            radius: Math.round(val / 2),
+                          },
+                        });
+                      }}
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                </div>
                 <label className="flex flex-col text-white/60">
                   Glow Radius
                   <input
                     type="number"
                     min={10}
                     max={1000}
-                    value={(selectedNode.properties?.radius as number) ?? 100}
-                    onChange={(e) =>
-                      onUpdateNode({
-                        properties: { ...selectedNode.properties, radius: Number(e.target.value) },
-                      })
+                    value={
+                      (selectedNode.properties?.radius as number) ??
+                      ((selectedNode.properties?.width as number) ? Math.round((selectedNode.properties?.width as number) / 2) : 100)
                     }
+                    onChange={(e) => {
+                      const r = Math.max(5, Number(e.target.value));
+                      onUpdateNode({
+                        properties: {
+                          ...selectedNode.properties,
+                          radius: r,
+                          width: r * 2,
+                          height: r * 2,
+                        },
+                      });
+                    }}
                     className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
                   />
                 </label>
@@ -1192,12 +1338,13 @@ export function EditorPropertiesPanel({
                     Beam Length
                     <input
                       type="number"
-                      value={(selectedNode.properties?.length as number) ?? 320}
-                      onChange={(e) =>
+                      value={(selectedNode.properties?.length as number) ?? (selectedNode.properties?.height as number) ?? 320}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, length: Number(e.target.value) },
-                        })
-                      }
+                          properties: { ...selectedNode.properties, length: val, height: val },
+                        });
+                      }}
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
                     />
                   </label>
@@ -1206,11 +1353,12 @@ export function EditorPropertiesPanel({
                     <input
                       type="number"
                       value={(selectedNode.properties?.width as number) ?? 70}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, width: Number(e.target.value) },
-                        })
-                      }
+                          properties: { ...selectedNode.properties, width: val },
+                        });
+                      }}
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
                     />
                   </label>

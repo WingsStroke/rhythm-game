@@ -400,8 +400,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const handleSelectPrimitiveType = useCallback((type: ScenePrimitiveType) => {
     setSelectedPrimitiveType(type);
     setActiveTool('object');
-    setTimelineMode('visuals');
-    setActiveTab('timeline');
   }, []);
 
   const handleUpdateNode = useCallback((updates: Partial<SceneNodeData>) => {

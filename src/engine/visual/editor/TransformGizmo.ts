@@ -18,6 +18,10 @@ interface NodeInitialState {
   scaleY: number;
   rotation: number;
   localBounds: { x: number; y: number; width: number; height: number };
+  initW: number;
+  initH: number;
+  currentW: number;
+  currentH: number;
 }
 
 /**
@@ -366,6 +370,30 @@ export class TransformGizmo extends Container {
       const lw = Math.max(1, Number.isFinite(lb.width) ? lb.width : (Number.isFinite(lb.maxX) ? lb.maxX - lb.minX : 10));
       const lh = Math.max(1, Number.isFinite(lb.height) ? lb.height : (Number.isFinite(lb.maxY) ? lb.maxY - lb.minY : 10));
 
+      const props = (node.data.properties || {}) as Record<string, unknown>;
+      let initW = typeof props.width === 'number' ? props.width : 0;
+      let initH = typeof props.height === 'number' ? props.height : 0;
+
+      if (!initW && typeof props.radius === 'number') {
+        initW = props.radius * 2;
+        initH = props.radius * 2;
+      }
+      if (!initW && typeof props.outerRadius === 'number') {
+        initW = props.outerRadius * 2;
+        initH = props.outerRadius * 2;
+      }
+      if (!initW && typeof props.length === 'number') {
+        initW = props.length;
+        initH = typeof props.width === 'number' ? props.width : props.length;
+      }
+
+      if (!initW || initW <= 0) {
+        initW = Math.max(10, Math.round(lw));
+      }
+      if (!initH || initH <= 0) {
+        initH = Math.max(10, Math.round(lh));
+      }
+
       this.initialStates.set(node.uid, {
         node,
         x: node.container.x,
@@ -374,6 +402,10 @@ export class TransformGizmo extends Container {
         scaleY: node.container.scale.y,
         rotation: node.container.rotation,
         localBounds: { x: lx, y: ly, width: lw, height: lh },
+        initW,
+        initH,
+        currentW: initW,
+        currentH: initH,
       });
 
       const b = node.container.getBounds();
@@ -418,164 +450,117 @@ export class TransformGizmo extends Container {
           const localDeltaX = deltaStageX * cos + deltaStageY * sin;
           const localDeltaY = -deltaStageX * sin + deltaStageY * cos;
 
-          const lb = state.localBounds;
-          const initRenderW = Math.max(10, lb.width * state.scaleX);
-          const initRenderH = Math.max(10, lb.height * state.scaleY);
-
-          let ratioX = 1;
-          let ratioY = 1;
-          let shiftLocalX = 0;
-          let shiftLocalY = 0;
+          let newW = state.initW;
+          let newH = state.initH;
 
           switch (this.activeHandle) {
-            case 'se': {
-              const newW = Math.max(10, initRenderW + localDeltaX);
-              const newH = Math.max(10, initRenderH + localDeltaY);
-              ratioX = newW / initRenderW;
-              ratioY = newH / initRenderH;
-              shiftLocalX = -lb.x * (ratioX - 1);
-              shiftLocalY = -lb.y * (ratioY - 1);
+            case 'e':
+              newW = Math.max(10, Math.round(state.initW + localDeltaX * 2));
               break;
-            }
-            case 'nw': {
-              const newW = Math.max(10, initRenderW - localDeltaX);
-              const newH = Math.max(10, initRenderH - localDeltaY);
-              ratioX = newW / initRenderW;
-              ratioY = newH / initRenderH;
-              shiftLocalX = -(lb.x + lb.width) * (ratioX - 1);
-              shiftLocalY = -(lb.y + lb.height) * (ratioY - 1);
+            case 'w':
+              newW = Math.max(10, Math.round(state.initW - localDeltaX * 2));
               break;
-            }
-            case 'ne': {
-              const newW = Math.max(10, initRenderW + localDeltaX);
-              const newH = Math.max(10, initRenderH - localDeltaY);
-              ratioX = newW / initRenderW;
-              ratioY = newH / initRenderH;
-              shiftLocalX = -lb.x * (ratioX - 1);
-              shiftLocalY = -(lb.y + lb.height) * (ratioY - 1);
+            case 's':
+              newH = Math.max(10, Math.round(state.initH + localDeltaY * 2));
               break;
-            }
-            case 'sw': {
-              const newW = Math.max(10, initRenderW - localDeltaX);
-              const newH = Math.max(10, initRenderH + localDeltaY);
-              ratioX = newW / initRenderW;
-              ratioY = newH / initRenderH;
-              shiftLocalX = -(lb.x + lb.width) * (ratioX - 1);
-              shiftLocalY = -lb.y * (ratioY - 1);
+            case 'n':
+              newH = Math.max(10, Math.round(state.initH - localDeltaY * 2));
               break;
-            }
-            case 'e': {
-              const newW = Math.max(10, initRenderW + localDeltaX);
-              ratioX = newW / initRenderW;
-              shiftLocalX = -lb.x * (ratioX - 1);
+            case 'se':
+              newW = Math.max(10, Math.round(state.initW + localDeltaX * 2));
+              newH = Math.max(10, Math.round(state.initH + localDeltaY * 2));
               break;
-            }
-            case 'w': {
-              const newW = Math.max(10, initRenderW - localDeltaX);
-              ratioX = newW / initRenderW;
-              shiftLocalX = -(lb.x + lb.width) * (ratioX - 1);
+            case 'sw':
+              newW = Math.max(10, Math.round(state.initW - localDeltaX * 2));
+              newH = Math.max(10, Math.round(state.initH + localDeltaY * 2));
               break;
-            }
-            case 's': {
-              const newH = Math.max(10, initRenderH + localDeltaY);
-              ratioY = newH / initRenderH;
-              shiftLocalY = -lb.y * (ratioY - 1);
+            case 'ne':
+              newW = Math.max(10, Math.round(state.initW + localDeltaX * 2));
+              newH = Math.max(10, Math.round(state.initH - localDeltaY * 2));
               break;
-            }
-            case 'n': {
-              const newH = Math.max(10, initRenderH - localDeltaY);
-              ratioY = newH / initRenderH;
-              shiftLocalY = -(lb.y + lb.height) * (ratioY - 1);
+            case 'nw':
+              newW = Math.max(10, Math.round(state.initW - localDeltaX * 2));
+              newH = Math.max(10, Math.round(state.initH - localDeltaY * 2));
               break;
-            }
           }
 
-          // Transform shiftLocal back into stage coordinate space
-          const stageShiftX = shiftLocalX * cos - shiftLocalY * sin;
-          const stageShiftY = shiftLocalX * sin + shiftLocalY * cos;
+          state.currentW = newW;
+          state.currentH = newH;
 
-          state.node.container.x = Math.round(state.x + stageShiftX);
-          state.node.container.y = Math.round(state.y + stageShiftY);
-          state.node.container.scale.x = Math.max(0.02, state.scaleX * ratioX);
-          state.node.container.scale.y = Math.max(0.02, state.scaleY * ratioY);
+          // CRITICAL: Position (x, y) NEVER changes during resize!
+          state.node.container.x = state.x;
+          state.node.container.y = state.y;
+
+          // Live visual scaling for immediate feedback
+          state.node.container.scale.x = Math.max(0.02, state.scaleX * (newW / state.initW));
+          state.node.container.scale.y = Math.max(0.02, state.scaleY * (newH / state.initH));
         }
       } else {
-        // Multi-selection: collective AABB scaling relative to anchor
+        // Multi-selection: collective AABB scaling
         const bbox = this.startBBox;
         let ratioX = 1;
         let ratioY = 1;
-        let anchorX = bbox.x;
-        let anchorY = bbox.y;
 
         switch (this.activeHandle) {
           case 'se': {
-            anchorX = bbox.x;
-            anchorY = bbox.y;
-            const newW = Math.max(10, bbox.width + deltaStageX);
-            const newH = Math.max(10, bbox.height + deltaStageY);
+            const newW = Math.max(10, bbox.width + deltaStageX * 2);
+            const newH = Math.max(10, bbox.height + deltaStageY * 2);
             ratioX = newW / bbox.width;
             ratioY = newH / bbox.height;
             break;
           }
           case 'nw': {
-            anchorX = bbox.x + bbox.width;
-            anchorY = bbox.y + bbox.height;
-            const newW = Math.max(10, bbox.width - deltaStageX);
-            const newH = Math.max(10, bbox.height - deltaStageY);
+            const newW = Math.max(10, bbox.width - deltaStageX * 2);
+            const newH = Math.max(10, bbox.height - deltaStageY * 2);
             ratioX = newW / bbox.width;
             ratioY = newH / bbox.height;
             break;
           }
           case 'ne': {
-            anchorX = bbox.x;
-            anchorY = bbox.y + bbox.height;
-            const newW = Math.max(10, bbox.width + deltaStageX);
-            const newH = Math.max(10, bbox.height - deltaStageY);
+            const newW = Math.max(10, bbox.width + deltaStageX * 2);
+            const newH = Math.max(10, bbox.height - deltaStageY * 2);
             ratioX = newW / bbox.width;
             ratioY = newH / bbox.height;
             break;
           }
           case 'sw': {
-            anchorX = bbox.x + bbox.width;
-            anchorY = bbox.y;
-            const newW = Math.max(10, bbox.width - deltaStageX);
-            const newH = Math.max(10, bbox.height + deltaStageY);
+            const newW = Math.max(10, bbox.width - deltaStageX * 2);
+            const newH = Math.max(10, bbox.height + deltaStageY * 2);
             ratioX = newW / bbox.width;
             ratioY = newH / bbox.height;
             break;
           }
           case 'e': {
-            anchorX = bbox.x;
-            const newW = Math.max(10, bbox.width + deltaStageX);
+            const newW = Math.max(10, bbox.width + deltaStageX * 2);
             ratioX = newW / bbox.width;
             break;
           }
           case 'w': {
-            anchorX = bbox.x + bbox.width;
-            const newW = Math.max(10, bbox.width - deltaStageX);
+            const newW = Math.max(10, bbox.width - deltaStageX * 2);
             ratioX = newW / bbox.width;
             break;
           }
           case 's': {
-            anchorY = bbox.y;
-            const newH = Math.max(10, bbox.height + deltaStageY);
+            const newH = Math.max(10, bbox.height + deltaStageY * 2);
             ratioY = newH / bbox.height;
             break;
           }
           case 'n': {
-            anchorY = bbox.y + bbox.height;
-            const newH = Math.max(10, bbox.height - deltaStageY);
+            const newH = Math.max(10, bbox.height - deltaStageY * 2);
             ratioY = newH / bbox.height;
             break;
           }
         }
 
-        // Scale positions and scales proportionally relative to anchor
         for (const state of this.initialStates.values()) {
-          const relX = state.x - anchorX;
-          const relY = state.y - anchorY;
-          state.node.container.x = Math.round(anchorX + relX * ratioX);
-          state.node.container.y = Math.round(anchorY + relY * ratioY);
+          const newW = Math.max(10, Math.round(state.initW * ratioX));
+          const newH = Math.max(10, Math.round(state.initH * ratioY));
+          state.currentW = newW;
+          state.currentH = newH;
+
+          // Keep individual node positions invariant
+          state.node.container.x = state.x;
+          state.node.container.y = state.y;
           state.node.container.scale.x = Math.max(0.02, state.scaleX * ratioX);
           state.node.container.scale.y = Math.max(0.02, state.scaleY * ratioY);
         }
@@ -589,6 +574,7 @@ export class TransformGizmo extends Container {
   private onGlobalPointerUp(): void {
     if (!this.isDragging) return;
 
+    const dragMode = this.dragMode;
     this.isDragging = false;
     this.dragMode = 'none';
     this.activeHandle = null;
@@ -602,16 +588,58 @@ export class TransformGizmo extends Container {
     const updated: SceneNodeData[] = [];
     for (const state of this.initialStates.values()) {
       const node = state.node;
-      updated.push({
-        ...node.data,
-        transform: {
-          ...node.data.transform,
-          x: Math.round(node.container.x),
-          y: Math.round(node.container.y),
-          scaleX: Number(node.container.scale.x.toFixed(3)),
-          scaleY: Number(node.container.scale.y.toFixed(3)),
-        },
-      });
+      const props = { ...(node.data.properties || {}) };
+
+      if (dragMode === 'translate') {
+        const updatedNode: SceneNodeData = {
+          ...node.data,
+          transform: {
+            ...node.data.transform,
+            x: Math.round(node.container.x),
+            y: Math.round(node.container.y),
+          },
+        };
+        node.updateData(updatedNode);
+        updated.push(updatedNode);
+      } else if (dragMode === 'scale') {
+        const newW = state.currentW ?? state.initW;
+        const newH = state.currentH ?? state.initH;
+
+        props.width = newW;
+        props.height = newH;
+
+        if (node.data.type === 'circle' || node.data.type === 'hexagon' || node.data.type === 'pointLight') {
+          props.radius = Math.round(newW / 2);
+        } else if (node.data.type === 'star') {
+          const oldOuter = (props.outerRadius as number) || 60;
+          const oldInner = (props.innerRadius as number) || 28;
+          const ratio = oldOuter > 0 ? oldInner / oldOuter : 0.45;
+          props.outerRadius = Math.round(newW / 2);
+          props.innerRadius = Math.round((newW / 2) * ratio);
+        } else if (node.data.type === 'beamLight') {
+          props.length = newW;
+          props.width = newH;
+        }
+
+        // Reset container scale back to unit (1, 1) and guarantee invariant position
+        node.container.scale.set(1, 1);
+        node.container.x = state.x;
+        node.container.y = state.y;
+
+        const updatedNode: SceneNodeData = {
+          ...node.data,
+          properties: props,
+          transform: {
+            ...node.data.transform,
+            x: state.x,
+            y: state.y,
+            scaleX: 1,
+            scaleY: 1,
+          },
+        };
+        node.updateData(updatedNode);
+        updated.push(updatedNode);
+      }
     }
 
     this.initialStates.clear();
