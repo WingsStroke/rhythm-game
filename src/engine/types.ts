@@ -158,7 +158,21 @@ export interface LevelData {
     triggers: TriggerData[];
     audioMappings?: AudioMapping[];
     settings?: LevelVisualSettings;
+    effects?: VisualEffect[];
   };
+}
+
+export type VisualEffectScope = 'global' | 'object' | 'region';
+
+export interface VisualEffect {
+  id: string;
+  type: string;
+  scope: VisualEffectScope;
+  enabled: boolean;
+  intensity?: number;
+  targetNodeId?: string;
+  region?: { x: number; y: number; width: number; height: number };
+  parameters: Record<string, number | string | boolean>;
 }
 
 // ---- Performance Phrases ----
@@ -205,6 +219,19 @@ export interface SceneNodeLifespan {
   fadeOutMs?: number;
 }
 
+export type ScenePrimitiveType =
+  | 'rectangle'
+  | 'circle'
+  | 'triangle'
+  | 'diamond'
+  | 'star'
+  | 'hexagon'
+  | 'pointLight'
+  | 'beamLight'
+  | 'audioSpectrum'
+  | 'sprite'
+  | 'group';
+
 export interface SceneNodeData {
   /** Immutable internal unique key for React and SceneGraph (e.g. "node_1234"). */
   uid: string;
@@ -214,7 +241,7 @@ export interface SceneNodeData {
   targetId?: number | null;
   /** Backward-compatibility alias for targetId / legacy node identification. */
   id?: number | string | null;
-  type: string; // 'rectangle' | 'circle' | 'line' | 'container' | 'sprite' | 'group'
+  type: ScenePrimitiveType | string;
   parentId?: string;
   group?: string | number;
   blendMode?: BlendModeType;

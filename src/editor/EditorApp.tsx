@@ -10,7 +10,7 @@ import { useEditorShortcuts } from './hooks/useEditorShortcuts';
 import { useEditorHistory } from './hooks/useEditorHistory';
 import { useAutoSave } from './hooks/useAutoSave';
 import { INITIAL_LEVEL } from './constants';
-import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData } from '../engine/types';
+import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData, ScenePrimitiveType } from '../engine/types';
 import { LevelValidator } from '../engine/content/LevelValidator';
 import { ListVideo, Gamepad2, Zap, Layers } from 'lucide-react';
 
@@ -63,7 +63,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const [activeTool, setActiveTool] = useState<EditorTool>('select');
   const [timelineMode, setTimelineMode] = useState<'notes' | 'triggers' | 'visuals'>('notes');
   const [activeLayer, setActiveLayer] = useState<number>(1);
-  const [selectedPrimitiveType, setSelectedPrimitiveType] = useState<'rectangle' | 'circle' | 'group'>('rectangle');
+  const [selectedPrimitiveType, setSelectedPrimitiveType] = useState<ScenePrimitiveType>('rectangle');
   const [creationBehavior, setCreationBehavior] = useState<PadBehavior>('tap');
   const [gridSubdivision, setGridSubdivision] = useState<GridSubdivision>('1/4');
   const [pixelsPerSecond, setPixelsPerSecond] = useState<number>(120);
@@ -383,7 +383,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     selectNode(key);
   }, [setLevel, selectNode]);
 
-  const handleSelectPrimitiveType = useCallback((type: 'rectangle' | 'circle' | 'group') => {
+  const handleSelectPrimitiveType = useCallback((type: ScenePrimitiveType) => {
     setSelectedPrimitiveType(type);
     setActiveTool('object');
     setTimelineMode('visuals');

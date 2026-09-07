@@ -11,6 +11,7 @@ import type {
   TriggerData,
   EffectType,
   ModulationChannel,
+  VisualEffect,
 } from '../types';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { ModulatedChannels } from '../audio/AudioModulator';
@@ -20,6 +21,8 @@ import { Animator } from './Animator';
 import { TriggerDispatcher } from './TriggerDispatcher';
 import { ParticlePool } from './ParticlePool';
 import { NotePool } from './NotePool';
+import { EffectRegistry } from './effects/EffectRegistry';
+import { AudioSpectrumVisualizer } from './objects/AudioSpectrumVisualizer';
 import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
 import { audioTimeToSongTime } from '../time/timeUtils';
 
@@ -119,19 +122,33 @@ export class VisualEngine {
   private resizeHandler: (() => void) | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
+  private mainStage!: Container;
+  private audioEngine: AudioEngine | null = null;
+  private spectrumBuffer: Uint8Array = new Uint8Array(256);
+  private activeVisualEffects: {
+    effect: VisualEffect;
+    filters: Filter[];
+    container?: Container;
+    targetNodeId?: string;
+  }[] = [];
+
   /** Emitted when player clicks/touches a pad directly */
   public onPadInput: ((padId: PadId, pressed: boolean) => void) | null = null;
   /** Emitted when a SceneNode is clicked */
   public onNodeSelect: ((nodeId: string) => void) | null = null;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  constructor(root: HTMLElement, level: LevelData, _audio?: AudioEngine | null) {
+  constructor(root: HTMLElement, level: LevelData, audio?: AudioEngine | null) {
     this.root = root;
     this.level = level;
     this.pads = level.pads;
     this.events = level.events;
+    this.audioEngine = audio ?? null;
     this.app = new Application();
     this.audioModulator = new AudioModulator();
+  }
+
+  public setAudioEngine(audio: AudioEngine | null): void {
+    this.audioEngine = audio;
   }
 
   async init(): Promise<void> {
@@ -145,6 +162,7 @@ export class VisualEngine {
     this.root.appendChild(this.app.canvas);
     this.setupScene();
     this.setupFilters();
+    this.setupVisualEffects();
 
     this.resizeHandler = () => {
       try {
@@ -191,11 +209,13 @@ export class VisualEngine {
       this.triggerDispatcher.setTriggers(level.visual.triggers);
     }
     this.setupFilters();
+    this.setupVisualEffects();
   }
 
   public syncVisualNodes(nodes: SceneNodeData[]): void {
     this.level.visual.nodes = nodes;
     this.sceneGraph.buildFromData(this.level);
+    this.setupVisualEffects();
   }
 
   public syncVisualTriggers(triggers: TriggerData[]): void {
@@ -335,7 +355,9 @@ export class VisualEngine {
     this.editorOverlayContainer.addChild(this.selectionGraphics);
 
     this.app.stage.sortableChildren = true;
-    this.app.stage.addChild(
+    this.mainStage = new Container();
+    this.mainStage.sortableChildren = true;
+    this.mainStage.addChild(
       this.bgLayer,
       this.sceneLayer,
       this.laneLayer,
@@ -343,7 +365,11 @@ export class VisualEngine {
       this.padLayer,
       this.sceneForegroundLayer,
       this.fxLayer,
-      this.hudLayer,
+      this.hudLayer
+    );
+
+    this.app.stage.addChild(
+      this.mainStage,
       this.editorOverlayContainer
     );
 
@@ -676,6 +702,77 @@ export class VisualEngine {
     }
   }
 
+  private setupVisualEffects(): void {
+    // 1. Reset existing filters and cleanup dynamic region containers
+    if (this.mainStage) {
+      this.mainStage.filters = [];
+    }
+    if (this.sceneGraph) {
+      for (const node of this.sceneGraph.getAllNodes()) {
+        node.container.filters = [];
+      }
+    }
+    for (const item of this.activeVisualEffects) {
+      if (item.container && item.container.parent) {
+        item.container.parent.removeChild(item.container);
+        item.container.destroy({ children: true });
+      }
+    }
+    this.activeVisualEffects = [];
+
+    const effects = this.level.visual?.effects;
+    if (!effects || effects.length === 0) return;
+
+    const globalFilters: Filter[] = [];
+
+    for (const effect of effects) {
+      if (effect.enabled === false) continue;
+      const filters = EffectRegistry.createFilter(
+        effect.type,
+        effect.parameters ?? {},
+        effect.intensity ?? 1.0
+      );
+      if (filters.length === 0) continue;
+
+      if (effect.scope === 'global') {
+        globalFilters.push(...filters);
+        this.activeVisualEffects.push({ effect, filters });
+      } else if (effect.scope === 'object' && effect.targetNodeId) {
+        const node = this.sceneGraph?.getNode(effect.targetNodeId);
+        if (node) {
+          node.container.filters = filters;
+          this.activeVisualEffects.push({ effect, filters, targetNodeId: effect.targetNodeId });
+        }
+      } else if (effect.scope === 'region' && effect.region) {
+        const regionContainer = new Container();
+        const maskGfx = new Graphics();
+        maskGfx.rect(effect.region.x, effect.region.y, effect.region.width, effect.region.height);
+        maskGfx.fill({ color: 0xffffff });
+        regionContainer.mask = maskGfx;
+        regionContainer.addChild(maskGfx);
+        regionContainer.filters = filters;
+
+        if (effect.targetNodeId) {
+          const node = this.sceneGraph?.getNode(effect.targetNodeId);
+          if (node) {
+            regionContainer.addChild(node.container);
+          }
+        }
+        this.sceneLayer.addChild(regionContainer);
+        this.activeVisualEffects.push({
+          effect,
+          filters,
+          container: regionContainer,
+          targetNodeId: effect.targetNodeId,
+        });
+      }
+    }
+
+    if (this.mainStage && globalFilters.length > 0) {
+      this.mainStage.filters = globalFilters;
+    }
+  }
+
   private resolvePadChannel(pad: PadConfig): ModulationChannel {
     if (pad.audioChannel) return pad.audioChannel;
     switch (pad.role) {
@@ -901,6 +998,31 @@ export class VisualEngine {
 
     // 5b. Apply declarative real-time Audio Mappings to SceneNodes
     this.applyAudioMappings(channels);
+
+    // 5c. Update dynamic uniforms for registered visual effects
+    for (const item of this.activeVisualEffects) {
+      EffectRegistry.update(
+        item.filters,
+        item.effect.type,
+        item.effect.parameters ?? {},
+        item.effect.intensity ?? 1.0,
+        audioTime
+      );
+    }
+
+    // 5d. Real-time audio spectrum generator update
+    if (this.sceneGraph) {
+      for (const node of this.sceneGraph.getAllNodes()) {
+        if (node.displayObject instanceof AudioSpectrumVisualizer) {
+          if (this.audioEngine) {
+            this.audioEngine.getSpectrumFrequencyData(this.spectrumBuffer);
+            node.displayObject.update(this.spectrumBuffer);
+          } else {
+            node.displayObject.decayOnly();
+          }
+        }
+      }
+    }
 
     // 6. Compute song timing with calibration offset
     const songOffset = this.level.timing?.offset ?? 0;

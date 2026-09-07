@@ -1,4 +1,4 @@
-import type { LevelData, PadConfig, PadEvent, SceneNodeData, SceneNodeLifespan, TimingWindows, TriggerData } from '../types';
+import type { LevelData, PadConfig, PadEvent, SceneNodeData, SceneNodeLifespan, TimingWindows, TriggerData, VisualEffect } from '../types';
 
 export interface ValidationResult {
   valid: boolean;
@@ -359,6 +359,25 @@ export class LevelValidator {
       };
     });
 
+    const rawEffects = Array.isArray(visualRaw.effects) ? visualRaw.effects : [];
+    const effects: VisualEffect[] = rawEffects.map((e, idx) => {
+      const eff = e as Record<string, unknown>;
+      const scope = eff.scope === 'object' || eff.scope === 'region' ? eff.scope : 'global';
+      return {
+        id: String(eff.id || `effect_${idx}`),
+        type: String(eff.type || 'bloom'),
+        scope,
+        enabled: eff.enabled !== false,
+        intensity: typeof eff.intensity === 'number' ? Math.max(0, Math.min(5, eff.intensity)) : 1.0,
+        targetNodeId: eff.targetNodeId ? String(eff.targetNodeId) : undefined,
+        region:
+          eff.region && typeof eff.region === 'object'
+            ? (eff.region as { x: number; y: number; width: number; height: number })
+            : undefined,
+        parameters: (eff.parameters as Record<string, number | string | boolean>) || {},
+      };
+    });
+
     return {
       formatVersion: Number(raw.formatVersion) || 1,
       metadata: {
@@ -394,6 +413,7 @@ export class LevelValidator {
           ? (visualRaw.audioMappings as LevelData['visual']['audioMappings'])
           : [],
         settings: visualRaw.settings as LevelData['visual']['settings'],
+        effects,
       },
     };
   }

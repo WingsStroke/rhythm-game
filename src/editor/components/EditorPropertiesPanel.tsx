@@ -1051,13 +1051,13 @@ export function EditorPropertiesPanel({
           {/* Dimensions / Color */}
           <div className="flex flex-col gap-2">
             <h3 className="text-white/40 uppercase font-mono font-bold text-[10px]">Geometry & Color</h3>
-            {selectedNode.type === 'rectangle' && (
+            {(selectedNode.type === 'rectangle' || selectedNode.type === 'triangle' || selectedNode.type === 'diamond') && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col text-white/60">
                   Width
                   <input
                     type="number"
-                    value={(selectedNode.properties?.width as number) ?? 100}
+                    value={(selectedNode.properties?.width as number) ?? 120}
                     onChange={(e) =>
                       onUpdateNode({
                         properties: { ...selectedNode.properties, width: Number(e.target.value) },
@@ -1070,7 +1070,7 @@ export function EditorPropertiesPanel({
                   Height
                   <input
                     type="number"
-                    value={(selectedNode.properties?.height as number) ?? 100}
+                    value={(selectedNode.properties?.height as number) ?? 120}
                     onChange={(e) =>
                       onUpdateNode({
                         properties: { ...selectedNode.properties, height: Number(e.target.value) },
@@ -1082,7 +1082,7 @@ export function EditorPropertiesPanel({
               </div>
             )}
 
-            {selectedNode.type === 'circle' && (
+            {(selectedNode.type === 'circle' || selectedNode.type === 'hexagon') && (
               <label className="flex flex-col text-white/60">
                 Radius
                 <input
@@ -1096,6 +1096,227 @@ export function EditorPropertiesPanel({
                   className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
                 />
               </label>
+            )}
+
+            {selectedNode.type === 'star' && (
+              <div className="flex flex-col gap-2">
+                <label className="flex flex-col text-white/60">
+                  Star Points (Spikes)
+                  <input
+                    type="number"
+                    min={3}
+                    max={20}
+                    value={(selectedNode.properties?.points as number) ?? 5}
+                    onChange={(e) =>
+                      onUpdateNode({
+                        properties: { ...selectedNode.properties, points: Math.max(3, Math.min(20, Number(e.target.value))) },
+                      })
+                    }
+                    className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Outer Radius
+                    <input
+                      type="number"
+                      value={(selectedNode.properties?.outerRadius as number) ?? 60}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, outerRadius: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Inner Radius
+                    <input
+                      type="number"
+                      value={(selectedNode.properties?.innerRadius as number) ?? 28}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, innerRadius: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {selectedNode.type === 'pointLight' && (
+              <div className="flex flex-col gap-2">
+                <label className="flex flex-col text-white/60">
+                  Glow Radius
+                  <input
+                    type="number"
+                    min={10}
+                    max={1000}
+                    value={(selectedNode.properties?.radius as number) ?? 100}
+                    onChange={(e) =>
+                      onUpdateNode({
+                        properties: { ...selectedNode.properties, radius: Number(e.target.value) },
+                      })
+                    }
+                    className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                  />
+                </label>
+                <label className="flex flex-col text-white/60">
+                  <div className="flex justify-between items-center">
+                    <span>Intensity</span>
+                    <span className="font-mono text-xs">{(((selectedNode.properties?.intensity as number) ?? 1.0)).toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.1}
+                    max={1.0}
+                    step={0.05}
+                    value={(selectedNode.properties?.intensity as number) ?? 1.0}
+                    onChange={(e) =>
+                      onUpdateNode({
+                        properties: { ...selectedNode.properties, intensity: Number(e.target.value) },
+                      })
+                    }
+                    className="accent-[#00e5ff] mt-1"
+                  />
+                </label>
+              </div>
+            )}
+
+            {selectedNode.type === 'beamLight' && (
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Beam Length
+                    <input
+                      type="number"
+                      value={(selectedNode.properties?.length as number) ?? 320}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, length: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Beam Thickness
+                    <input
+                      type="number"
+                      value={(selectedNode.properties?.width as number) ?? 70}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, width: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                </div>
+                <label className="flex flex-col text-white/60">
+                  <div className="flex justify-between items-center">
+                    <span>Intensity</span>
+                    <span className="font-mono text-xs">{(((selectedNode.properties?.intensity as number) ?? 1.0)).toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.1}
+                    max={1.0}
+                    step={0.05}
+                    value={(selectedNode.properties?.intensity as number) ?? 1.0}
+                    onChange={(e) =>
+                      onUpdateNode({
+                        properties: { ...selectedNode.properties, intensity: Number(e.target.value) },
+                      })
+                    }
+                    className="accent-[#ff007f] mt-1"
+                  />
+                </label>
+              </div>
+            )}
+
+            {selectedNode.type === 'audioSpectrum' && (
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Spectrum Width
+                    <input
+                      type="number"
+                      value={(selectedNode.properties?.width as number) ?? 420}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, width: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Peak Height
+                    <input
+                      type="number"
+                      value={(selectedNode.properties?.height as number) ?? 120}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, height: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Render Mode
+                    <select
+                      value={(selectedNode.properties?.mode as string) ?? 'bars'}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, mode: e.target.value },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono cursor-pointer"
+                    >
+                      <option value="bars">Bars</option>
+                      <option value="curve">Curve</option>
+                      <option value="radial">Radial</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Bands (8 - 64)
+                    <input
+                      type="number"
+                      min={8}
+                      max={64}
+                      step={4}
+                      value={(selectedNode.properties?.bands as number) ?? 32}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, bands: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                </div>
+                <label className="flex flex-col text-white/60">
+                  Bar Gap (px)
+                  <input
+                    type="number"
+                    min={0}
+                    max={20}
+                    value={(selectedNode.properties?.gap as number) ?? 3}
+                    onChange={(e) =>
+                      onUpdateNode({
+                        properties: { ...selectedNode.properties, gap: Number(e.target.value) },
+                      })
+                    }
+                    className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                  />
+                </label>
+              </div>
             )}
 
             {selectedNode.type !== 'group' && (

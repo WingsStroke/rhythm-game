@@ -20,9 +20,11 @@ export class AudioEngine implements TimeSource {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
+  private spectrumAnalyser: AnalyserNode | null = null;
 
   private freqData: Uint8Array = new Uint8Array(128);
   private waveData: Uint8Array = new Uint8Array(128);
+  private spectrumFreqData: Uint8Array = new Uint8Array(256);
 
   // Synthesis state
   private musicTimer: number | null = null;
@@ -66,8 +68,14 @@ export class AudioEngine implements TimeSource {
     this.masterGain.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
 
+    this.spectrumAnalyser = this.ctx.createAnalyser();
+    this.spectrumAnalyser.fftSize = 512;
+    this.spectrumAnalyser.smoothingTimeConstant = 0.8;
+    this.masterGain.connect(this.spectrumAnalyser);
+
     this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
     this.waveData = new Uint8Array(this.analyser.frequencyBinCount);
+    this.spectrumFreqData = new Uint8Array(this.spectrumAnalyser.frequencyBinCount);
   }
 
   get context(): AudioContext {
@@ -656,6 +664,20 @@ export class AudioEngine implements TimeSource {
       freqData: this.freqData,
       waveData: this.waveData,
     };
+  }
+
+  /**
+   * Reads higher-resolution frequency data from the dedicated secondary AnalyserNode (fftSize=512).
+   * Safe to call every frame without affecting gameplay latency or beat detection.
+   */
+  getSpectrumFrequencyData(targetArray: Uint8Array): void {
+    if (this.spectrumAnalyser) {
+      this.spectrumAnalyser.getByteFrequencyData(targetArray);
+    }
+  }
+
+  getSpectrumAnalyser(): AnalyserNode | null {
+    return this.spectrumAnalyser;
   }
 
   dispose(): void {

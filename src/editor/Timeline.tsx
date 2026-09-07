@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType, SceneNodeData } from '../engine/types';
+import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType, SceneNodeData, ScenePrimitiveType } from '../engine/types';
+import { PrimitiveRegistry } from '../engine/visual/objects/PrimitiveRegistry';
 import { SongRegistry } from '../engine/content/SongRegistry';
 import { WaveformCanvas } from './components/WaveformCanvas';
 import { Zap, Repeat, Volume2, VolumeX, Clock, Layers } from 'lucide-react';
@@ -545,7 +546,7 @@ interface TimelineProps {
   timelineMode?: 'notes' | 'triggers' | 'visuals';
   activeLayer?: number;
   onChangeActiveLayer?: (layer: number) => void;
-  selectedPrimitiveType?: 'rectangle' | 'circle' | 'group';
+  selectedPrimitiveType?: ScenePrimitiveType;
   selectedEventId?: string | null;
   selectedEventIds?: Set<string>;
   selectedTriggerId?: string | null;
@@ -980,7 +981,7 @@ export function Timeline({
       const type = selectedPrimitiveType || 'rectangle';
       const nodes = level.visual?.nodes || [];
       let max = 0;
-      const prefix = type === 'rectangle' ? 'rect' : type === 'circle' ? 'circle' : 'group';
+      const prefix = type.toLowerCase();
       for (const node of nodes) {
         const name = node.name || (typeof node.id === 'string' ? node.id : '');
         if (name.startsWith(`${prefix}-`)) {
@@ -994,6 +995,8 @@ export function Timeline({
       // Default temporal duration: 4 beats (1 measure), minimum 1.0s
       const beatSec = 60 / bpm;
       const defaultDuration = Math.max(1, Number((beatSec * 4).toFixed(3)));
+
+      const defaultProps = PrimitiveRegistry.get(type)?.defaultProperties || {};
 
       const newNode: SceneNodeData = {
         uid,
@@ -1016,14 +1019,9 @@ export function Timeline({
           scaleX: 1,
           scaleY: 1,
           rotation: 0,
-          opacity: 0.9,
+          opacity: (type === 'pointLight' || type === 'beamLight') ? 1.0 : 0.9,
         },
-        properties:
-          type === 'rectangle'
-            ? { width: 140, height: 140, color: '#00e5ff' }
-            : type === 'circle'
-            ? { radius: 70, color: '#ff007f' }
-            : {},
+        properties: { ...defaultProps },
       };
 
       onAddNode?.(newNode);

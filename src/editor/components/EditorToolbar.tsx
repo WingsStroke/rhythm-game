@@ -6,6 +6,12 @@ import {
   Box,
   Square,
   Circle,
+  Triangle,
+  Diamond,
+  Star,
+  Hexagon,
+  Sun,
+  Sparkles,
   Folder,
   ChevronDown,
   Repeat,
@@ -17,7 +23,7 @@ import {
   Activity,
 } from 'lucide-react';
 import type { EditorTool, GridSubdivision } from '../Timeline';
-import type { PadBehavior } from '../../engine/types';
+import type { PadBehavior, ScenePrimitiveType } from '../../engine/types';
 
 interface EditorToolbarProps {
   activeTool: EditorTool;
@@ -30,8 +36,8 @@ interface EditorToolbarProps {
   onChangePixelsPerSecond: (fnOrValue: number | ((prev: number) => number)) => void;
   showWaveform?: boolean;
   onToggleWaveform?: () => void;
-  selectedPrimitiveType?: 'rectangle' | 'circle' | 'group';
-  onSelectPrimitiveType?: (type: 'rectangle' | 'circle' | 'group') => void;
+  selectedPrimitiveType?: ScenePrimitiveType;
+  onSelectPrimitiveType?: (type: ScenePrimitiveType) => void;
 }
 
 export function EditorToolbar({
@@ -134,7 +140,7 @@ export function EditorToolbar({
   ];
 
   const objectPrimitives: {
-    type: 'rectangle' | 'circle' | 'group';
+    type: ScenePrimitiveType;
     label: string;
     description: string;
     icon: React.ReactNode;
@@ -155,11 +161,60 @@ export function EditorToolbar({
       color: '#ff007f',
     },
     {
+      type: 'triangle',
+      label: 'Triangle',
+      description: 'Equilateral polygon element',
+      icon: <Triangle className="w-3.5 h-3.5 text-[#ffea00]" />,
+      color: '#ffea00',
+    },
+    {
+      type: 'diamond',
+      label: 'Diamond',
+      description: 'Rhombus 4-vertex element',
+      icon: <Diamond className="w-3.5 h-3.5 text-[#b388ff]" />,
+      color: '#b388ff',
+    },
+    {
+      type: 'star',
+      label: 'Star',
+      description: 'Parametric star element',
+      icon: <Star className="w-3.5 h-3.5 text-[#ffaa00]" />,
+      color: '#ffaa00',
+    },
+    {
+      type: 'hexagon',
+      label: 'Hexagon',
+      description: 'Regular 6-sided polygon',
+      icon: <Hexagon className="w-3.5 h-3.5 text-[#00ff9d]" />,
+      color: '#00ff9d',
+    },
+    {
+      type: 'pointLight',
+      label: 'Point Light (Glow)',
+      description: 'Zero-cost additive radial light sprite',
+      icon: <Sun className="w-3.5 h-3.5 text-[#00e5ff]" />,
+      color: '#00e5ff',
+    },
+    {
+      type: 'beamLight',
+      label: 'Beam Light (Ray)',
+      description: 'Zero-cost additive linear beam sprite',
+      icon: <Sparkles className="w-3.5 h-3.5 text-[#ff007f]" />,
+      color: '#ff007f',
+    },
+    {
+      type: 'audioSpectrum',
+      label: 'Audio Spectrum',
+      description: 'Real-time FFT audio visualizer (bars/curve)',
+      icon: <Activity className="w-3.5 h-3.5 text-[#00e5ff]" />,
+      color: '#00e5ff',
+    },
+    {
       type: 'group',
       label: 'Group Container',
       description: 'Hierarchical node container',
-      icon: <Folder className="w-3.5 h-3.5 text-[#ffea00]" />,
-      color: '#ffea00',
+      icon: <Folder className="w-3.5 h-3.5 text-white/70" />,
+      color: '#ffffff',
     },
   ];
 

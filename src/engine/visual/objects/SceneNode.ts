@@ -1,5 +1,6 @@
-import { Container, Graphics, Sprite, Texture, Color } from 'pixi.js';
+import { Container, Color } from 'pixi.js';
 import type { SceneNodeData, ModulatableProperty } from '../../types';
+import { PrimitiveRegistry } from './PrimitiveRegistry';
 
 /**
  * Safely parses any color representation (hex string, rgb, named color, or number)
@@ -165,41 +166,7 @@ export class SceneNode {
 
   private createDisplayObject(data: SceneNodeData): Container {
     const props = data.properties || {};
-    
-    switch (data.type) {
-      case 'rectangle': {
-        const g = new Graphics();
-        const color = safeParseColor(props.color, 0x00e5ff);
-        const width = (props.width as number) || 100;
-        const height = (props.height as number) || 100;
-        g.rect(0, 0, width, height);
-        g.fill({ color });
-        // Center pivot conceptually if needed, or leave top-left.
-        // For rhythm games, centering is often easier.
-        g.pivot.set(width / 2, height / 2);
-        return g;
-      }
-      case 'circle': {
-        const g = new Graphics();
-        const color = safeParseColor(props.color, 0xff007f);
-        const radius = (props.radius as number) || 50;
-        g.circle(0, 0, radius);
-        g.fill({ color });
-        return g;
-      }
-      case 'sprite': {
-        // Fallback to empty texture if none provided.
-        // In a real scenario, you'd load this from an asset manager.
-        const s = new Sprite(Texture.WHITE); 
-        if (props.width) s.width = props.width as number;
-        if (props.height) s.height = props.height as number;
-        s.anchor.set(0.5);
-        if (props.color) s.tint = safeParseColor(props.color, 0xffffff);
-        return s;
-      }
-      default:
-        return new Container(); // Fallback empty
-    }
+    return PrimitiveRegistry.createDisplayObject(data.type, props);
   }
 
   destroy() {
