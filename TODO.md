@@ -322,3 +322,43 @@ Ideas y conceptos complementarios para evaluar durante el desarrollo:
   - [x] Sincronizacion reactiva entre `AudioTransport.audioEngine` y `VisualEngine` en todas las etapas del editor y runtime standalone.
   - [x] Omision del bin 0 (DC offset) y decaimiento fluido hacia curva de reposo estetica.
   - [x] Estandarizacion del `EditorSetupWizard` con inicializacion de linea de tiempo limpia (`events: []`).
+
+## 12. Modo Showcase y Pipeline de Renderizado Offline (Showcase Mode & Video Export)
+
+Herramienta de automatizacion y exportacion de video de alta fidelidad, orientada a la generacion de material promocional, demostraciones en redes sociales y exhibicion comunitaria de beatmaps con precision cinematografica, renderizados cuadro a cuadro sin depender de la potencia en tiempo real del equipo del usuario:
+
+- [ ] **[P1] Bot de Autoplay Determinista (Gameplay Autoplay Engine)**
+  - Incorporacion de bandera de control `isAutoPlay: boolean` en el estado de `GameplayEngine.ts`.
+  - Simulacion automatica de entradas con precision temporal absoluta: emision de `handleInputPress(padId)` en el instante exacto `currentTime === event.time`, garantizando 100% de impactos *Perfect*, multiplicador maximo sostenido y combo completo sin fallos humanos.
+  - Desencadenamiento integro de efectos reactivos en cadena: particulas de acierto (`ParticlePool`), retroalimentacion visual en pads y ejecucion de triggers dependientes de eventos de nota.
+
+- [ ] **[P1] Bucle de Renderizado Offline por Pasos Fijos (Deterministic Frame Stepping)**
+  - Desacoplamiento total del bucle de juego respecto a `requestAnimationFrame` y al reloj de hardware `AudioContext.currentTime`.
+  - Avance discreto de reloj gobernado por tasa de cuadros objetivo:
+    $$\Delta t = \frac{1}{\text{FPS}}$$
+  - Ciclo de renderizado controlado: incremento manual de `currentTime += \Delta t`, actualizacion de matrices en `SceneGraph`, evaluacion de `VisualEngine.update(currentTime)` y llamada forzada a `app.render()`.
+  - Extraccion del buffer de pixeles de WebGL fotograma a fotograma con garantia de cero caidas de cuadros (*zero frame-drop*), independientemente de la complejidad de shaders o densidad de objetos en pantalla.
+
+- [ ] **[P1] Pipeline de Audio Offline (OfflineAudioContext Synthesis)**
+  - Recreacion del grafo de audio mediante `OfflineAudioContext` nativo de la Web Audio API.
+  - Carga del buffer musical decodificado y programacion anticipada de cada sintetizador procedural de notas (Kick, Snare, Lead, etc.) en sus coordenadas temporales exactas.
+  - Renderizado integral de la pista de audio a maxima velocidad de CPU en un unico barrido asincrono, exportando un archivo PCM estereo sin compresion (WAV a 48.000 Hz, 24/32-bit).
+
+- [ ] **[P1] Entorno de Ejecucion Headless y Pipeline de FFmpeg Nativo (Node.js CLI Runner)**
+  - Modulo CLI desacoplado (`npm run export-showcase`) ejecutado sobre Node.js mediante Puppeteer o Playwright para instanciar una sesion headless de Chromium.
+  - Carga de la aplicacion web original mediante ruta dedicada (ej. `http://localhost:5173/?mode=showcase&level=1&res=4k&fps=60`), garantizando 100% de fidelidad con el motor de PixiJS, los filtros GLSL de `EffectRegistry` y las fuentes tipograficas del juego.
+  - Viewport logico desacoplado de la resolucion del monitor fisico, permitiendo renderizado nativo en ultra-alta definicion (4K: 3840x2160, 1440p: 2560x1440, 1080p: 1920x1080).
+  - Transmision de fotogramas raw por tuberia binaria directa (*pipe/stdin*) hacia el binario nativo de FFmpeg del sistema operativo.
+
+- [ ] **[P2] Parametrizacion de Formatos, Codecs y Aceleracion por Hardware**
+  - Contenedor predeterminado: **MP4** para compatibilidad universal con YouTube, TikTok, X y suites de edicion (Premiere Pro, DaVinci Resolve). Soporte alternativo de **MKV** para evitar corrupcion de archivo en renders extensos ante interrupciones de proceso.
+  - Configuracion de codificacion de video en FFmpeg:
+    - *Aceleracion por GPU nativa:* Deteccion y uso de codificadores dedicados (`h264_nvenc` / `hevc_nvenc` para NVIDIA, `h264_qsv` para Intel, `h264_videotoolbox` para Apple Silicon).
+    - *Codificacion por CPU (Software fallback):* `libx264` / `libx265` con preset `slow` y perfil de tasa constante (CRF 16 a 18) para maxima pureza de imagen.
+  - Codificacion de audio: **AAC** a 320 kbps estereo o **PCM** sin perdidas.
+  - Perfiles estandarizados de salida:
+    - *Cinematic Showcase:* 4K (3840x2160) a 60 FPS (optimo para YouTube y preservacion de nitidez vectorial).
+    - *High-Motion Showcase:* 1080p (1920x1080) a 120 FPS (optimo para maxima fluidez en la lectura de caida de notas).
+
+- [ ] **[P3] Interfaz de Configuracion y Lanzador en el Editor (Showcase Modal)**
+  - Panel interactivo en el menu de ajustes del editor para parametrizar la grabacion (resolucion, FPS, codec, destino de salida) y generar el comando de ejecucion o disparar el script localmente.
