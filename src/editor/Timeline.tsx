@@ -15,6 +15,7 @@ import {
 
 export type { GridSubdivision };
 export type EditorTool = 'select' | 'pen' | 'eraser' | 'object';
+export const SUB_LANE_COUNT = 8;
 
 function getTriggerColor(action: TriggerActionType): string {
   switch (action) {
@@ -231,6 +232,7 @@ interface TriggersLaneProps {
   effectiveTriggerIds: Set<string>;
   songOrigin: number;
   pixelsPerSecond: number;
+  subLaneHeight: number;
   onTriggerTrackClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   onTriggerMove: (e: React.PointerEvent, trigger: TriggerData) => void;
   onTriggerResize: (e: React.PointerEvent, trigger: TriggerData) => void;
@@ -244,24 +246,35 @@ const TriggersLane = React.memo(function TriggersLane({
   effectiveTriggerIds,
   songOrigin,
   pixelsPerSecond,
+  subLaneHeight,
   onTriggerTrackClick,
   onTriggerMove,
   onTriggerResize,
 }: TriggersLaneProps) {
+  const totalLaneHeight = SUB_LANE_COUNT * subLaneHeight;
+  const cardHeight = Math.min(52, Math.max(38, subLaneHeight - 16));
+  const cardOffset = (subLaneHeight - cardHeight) / 2;
+
   return (
     <div
-      className={`flex-1 min-h-[288px] bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
+      className={`flex-1 bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
         activeTool === 'pen' ? 'hover:bg-violet-950/[0.14] cursor-crosshair' : ''
       }`}
-      style={{ width: widthPx, minWidth: widthPx }}
+      style={{
+        width: widthPx,
+        minWidth: widthPx,
+        minHeight: `${totalLaneHeight}px`,
+        height: `${totalLaneHeight}px`,
+      }}
       onClick={onTriggerTrackClick}
     >
-      {/* 4 Sub-track horizontal dividers and visual guides */}
+      {/* 8 Sub-track horizontal dividers and visual guides */}
       <div className="absolute inset-0 pointer-events-none flex flex-col z-0">
-        {[0, 1, 2, 3].map((lane) => (
+        {Array.from({ length: SUB_LANE_COUNT }, (_, lane) => (
           <div
             key={lane}
-            className={`h-[72px] border-b border-violet-500/15 ${
+            style={{ height: `${subLaneHeight}px` }}
+            className={`border-b border-violet-500/15 ${
               lane % 2 === 1 ? 'bg-violet-950/[0.04]' : 'bg-transparent'
             }`}
           />
@@ -281,15 +294,15 @@ const TriggersLane = React.memo(function TriggersLane({
         const x = (trigger.time + songOrigin) * pixelsPerSecond;
         const width = Math.max(36, (trigger.duration || 0) * pixelsPerSecond);
         const color = getTriggerColor(trigger.action);
-        const laneIndex = Math.max(0, Math.min(3, trigger.subLane ?? (index % 4)));
-        const topOffset = laneIndex * 72 + 9;
+        const laneIndex = Math.max(0, Math.min(SUB_LANE_COUNT - 1, trigger.subLane ?? (index % SUB_LANE_COUNT)));
+        const topOffset = laneIndex * subLaneHeight + cardOffset;
 
         return (
           <div
             key={trigger.id}
             data-trigger-item="true"
             data-trigger-id={trigger.id}
-            className={`absolute h-[54px] rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all overflow-hidden select-none ${
+            className={`absolute rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all overflow-hidden select-none ${
               isSelected
                 ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
                 : 'hover:brightness-110'
@@ -298,6 +311,7 @@ const TriggersLane = React.memo(function TriggersLane({
               top: `${topOffset}px`,
               left: x,
               width,
+              height: `${cardHeight}px`,
               backgroundColor: `${color}25`,
               border: `2px solid ${color}`,
             }}
@@ -333,6 +347,7 @@ const TriggersLane = React.memo(function TriggersLane({
 
 interface VisualObjectsLaneProps {
   nodes: SceneNodeData[];
+  totalNodesCount?: number;
   activeLayer?: number;
   widthPx: number;
   activeTool: EditorTool;
@@ -340,6 +355,7 @@ interface VisualObjectsLaneProps {
   songOrigin: number;
   pixelsPerSecond: number;
   totalDuration: number;
+  subLaneHeight: number;
   onSelectNode?: (node: SceneNodeData | null) => void;
   onToggleNodeSelection?: (id: string, multi: boolean) => void;
   onNodeMove?: (e: React.PointerEvent, node: SceneNodeData) => void;
@@ -357,6 +373,7 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
   songOrigin,
   pixelsPerSecond,
   totalDuration,
+  subLaneHeight,
   onSelectNode,
   onToggleNodeSelection,
   onNodeMove,
@@ -364,20 +381,30 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
   onTrackClick,
   onRemoveNode,
 }: VisualObjectsLaneProps) {
+  const totalLaneHeight = SUB_LANE_COUNT * subLaneHeight;
+  const cardHeight = Math.min(52, Math.max(38, subLaneHeight - 16));
+  const cardOffset = (subLaneHeight - cardHeight) / 2;
+
   return (
     <div
-      className={`flex-1 min-h-[288px] bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0 ${
+      className={`flex-1 bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0 ${
         activeTool === 'object' ? 'hover:bg-emerald-950/[0.14] cursor-crosshair' : ''
       }`}
-      style={{ width: widthPx, minWidth: widthPx }}
+      style={{
+        width: widthPx,
+        minWidth: widthPx,
+        minHeight: `${totalLaneHeight}px`,
+        height: `${totalLaneHeight}px`,
+      }}
       onClick={onTrackClick}
     >
-      {/* 4 Sub-track horizontal dividers and visual guides */}
+      {/* 8 Sub-track horizontal dividers and visual guides */}
       <div className="absolute inset-0 pointer-events-none flex flex-col z-0">
-        {[0, 1, 2, 3].map((lane) => (
+        {Array.from({ length: SUB_LANE_COUNT }, (_, lane) => (
           <div
             key={lane}
-            className={`h-[72px] border-b border-emerald-500/15 ${
+            style={{ height: `${subLaneHeight}px` }}
+            className={`border-b border-emerald-500/15 ${
               lane % 2 === 1 ? 'bg-emerald-950/[0.04]' : 'bg-transparent'
             }`}
           />
@@ -408,15 +435,15 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
         const x = (startTime + songOrigin) * pixelsPerSecond;
         const width = Math.max(54, duration * pixelsPerSecond);
 
-        const laneIndex = Math.max(0, Math.min(3, node.subLane ?? (index % 4)));
-        const topOffset = laneIndex * 72 + 9;
+        const laneIndex = Math.max(0, Math.min(SUB_LANE_COUNT - 1, node.subLane ?? (index % SUB_LANE_COUNT)));
+        const topOffset = laneIndex * subLaneHeight + cardOffset;
 
         return (
           <div
             key={node.uid || node.id || node.name || index}
             data-node-item="true"
             data-node-id={node.uid}
-            className={`absolute h-[54px] rounded-lg flex items-center z-20 cursor-pointer transition-all overflow-hidden select-none ${
+            className={`absolute rounded-lg flex items-center z-20 cursor-pointer transition-all overflow-hidden select-none ${
               isSelected
                 ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
                 : 'hover:brightness-125'
@@ -425,6 +452,7 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
               top: `${topOffset}px`,
               left: x,
               width,
+              height: `${cardHeight}px`,
               backgroundColor: `${layerColor}1a`,
               border: `1.5px ${hasLifespan ? 'solid' : 'dashed'} ${layerColor}99`,
             }}
@@ -601,6 +629,7 @@ export function Timeline({
   const padTracksRef = useRef<HTMLDivElement>(null);
   const isDraggingPlayhead = useRef(false);
   const [padAreaHeight, setPadAreaHeight] = useState(280);
+  const [timelineHeight, setTimelineHeight] = useState(600);
 
   const effectiveEventIds = useMemo(
     () => selectedEventIds ?? (selectedEventId ? new Set([selectedEventId]) : new Set<string>()),
@@ -628,6 +657,30 @@ export function Timeline({
     ro.observe(el);
     return () => ro.disconnect();
   }, [timelineMode]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const updateHeight = () => {
+      if (el.clientHeight > 0) {
+        setTimelineHeight(el.clientHeight);
+      }
+    };
+    updateHeight();
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.height > 0) {
+          setTimelineHeight(Math.round(entry.contentRect.height));
+        }
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // 36px is sticky ruler height (h-9). Calculate sub-lane height so all 8 tracks fill available height
+  const availableLaneAreaHeight = Math.max(0, timelineHeight - 36);
+  const subLaneHeight = Math.max(64, Math.floor(availableLaneAreaHeight / SUB_LANE_COUNT));
 
   const [dragState, setDragState] = useState<{
     targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers' | 'node' | 'batch_nodes';
@@ -889,7 +942,7 @@ export function Timeline({
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
-      const subLane = Math.max(0, Math.min(3, Math.floor(clickY / 72)));
+      const subLane = Math.max(0, Math.min(SUB_LANE_COUNT - 1, Math.floor(clickY / subLaneHeight)));
       const rawSongTime = timelineXToSongTime(clickX, pixelsPerSecond, leadIn, offset);
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), level.timing.bpm, gridSubdivision);
 
@@ -909,7 +962,7 @@ export function Timeline({
       onSelectEvent(null);
       onSelectNode?.(null);
     }
-  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, activeLayer, onAddTrigger, onSelectTrigger, onSelectEvent, onSelectNode]);
+  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, activeLayer, subLaneHeight, onAddTrigger, onSelectTrigger, onSelectEvent, onSelectNode]);
 
   const handleVisualTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (dragState) return;
@@ -919,7 +972,7 @@ export function Timeline({
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
-      const subLane = Math.max(0, Math.min(3, Math.floor(clickY / 72)));
+      const subLane = Math.max(0, Math.min(SUB_LANE_COUNT - 1, Math.floor(clickY / subLaneHeight)));
       const rawSongTime = timelineXToSongTime(clickX, pixelsPerSecond, leadIn, offset);
       const bpm = level.timing.bpm || 120;
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), bpm, gridSubdivision);
@@ -989,6 +1042,7 @@ export function Timeline({
     gridSubdivision,
     selectedPrimitiveType,
     activeLayer,
+    subLaneHeight,
     onAddNode,
     onSelectNode,
     onSelectEvent,
@@ -1123,7 +1177,7 @@ export function Timeline({
       if (isAlreadySelected && effectiveTriggerIds.size > 1) {
         const selectedTriggersList = triggers.filter((tr) => effectiveTriggerIds.has(tr.id));
         const triggerSubLanes = new Map<string, number>();
-        selectedTriggersList.forEach((tr, i) => triggerSubLanes.set(tr.id, tr.subLane ?? (i % 4)));
+        selectedTriggersList.forEach((tr, i) => triggerSubLanes.set(tr.id, tr.subLane ?? (i % SUB_LANE_COUNT)));
         setDragState({
           targetType: 'batch_triggers',
           mode: 'move',
@@ -1202,7 +1256,7 @@ export function Timeline({
             (Boolean(n.name) && effectiveNodeIds.has(n.name!))
         );
         const nodeSubLanes = new Map<string, number>();
-        selectedNodesList.forEach((n, i) => nodeSubLanes.set(n.uid, n.subLane ?? (i % 4)));
+        selectedNodesList.forEach((n, i) => nodeSubLanes.set(n.uid, n.subLane ?? (i % SUB_LANE_COUNT)));
         setDragState({
           targetType: 'batch_nodes',
           mode: 'move',
@@ -1313,7 +1367,7 @@ export function Timeline({
     const deltaX = e.clientX - dragState.startX;
     const deltaTime = deltaX / pixelsPerSecond;
     const deltaY = e.clientY - dragState.startY;
-    const subLaneDelta = Math.round(deltaY / 72);
+    const subLaneDelta = Math.round(deltaY / subLaneHeight);
 
     if (dragState.targetType === 'event' && dragState.event) {
       if (dragState.mode === 'move') {
@@ -1337,7 +1391,7 @@ export function Timeline({
     } else if (dragState.targetType === 'trigger' && dragState.trigger) {
       if (dragState.mode === 'move') {
         const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
-        const targetSubLane = Math.max(0, Math.min(3, (dragState.origSubLane ?? 0) + subLaneDelta));
+        const targetSubLane = Math.max(0, Math.min(SUB_LANE_COUNT - 1, (dragState.origSubLane ?? 0) + subLaneDelta));
         if (snapped !== dragState.trigger.time || targetSubLane !== dragState.trigger.subLane) {
           onUpdateTrigger?.({ ...dragState.trigger, time: snapped, subLane: targetSubLane });
         }
@@ -1354,20 +1408,20 @@ export function Timeline({
       const currentLanes = dragState.origTriggers.map((tr) => dragState.origTriggerSubLanes?.get(tr.id) ?? (tr.subLane ?? 0));
       const minLane = Math.min(...currentLanes);
       const maxLane = Math.max(...currentLanes);
-      const clampedLaneDelta = Math.max(-minLane, Math.min(3 - maxLane, subLaneDelta));
+      const clampedLaneDelta = Math.max(-minLane, Math.min((SUB_LANE_COUNT - 1) - maxLane, subLaneDelta));
       const updated = dragState.origTriggers.map((tr) => {
         const origLane = dragState.origTriggerSubLanes?.get(tr.id) ?? (tr.subLane ?? 0);
         return {
           ...tr,
           time: Math.max(0, Number((tr.time + validDelta).toFixed(4))),
-          subLane: Math.max(0, Math.min(3, origLane + clampedLaneDelta)),
+          subLane: Math.max(0, Math.min(SUB_LANE_COUNT - 1, origLane + clampedLaneDelta)),
         };
       });
       onUpdateTriggersBatch?.(updated);
     } else if (dragState.targetType === 'node' && dragState.node && dragState.node.lifespan) {
       if (dragState.mode === 'move') {
         const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
-        const targetSubLane = Math.max(0, Math.min(3, (dragState.origSubLane ?? 0) + subLaneDelta));
+        const targetSubLane = Math.max(0, Math.min(SUB_LANE_COUNT - 1, (dragState.origSubLane ?? 0) + subLaneDelta));
         if (snapped !== dragState.node.lifespan.startTime || targetSubLane !== dragState.node.subLane) {
           onUpdateNode?.(dragState.node.uid, {
             subLane: targetSubLane,
@@ -1399,13 +1453,13 @@ export function Timeline({
       const currentLanes = dragState.origNodes.map((n) => dragState.origNodeSubLanes?.get(n.uid) ?? (n.subLane ?? 0));
       const minLane = Math.min(...currentLanes);
       const maxLane = Math.max(...currentLanes);
-      const clampedLaneDelta = Math.max(-minLane, Math.min(3 - maxLane, subLaneDelta));
+      const clampedLaneDelta = Math.max(-minLane, Math.min((SUB_LANE_COUNT - 1) - maxLane, subLaneDelta));
       const updatedNodes = dragState.origNodes.map((n) => {
         const origLane = dragState.origNodeSubLanes?.get(n.uid) ?? (n.subLane ?? 0);
         const origTime = n.lifespan?.startTime ?? 0;
         return {
           ...n,
-          subLane: Math.max(0, Math.min(3, origLane + clampedLaneDelta)),
+          subLane: Math.max(0, Math.min(SUB_LANE_COUNT - 1, origLane + clampedLaneDelta)),
           lifespan: n.lifespan
             ? {
                 ...n.lifespan,
@@ -1420,8 +1474,9 @@ export function Timeline({
     marquee,
     dragState,
     pixelsPerSecond,
-    level.timing.bpm,
+    subLaneHeight,
     gridSubdivision,
+    level.timing.bpm,
     onSelectEvents,
     onSelectTriggers,
     onSelectNodes,
@@ -1693,11 +1748,12 @@ export function Timeline({
           )}
 
           {timelineMode === 'triggers' && (
-            <div className="flex-1 min-h-[288px] flex flex-col">
-              {[0, 1, 2, 3].map((lane) => (
+            <div className="flex flex-col" style={{ minHeight: `${SUB_LANE_COUNT * subLaneHeight}px` }}>
+              {Array.from({ length: SUB_LANE_COUNT }, (_, lane) => (
                 <div
                   key={lane}
-                  className="h-[72px] flex flex-col justify-center px-3 bg-black/90 border-b border-violet-500/20 shadow-sm"
+                  style={{ height: `${subLaneHeight}px` }}
+                  className="flex flex-col justify-center px-3 bg-black/90 border-b border-violet-500/20 shadow-sm flex-shrink-0"
                 >
                   <div className="flex items-center gap-1.5">
                     <Zap className="w-3.5 h-3.5 text-yellow-400/80" />
@@ -1712,11 +1768,12 @@ export function Timeline({
           )}
 
           {timelineMode === 'visuals' && (
-            <div className="flex-1 min-h-[288px] flex flex-col">
-              {[0, 1, 2, 3].map((lane) => (
+            <div className="flex flex-col" style={{ minHeight: `${SUB_LANE_COUNT * subLaneHeight}px` }}>
+              {Array.from({ length: SUB_LANE_COUNT }, (_, lane) => (
                 <div
                   key={lane}
-                  className="h-[72px] flex flex-col justify-center px-3 bg-black/90 border-b border-emerald-500/20 shadow-sm"
+                  style={{ height: `${subLaneHeight}px` }}
+                  className="flex flex-col justify-center px-3 bg-black/90 border-b border-emerald-500/20 shadow-sm flex-shrink-0"
                 >
                   <div className="flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-emerald-400/80" />
@@ -1979,6 +2036,7 @@ export function Timeline({
               effectiveTriggerIds={effectiveTriggerIds}
               songOrigin={songOrigin}
               pixelsPerSecond={pixelsPerSecond}
+              subLaneHeight={subLaneHeight}
               onTriggerTrackClick={handleTriggerTrackClick}
               onTriggerMove={startTriggerMove}
               onTriggerResize={startTriggerResize}
@@ -1996,6 +2054,7 @@ export function Timeline({
               songOrigin={songOrigin}
               pixelsPerSecond={pixelsPerSecond}
               totalDuration={totalDuration}
+              subLaneHeight={subLaneHeight}
               onSelectNode={onSelectNode}
               onToggleNodeSelection={onToggleNodeSelection}
               onNodeMove={startNodeMove}

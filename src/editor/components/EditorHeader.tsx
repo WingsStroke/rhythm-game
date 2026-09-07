@@ -267,7 +267,7 @@ export function EditorHeader({
         {/* Dropdown Floating Menu with Staggered Cascading Animation */}
         {isSettingsOpen && (
           <div
-            className="absolute right-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9)] p-1.5 z-50 flex flex-col gap-0.5 pointer-events-auto"
+            className="absolute right-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_20px_48px_rgba(0,0,0,0.98)] p-1.5 z-[100] flex flex-col gap-0.5 pointer-events-auto backdrop-blur-none"
           >
             {/* 1. Playtest Action */}
             {onPlaytest && (

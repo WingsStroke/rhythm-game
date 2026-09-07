@@ -164,7 +164,7 @@ export function EditorToolbar({
   ];
 
   return (
-    <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-4 gap-2 shrink-0 select-none overflow-visible relative z-50">
+    <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-4 gap-2 shrink-0 select-none overflow-visible relative z-40">
       <style>{`
         @keyframes toolbarMenuStagger {
           0% {
@@ -261,23 +261,6 @@ export function EditorToolbar({
           )}
         </div>
 
-        {/* Eraser Tool */}
-        <button
-          onClick={() => {
-            onSelectTool('eraser');
-            setIsPenMenuOpen(false);
-            setIsObjectMenuOpen(false);
-          }}
-          title="Eraser (E)"
-          className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
-            activeTool === 'eraser'
-              ? 'bg-red-500/25 text-red-400 border border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.3)]'
-              : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-          }`}
-        >
-          <Eraser className="w-3.5 h-3.5" /> Eraser (E)
-        </button>
-
         {/* Object (O) Tool with Floating Mini-Modal */}
         <div ref={objectContainerRef} className="relative">
           <button
@@ -341,6 +324,23 @@ export function EditorToolbar({
             </div>
           )}
         </div>
+
+        {/* Eraser Tool */}
+        <button
+          onClick={() => {
+            onSelectTool('eraser');
+            setIsPenMenuOpen(false);
+            setIsObjectMenuOpen(false);
+          }}
+          title="Eraser (E)"
+          className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+            activeTool === 'eraser'
+              ? 'bg-red-500/25 text-red-400 border border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.3)]'
+              : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
+        >
+          <Eraser className="w-3.5 h-3.5" /> Eraser (E)
+        </button>
       </div>
 
       {/* Grid Snapping & Zoom controls */}

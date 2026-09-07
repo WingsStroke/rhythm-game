@@ -299,10 +299,10 @@ export class LevelValidator {
           ? Math.floor(node.layer)
           : 1;
 
-      // Sanitize subLane (0 to 3)
+      // Sanitize subLane (0 to 7)
       const subLane =
         typeof node.subLane === 'number' && Number.isFinite(node.subLane) && node.subLane >= 0
-          ? Math.max(0, Math.min(3, Math.floor(node.subLane)))
+          ? Math.max(0, Math.min(7, Math.floor(node.subLane)))
           : undefined;
 
       return {
@@ -338,9 +338,10 @@ export class LevelValidator {
         typeof trig.layer === 'number' && Number.isFinite(trig.layer) && trig.layer >= 1
           ? Math.floor(trig.layer)
           : 1;
+      // Sanitize subLane (0 to 7)
       const subLane =
         typeof trig.subLane === 'number' && Number.isFinite(trig.subLane) && trig.subLane >= 0
-          ? Math.max(0, Math.min(3, Math.floor(trig.subLane)))
+          ? Math.max(0, Math.min(7, Math.floor(trig.subLane)))
           : undefined;
       return {
         id: String(trig.id || `trigger_${idx}_${Date.now()}`),
