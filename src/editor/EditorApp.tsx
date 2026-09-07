@@ -12,7 +12,7 @@ import { useAutoSave } from './hooks/useAutoSave';
 import { INITIAL_LEVEL } from './constants';
 import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData } from '../engine/types';
 import { LevelValidator } from '../engine/content/LevelValidator';
-import { ListVideo, Gamepad2, Zap } from 'lucide-react';
+import { ListVideo, Gamepad2, Zap, Layers } from 'lucide-react';
 
 type EditorTab = 'timeline' | 'preview';
 
@@ -61,6 +61,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
 
   // Authoring tools state
   const [activeTool, setActiveTool] = useState<EditorTool>('select');
+  const [timelineMode, setTimelineMode] = useState<'notes' | 'triggers' | 'visuals'>('notes');
+  const [activeLayer, setActiveLayer] = useState<number>(1);
+  const [selectedPrimitiveType, setSelectedPrimitiveType] = useState<'rectangle' | 'circle' | 'group'>('rectangle');
   const [creationBehavior, setCreationBehavior] = useState<PadBehavior>('tap');
   const [gridSubdivision, setGridSubdivision] = useState<GridSubdivision>('1/4');
   const [pixelsPerSecond, setPixelsPerSecond] = useState<number>(120);
@@ -324,85 +327,12 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     selectNode(key);
   }, [setLevel, selectNode]);
 
-  const handleCreatePrimitive = useCallback((type: 'rectangle' | 'circle' | 'group') => {
-    const nodes = level.visual?.nodes || [];
-    let max = 0;
-    const prefix = type === 'rectangle' ? 'rect' : type === 'circle' ? 'circle' : 'group';
-    for (const node of nodes) {
-      const name = node.name || (typeof node.id === 'string' ? node.id : '');
-      if (name.startsWith(`${prefix}-`)) {
-        const num = parseInt(name.replace(`${prefix}-`, ''), 10);
-        if (!Number.isNaN(num) && num > max) max = num;
-      }
-    }
-    const counter = max + 1;
-    const uid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`;
-
-    let newNode: SceneNodeData;
-    if (type === 'rectangle') {
-      newNode = {
-        uid,
-        name: `rect-${counter}`,
-        targetId: null,
-        id: null,
-        type: 'rectangle',
-        visible: true,
-        transform: {
-          x: 960,
-          y: 540,
-          scaleX: 1,
-          scaleY: 1,
-          rotation: 0,
-          opacity: 0.9,
-        },
-        properties: {
-          width: 140,
-          height: 140,
-          color: '#00e5ff',
-        },
-      };
-    } else if (type === 'circle') {
-      newNode = {
-        uid,
-        name: `circle-${counter}`,
-        targetId: null,
-        id: null,
-        type: 'circle',
-        visible: true,
-        transform: {
-          x: 960,
-          y: 540,
-          scaleX: 1,
-          scaleY: 1,
-          rotation: 0,
-          opacity: 0.9,
-        },
-        properties: {
-          radius: 70,
-          color: '#ff007f',
-        },
-      };
-    } else {
-      newNode = {
-        uid,
-        name: `group-${counter}`,
-        targetId: null,
-        id: null,
-        type: 'group',
-        visible: true,
-        transform: {
-          x: 960,
-          y: 540,
-          scaleX: 1,
-          scaleY: 1,
-          rotation: 0,
-          opacity: 1,
-        },
-        properties: {},
-      };
-    }
-    handleAddNode(newNode);
-  }, [level.visual?.nodes, handleAddNode]);
+  const handleSelectPrimitiveType = useCallback((type: 'rectangle' | 'circle' | 'group') => {
+    setSelectedPrimitiveType(type);
+    setActiveTool('object');
+    setTimelineMode('visuals');
+    setActiveTab('timeline');
+  }, []);
 
   const handleUpdateNode = useCallback((updates: Partial<SceneNodeData>) => {
     if (!selectedNodeId) return;
@@ -855,7 +785,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         onChangePixelsPerSecond={setPixelsPerSecond}
         showWaveform={showWaveform}
         onToggleWaveform={() => setShowWaveform((prev) => !prev)}
-        onCreatePrimitive={handleCreatePrimitive}
+        selectedPrimitiveType={selectedPrimitiveType}
+        onSelectPrimitiveType={handleSelectPrimitiveType}
       />
 
       {/* Main Workspace Layout */}
@@ -865,30 +796,65 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           {/* View Tab Bar */}
           <div className="flex shrink-0 border-b border-white/10 bg-black/40">
             <button
-              onClick={() => setActiveTab('timeline')}
-              className={`px-6 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 ${
-                activeTab === 'timeline'
-                  ? 'border-[#00e5ff] text-[#00e5ff]'
+              onClick={() => {
+                setActiveTab('timeline');
+                setTimelineMode('notes');
+              }}
+              className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
+                activeTab === 'timeline' && timelineMode === 'notes'
+                  ? 'border-[#00e5ff] text-[#00e5ff] bg-[#00e5ff]/10'
                   : 'border-transparent text-white/40 hover:text-white/70'
               }`}
             >
-              <ListVideo className="w-3.5 h-3.5" /> Timeline
+              <ListVideo className="w-3.5 h-3.5" /> Notes
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('timeline');
+                setTimelineMode('triggers');
+              }}
+              className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
+                activeTab === 'timeline' && timelineMode === 'triggers'
+                  ? 'border-[#ffea00] text-yellow-300 bg-[#ffea00]/10'
+                  : 'border-transparent text-white/40 hover:text-white/70'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" /> Triggers
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('timeline');
+                setTimelineMode('visuals');
+              }}
+              className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
+                activeTab === 'timeline' && timelineMode === 'visuals'
+                  ? 'border-[#00ff9d] text-[#00ff9d] bg-[#00ff9d]/10'
+                  : 'border-transparent text-white/40 hover:text-white/70'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" /> Visuals
             </button>
             <button
               onClick={() => setActiveTab('preview')}
-              className={`px-6 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 ${
+              className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'preview'
-                  ? 'border-[#00ff9d] text-[#00ff9d]'
+                  ? 'border-purple-400 text-purple-300 bg-purple-500/10'
                   : 'border-transparent text-white/40 hover:text-white/70'
               }`}
             >
               <Gamepad2 className="w-3.5 h-3.5" /> Live Preview
             </button>
             <div className="ml-auto px-4 flex items-center gap-3 text-xs text-white/40 font-mono">
-              <span>{level.events.length} {level.events.length === 1 ? 'note' : 'notes'}</span>
+              <span className="text-[#00e5ff]/80 font-medium">
+                {level.events.length} {level.events.length === 1 ? 'note' : 'notes'}
+              </span>
               <span className="text-white/20">|</span>
-              <span className="text-yellow-400/80 flex items-center gap-1">
+              <span className="text-yellow-400/80 flex items-center gap-1 font-medium">
                 <Zap className="w-3 h-3" /> {(level.visual?.triggers || []).length} triggers
+              </span>
+              <span className="text-white/20">|</span>
+              <span className="text-emerald-400/80 flex items-center gap-1 font-medium">
+                <Layers className="w-3 h-3" /> {(level.visual?.nodes || []).length} visuals
               </span>
             </div>
           </div>
@@ -906,6 +872,10 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 gridSubdivision={gridSubdivision}
                 pixelsPerSecond={pixelsPerSecond}
                 showWaveform={showWaveform}
+                timelineMode={timelineMode}
+                activeLayer={activeLayer}
+                onChangeActiveLayer={setActiveLayer}
+                selectedPrimitiveType={selectedPrimitiveType}
                 selectedEventId={selectedEventId}
                 selectedEventIds={selectedEventIds}
                 selectedTriggerId={selectedTriggerId}
@@ -928,7 +898,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 onUpdateTrigger={handleUpdateTrigger}
                 onUpdateTriggersBatch={handleUpdateTriggersBatch}
                 onRemoveTrigger={handleRemoveTrigger}
+                onAddNode={handleAddNode}
                 onUpdateNode={handleUpdateNodeById}
+                onRemoveNode={handleRemoveNode}
                 onChangePixelsPerSecond={setPixelsPerSecond}
               />
             </div>

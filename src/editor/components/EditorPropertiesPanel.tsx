@@ -312,6 +312,30 @@ export function EditorPropertiesPanel({
             <span className="font-mono text-[10px] text-white/40">{selectedTrigger.id}</span>
           </div>
 
+          {/* Timeline Layer */}
+          <label className="flex flex-col gap-1 text-white/70">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold">Timeline Layer</span>
+              <span className="text-[10px] text-yellow-400 font-mono">
+                Layer {selectedTrigger.layer ?? 1}
+              </span>
+            </div>
+            <input
+              type="number"
+              min={1}
+              max={99}
+              value={selectedTrigger.layer ?? 1}
+              onChange={(e) => {
+                const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                onUpdateTrigger({ ...selectedTrigger, layer: val });
+              }}
+              className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#ffea00] outline-none"
+            />
+            <span className="text-[10px] text-white/40">
+              Only rendered when Timeline Triggers mode is set to this layer.
+            </span>
+          </label>
+
           {/* Trigger Time */}
           <div className="flex flex-col gap-1 text-white/70">
             <div className="flex justify-between">
@@ -714,6 +738,30 @@ export function EditorPropertiesPanel({
             />
             <span className="text-[10px] text-white/40">
               Multiple objects can share the same ID to be controlled by a single Trigger.
+            </span>
+          </label>
+
+          {/* Timeline Layer */}
+          <label className="flex flex-col gap-1 text-white/70">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold">Timeline Layer</span>
+              <span className="text-[10px] text-[#00ff9d] font-mono">
+                Layer {selectedNode.layer ?? 1}
+              </span>
+            </div>
+            <input
+              type="number"
+              min={1}
+              max={99}
+              value={selectedNode.layer ?? 1}
+              onChange={(e) => {
+                const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                onUpdateNode({ layer: val });
+              }}
+              className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
+            />
+            <span className="text-[10px] text-white/40">
+              Only rendered when Timeline Visuals mode is set to this layer.
             </span>
           </label>
 

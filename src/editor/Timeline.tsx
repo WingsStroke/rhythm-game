@@ -224,18 +224,22 @@ const PadTracksLane = React.memo(function PadTracksLane({
 
 interface TriggersLaneProps {
   triggers: TriggerData[];
+  totalTriggersCount?: number;
+  activeLayer?: number;
   widthPx: number;
   activeTool: EditorTool;
   effectiveTriggerIds: Set<string>;
   songOrigin: number;
   pixelsPerSecond: number;
-  onTriggerTrackClick: (e: React.MouseEvent) => void;
+  onTriggerTrackClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   onTriggerMove: (e: React.PointerEvent, trigger: TriggerData) => void;
   onTriggerResize: (e: React.PointerEvent, trigger: TriggerData) => void;
 }
 
 const TriggersLane = React.memo(function TriggersLane({
   triggers,
+  totalTriggersCount,
+  activeLayer = 1,
   widthPx,
   activeTool,
   effectiveTriggerIds,
@@ -249,38 +253,48 @@ const TriggersLane = React.memo(function TriggersLane({
     <>
       {/* Triggers Section Title Row */}
       <div className="h-9 border-y border-violet-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3 flex-shrink-0">
-        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-violet-300">
-          SCENE TRIGGERS & FX AUTOMATION
+        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-yellow-300">
+          FX & TRIGGERS AUTOMATION — LAYER {activeLayer}
         </span>
         <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
-          {triggers.length} {triggers.length === 1 ? 'trigger' : 'triggers'}
+          {triggers.length} on this layer
+          {typeof totalTriggersCount === 'number' ? ` (${totalTriggersCount} total)` : ''}
         </span>
       </div>
 
       {/* FX Lane Track */}
       <div
-        className={`h-36 bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
+        className={`flex-1 min-h-[360px] bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
           activeTool === 'pen' ? 'hover:bg-violet-950/[0.16] cursor-crosshair' : ''
         }`}
         style={{ width: widthPx, minWidth: widthPx }}
         onClick={onTriggerTrackClick}
       >
-        {triggers.map((trigger) => {
+        {triggers.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="font-mono text-xs text-white/30 tracking-wide">
+              No triggers on Layer {activeLayer}. Click with Pen (B) to place triggers.
+            </span>
+          </div>
+        )}
+        {triggers.map((trigger, index) => {
           const isSelected = effectiveTriggerIds.has(trigger.id);
           const x = (trigger.time + songOrigin) * pixelsPerSecond;
           const width = Math.max(32, (trigger.duration || 0) * pixelsPerSecond);
           const color = getTriggerColor(trigger.action);
+          const topOffset = (index % 4) * 68 + 16;
           return (
             <div
               key={trigger.id}
               data-trigger-item="true"
               data-trigger-id={trigger.id}
-              className={`absolute top-1/2 -translate-y-1/2 h-16 rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all ${
+              className={`absolute h-14 rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all ${
                 isSelected
                   ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
                   : 'hover:brightness-110'
               }`}
               style={{
+                top: `${topOffset}px`,
                 left: x,
                 width,
                 backgroundColor: `${color}25`,
@@ -294,7 +308,7 @@ const TriggersLane = React.memo(function TriggersLane({
               >
                 <Zap className="w-3.5 h-3.5 -rotate-45 text-black font-bold" />
               </div>
-              <div className="flex flex-col px-2.5 overflow-hidden flex-1">
+              <div className="flex flex-col px-2.5 overflow-hidden flex-1 select-none pointer-events-none">
                 <span className="text-[11px] font-mono font-bold uppercase truncate text-white">
                   {trigger.action}
                 </span>
@@ -319,6 +333,8 @@ const TriggersLane = React.memo(function TriggersLane({
 
 interface VisualObjectsLaneProps {
   nodes: SceneNodeData[];
+  totalNodesCount?: number;
+  activeLayer?: number;
   widthPx: number;
   activeTool: EditorTool;
   selectedNodeId?: string | null;
@@ -328,10 +344,14 @@ interface VisualObjectsLaneProps {
   onSelectNode?: (node: SceneNodeData | null) => void;
   onNodeMove?: (e: React.PointerEvent, node: SceneNodeData) => void;
   onNodeResize?: (e: React.PointerEvent, node: SceneNodeData) => void;
+  onTrackClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onRemoveNode?: (id: string) => void;
 }
 
 const VisualObjectsLane = React.memo(function VisualObjectsLane({
   nodes,
+  totalNodesCount,
+  activeLayer = 1,
   widthPx,
   activeTool,
   selectedNodeId,
@@ -341,24 +361,37 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
   onSelectNode,
   onNodeMove,
   onNodeResize,
+  onTrackClick,
+  onRemoveNode,
 }: VisualObjectsLaneProps) {
   return (
     <>
       {/* Visual Objects Section Title Row */}
       <div className="h-9 border-y border-emerald-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3 flex-shrink-0">
         <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-300">
-          SCENE OBJECTS & LIFESPAN
+          SCENE OBJECTS & LIFESPAN — LAYER {activeLayer}
         </span>
         <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
-          {nodes.length} {nodes.length === 1 ? 'object' : 'objects'}
+          {nodes.length} on this layer
+          {typeof totalNodesCount === 'number' ? ` (${totalNodesCount} total)` : ''}
         </span>
       </div>
 
       {/* Visual Objects Track Lane */}
       <div
-        className="h-36 bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0"
+        className={`flex-1 min-h-[360px] bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0 ${
+          activeTool === 'object' ? 'hover:bg-emerald-950/[0.16] cursor-crosshair' : ''
+        }`}
         style={{ width: widthPx, minWidth: widthPx }}
+        onClick={onTrackClick}
       >
+        {nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="font-mono text-xs text-white/30 tracking-wide">
+              No visual objects on Layer {activeLayer}. Click with Object (O) to place elements.
+            </span>
+          </div>
+        )}
         {nodes.map((node, index) => {
           const isSelected = selectedNodeId === node.uid || selectedNodeId === node.id || selectedNodeId === node.name;
           const isFront = node.layerId === 'sceneFront';
@@ -372,15 +405,15 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
           const x = (startTime + songOrigin) * pixelsPerSecond;
           const width = Math.max(54, duration * pixelsPerSecond);
 
-          // Stagger items into 2 visual tiers to prevent visual overlap
-          const topOffset = (index % 2) * 48 + 8;
+          // Stagger items into 4 visual tiers to prevent visual overlap
+          const topOffset = (index % 4) * 60 + 16;
 
           return (
             <div
               key={node.uid || node.id || node.name || index}
               data-node-item="true"
               data-node-id={node.uid || node.id || node.name}
-              className={`absolute h-10 rounded-lg flex items-center z-20 cursor-pointer transition-all ${
+              className={`absolute h-11 rounded-lg flex items-center z-20 cursor-pointer transition-all ${
                 isSelected
                   ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
                   : 'hover:brightness-125'
@@ -393,6 +426,11 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
                 border: `1.5px ${hasLifespan ? 'solid' : 'dashed'} ${layerColor}99`,
               }}
               onPointerDown={(e) => {
+                if (activeTool === 'eraser') {
+                  e.stopPropagation();
+                  onRemoveNode?.(node.uid);
+                  return;
+                }
                 if (hasLifespan && onNodeMove) {
                   onNodeMove(e, node);
                 } else {
@@ -469,6 +507,10 @@ interface TimelineProps {
   gridSubdivision: GridSubdivision;
   pixelsPerSecond: number;
   showWaveform?: boolean;
+  timelineMode?: 'notes' | 'triggers' | 'visuals';
+  activeLayer?: number;
+  onChangeActiveLayer?: (layer: number) => void;
+  selectedPrimitiveType?: 'rectangle' | 'circle' | 'group';
   selectedEventId?: string | null;
   selectedEventIds?: Set<string>;
   selectedTriggerId?: string | null;
@@ -491,7 +533,9 @@ interface TimelineProps {
   onUpdateTrigger?: (trigger: TriggerData) => void;
   onUpdateTriggersBatch?: (triggers: TriggerData[]) => void;
   onRemoveTrigger?: (id: string) => void;
+  onAddNode?: (node: SceneNodeData) => void;
   onUpdateNode?: (id: string, updates: Partial<SceneNodeData>) => void;
+  onRemoveNode?: (id: string) => void;
   onChangePixelsPerSecond?: (fnOrValue: number | ((prev: number) => number)) => void;
 }
 
@@ -504,6 +548,10 @@ export function Timeline({
   gridSubdivision,
   pixelsPerSecond,
   showWaveform = true,
+  timelineMode = 'notes',
+  activeLayer = 1,
+  onChangeActiveLayer,
+  selectedPrimitiveType = 'rectangle',
   selectedEventId,
   selectedEventIds,
   selectedTriggerId,
@@ -526,7 +574,9 @@ export function Timeline({
   onUpdateTrigger,
   onUpdateTriggersBatch,
   onRemoveTrigger,
+  onAddNode,
   onUpdateNode,
+  onRemoveNode,
   onChangePixelsPerSecond,
 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -557,7 +607,7 @@ export function Timeline({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [timelineMode]);
 
   const [dragState, setDragState] = useState<{
     targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers' | 'node';
@@ -648,6 +698,16 @@ export function Timeline({
 
   const triggers = useMemo(() => level.visual?.triggers || [], [level.visual?.triggers]);
   const sceneNodes = useMemo(() => level.visual?.nodes || [], [level.visual?.nodes]);
+
+  const visibleTriggers = useMemo(
+    () => triggers.filter((t) => (t.layer ?? 1) === activeLayer),
+    [triggers, activeLayer]
+  );
+
+  const visibleNodes = useMemo(
+    () => sceneNodes.filter((n) => (n.layer ?? 1) === activeLayer),
+    [sceneNodes, activeLayer]
+  );
 
   // Precompute events grouped by padId once in O(events) time, avoiding O(pads * events) per render
   const eventsByPad = useMemo(() => {
@@ -796,7 +856,7 @@ export function Timeline({
     }
   }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, creationBehavior, beatDuration, selectedTriggerId, onAddEvent, onSelectEvent, onSelectTrigger]);
 
-  const handleTriggerTrackClick = useCallback((e: React.MouseEvent) => {
+  const handleTriggerTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (dragState) return;
     if ((e.target as HTMLElement).closest('[data-trigger-item]')) return;
 
@@ -814,12 +874,94 @@ export function Timeline({
         duration: beatDuration,
         easing: 'easeOutQuad',
         properties: { scaleX: 1.25, scaleY: 1.25 },
+        layer: activeLayer,
       };
       onAddTrigger?.(newTrigger);
       onSelectTrigger?.(newTrigger);
       onSelectEvent(null);
     }
-  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, onAddTrigger, onSelectTrigger, onSelectEvent]);
+  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, activeLayer, onAddTrigger, onSelectTrigger, onSelectEvent]);
+
+  const handleVisualTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (dragState) return;
+    if ((e.target as HTMLElement).closest('[data-node-item]')) return;
+
+    if (activeTool === 'object') {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const rawSongTime = timelineXToSongTime(clickX, pixelsPerSecond, leadIn, offset);
+      const bpm = level.timing.bpm || 120;
+      const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), bpm, gridSubdivision);
+
+      const type = selectedPrimitiveType || 'rectangle';
+      const nodes = level.visual?.nodes || [];
+      let max = 0;
+      const prefix = type === 'rectangle' ? 'rect' : type === 'circle' ? 'circle' : 'group';
+      for (const node of nodes) {
+        const name = node.name || (typeof node.id === 'string' ? node.id : '');
+        if (name.startsWith(`${prefix}-`)) {
+          const num = parseInt(name.replace(`${prefix}-`, ''), 10);
+          if (!Number.isNaN(num) && num > max) max = num;
+        }
+      }
+      const counter = max + 1;
+      const uid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`;
+
+      // Default temporal duration: 4 beats (1 measure), minimum 1.0s
+      const beatSec = 60 / bpm;
+      const defaultDuration = Math.max(1, Number((beatSec * 4).toFixed(3)));
+
+      const newNode: SceneNodeData = {
+        uid,
+        name: `${prefix}-${counter}`,
+        targetId: null,
+        id: null,
+        type,
+        layer: activeLayer,
+        visible: true,
+        lifespan: {
+          startTime: snappedTime,
+          duration: defaultDuration,
+          fadeInMs: 200,
+          fadeOutMs: 200,
+        },
+        transform: {
+          x: 960,
+          y: 540,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0,
+          opacity: 0.9,
+        },
+        properties:
+          type === 'rectangle'
+            ? { width: 140, height: 140, color: '#00e5ff' }
+            : type === 'circle'
+            ? { radius: 70, color: '#ff007f' }
+            : {},
+      };
+
+      onAddNode?.(newNode);
+      onSelectNode?.(newNode);
+      onSelectEvent(null);
+      onSelectTrigger?.(null);
+    }
+  }, [
+    dragState,
+    activeTool,
+    pixelsPerSecond,
+    leadIn,
+    offset,
+    level.timing.bpm,
+    level.visual?.nodes,
+    gridSubdivision,
+    selectedPrimitiveType,
+    activeLayer,
+    onAddNode,
+    onSelectNode,
+    onSelectEvent,
+    onSelectTrigger,
+  ]);
 
   const handleCanvasPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -981,6 +1123,10 @@ export function Timeline({
 
   const startNodeMove = useCallback((e: React.PointerEvent, node: SceneNodeData) => {
     e.stopPropagation();
+    if (activeTool === 'eraser') {
+      onRemoveNode?.(node.uid);
+      return;
+    }
     onSelectNode?.(node);
     onSelectEvent(null);
     onSelectTrigger?.(null);
@@ -996,7 +1142,7 @@ export function Timeline({
       });
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
-  }, [activeTool, onSelectNode, onSelectEvent, onSelectTrigger]);
+  }, [activeTool, onRemoveNode, onSelectNode, onSelectEvent, onSelectTrigger]);
 
   const startNodeResize = useCallback((e: React.PointerEvent, node: SceneNodeData) => {
     e.stopPropagation();
@@ -1325,15 +1471,38 @@ export function Timeline({
         }}
       >
         <div className="min-h-full flex flex-col">
-          {/* TIME Header */}
-          <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/95 flex items-center justify-between px-3.5 gap-2 shadow-md flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#00e5ff]" />
-              <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIME</span>
-            </div>
+          {/* Sticky Header: TIME in notes mode, Layer [input] in triggers/visuals mode */}
+          <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/95 flex items-center justify-between px-3 gap-2 shadow-md flex-shrink-0">
+            {timelineMode === 'notes' ? (
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#00e5ff]" />
+                <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIME</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className={`font-mono text-xs font-bold tracking-wider ${timelineMode === 'triggers' ? 'text-yellow-400' : 'text-[#00ff9d]'}`}>
+                  Layer
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={activeLayer}
+                  onChange={(e) => {
+                    const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                    onChangeActiveLayer?.(val);
+                  }}
+                  className={`w-12 bg-black/70 border rounded px-1.5 py-0.5 text-xs font-mono font-bold text-center outline-none transition-colors ${
+                    timelineMode === 'triggers'
+                      ? 'border-yellow-500/50 text-yellow-300 focus:border-yellow-400'
+                      : 'border-emerald-500/50 text-emerald-300 focus:border-emerald-400'
+                  }`}
+                />
+              </div>
+            )}
             {leadIn > 0 && (
               <span
-                className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#00ff9d]/15 text-[#00ff9d] border border-[#00ff9d]/30 font-bold"
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/70 border border-white/10 font-bold"
                 title={`Pre-roll lead-in: ${leadIn}s`}
               >
                 +{leadIn}s
@@ -1341,65 +1510,63 @@ export function Timeline({
             )}
           </div>
 
-          {/* Pad Track Labels (flex-1 to distribute vertical space generously, min-h-[50px] for responsive windowed mode) */}
-          <div className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[210px]">
-            {level.pads.map((pad) => (
-              <div
-                key={pad.id}
-                className="flex-1 min-h-[50px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-white/10 shadow-sm transition-colors hover:bg-white/[0.04] group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className="w-3 h-3 rounded-full shadow-md flex-shrink-0 transition-transform group-hover:scale-110"
-                    style={{ backgroundColor: pad.color, boxShadow: `0 0 10px ${pad.color}80` }}
-                  />
-                  <span className="text-sm font-mono font-bold text-white tracking-wide truncate">{pad.label}</span>
-                  <span className="ml-auto text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/80 font-semibold border border-white/10">
-                    {pad.keyHint}
-                  </span>
+          {/* Mode-Specific Left Track Labels */}
+          {timelineMode === 'notes' && (
+            <div className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[360px]">
+              {level.pads.map((pad) => (
+                <div
+                  key={pad.id}
+                  className="flex-1 min-h-[60px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-white/10 shadow-sm transition-colors hover:bg-white/[0.04] group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className="w-3 h-3 rounded-full shadow-md flex-shrink-0 transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: pad.color, boxShadow: `0 0 10px ${pad.color}80` }}
+                    />
+                    <span className="text-sm font-mono font-bold text-white tracking-wide truncate">{pad.label}</span>
+                    <span className="ml-auto text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/80 font-semibold border border-white/10">
+                      {pad.keyHint}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-white/40 font-mono">
+                    <span className="uppercase tracking-wider">{pad.role || 'track'}</span>
+                    {pad.audioChannel && (
+                      <>
+                        <span className="text-white/20">•</span>
+                        <span className="text-[#00e5ff]/80 font-semibold">{pad.audioChannel}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-white/40 font-mono">
-                  <span className="uppercase tracking-wider">{pad.role || 'track'}</span>
-                  {pad.audioChannel && (
-                    <>
-                      <span className="text-white/20">•</span>
-                      <span className="text-[#00e5ff]/80 font-semibold">{pad.audioChannel}</span>
-                    </>
-                  )}
-                </div>
+              ))}
+            </div>
+          )}
+
+          {timelineMode === 'triggers' && (
+            <div className="flex-1 min-h-[360px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-violet-500/30 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                <span className="text-xs font-mono font-bold text-white/90 tracking-wide">FX & TRIGGERS</span>
               </div>
-            ))}
-          </div>
-
-          {/* Triggers Section Header */}
-          <div className="h-9 my-1 flex items-center px-3.5 bg-black/95 border-y border-violet-500/40 shadow-sm flex-shrink-0">
-            <Zap className="w-4 h-4 text-yellow-400 mr-2 flex-shrink-0" />
-            <span className="text-xs font-mono font-bold text-white/90 tracking-wider">TRIGGERS</span>
-          </div>
-
-          {/* FX Lane Track Label */}
-          <div className="h-36 flex flex-col justify-center px-3.5 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-              <span className="text-xs font-mono font-bold text-white/90 tracking-wide">FX LANE</span>
+              <span className="text-[10px] text-white/40 font-mono mt-1">Scene & Effects</span>
+              <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-mono text-yellow-300/90 bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/20 w-fit">
+                <span>Layer {activeLayer}</span>
+              </div>
             </div>
-            <span className="text-[10px] text-white/40 font-mono mt-1">Scene & Effects</span>
-          </div>
+          )}
 
-          {/* Visual Objects Section Header */}
-          <div className="h-9 my-1 flex items-center px-3.5 bg-black/95 border-y border-emerald-500/40 shadow-sm flex-shrink-0">
-            <Layers className="w-4 h-4 text-emerald-400 mr-2 flex-shrink-0" />
-            <span className="text-xs font-mono font-bold text-white/90 tracking-wider">VISUAL OBJECTS</span>
-          </div>
-
-          {/* Visual Objects Track Label */}
-          <div className="h-36 flex flex-col justify-center px-3.5 bg-black/90 border-b border-white/10 shadow-sm flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span className="text-xs font-mono font-bold text-white/90 tracking-wide">SCENE ELEMENTS</span>
+          {timelineMode === 'visuals' && (
+            <div className="flex-1 min-h-[360px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-emerald-500/30 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-xs font-mono font-bold text-white/90 tracking-wide">SCENE OBJECTS</span>
+              </div>
+              <span className="text-[10px] text-white/40 font-mono mt-1">Back & Front Elements</span>
+              <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-mono text-emerald-300/90 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20 w-fit">
+                <span>Layer {activeLayer}</span>
+              </div>
             </div>
-            <span className="text-[10px] text-white/40 font-mono mt-1">Back & Front Layers</span>
-          </div>
+          )}
         </div>
       </div>
 
@@ -1444,11 +1611,12 @@ export function Timeline({
             {backgroundGridLines}
           </div>
 
-          {/* Note Track Lanes (flex-1 to consume remaining vertical space smoothly, min-h-[210px] for responsiveness) */}
-          <div
-            ref={padTracksRef}
-            className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[210px] relative z-10"
-          >
+          {/* 1. Note Track Lanes (Only rendered in 'notes' mode) */}
+          {timelineMode === 'notes' && (
+            <div
+              ref={padTracksRef}
+              className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[360px] relative z-10"
+            >
             {/* Background Audio Waveform Layer */}
             {showWaveform && (
               <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -1636,34 +1804,45 @@ export function Timeline({
               onEventMove={startEventMove}
               onEventResize={startEventResize}
             />
-          </div>
+            </div>
+          )}
 
-          {/* Triggers & FX Automation Lane (Memoized) */}
-          <TriggersLane
-            triggers={triggers}
-            widthPx={widthPx}
-            activeTool={activeTool}
-            effectiveTriggerIds={effectiveTriggerIds}
-            songOrigin={songOrigin}
-            pixelsPerSecond={pixelsPerSecond}
-            onTriggerTrackClick={handleTriggerTrackClick}
-            onTriggerMove={startTriggerMove}
-            onTriggerResize={startTriggerResize}
-          />
+          {/* 2. Triggers & FX Automation Lane (Only rendered in 'triggers' mode) */}
+          {timelineMode === 'triggers' && (
+            <TriggersLane
+              triggers={visibleTriggers}
+              totalTriggersCount={triggers.length}
+              activeLayer={activeLayer}
+              widthPx={widthPx}
+              activeTool={activeTool}
+              effectiveTriggerIds={effectiveTriggerIds}
+              songOrigin={songOrigin}
+              pixelsPerSecond={pixelsPerSecond}
+              onTriggerTrackClick={handleTriggerTrackClick}
+              onTriggerMove={startTriggerMove}
+              onTriggerResize={startTriggerResize}
+            />
+          )}
 
-          {/* Visual Objects Lane (Scene Nodes Lifespan) */}
-          <VisualObjectsLane
-            nodes={sceneNodes}
-            widthPx={widthPx}
-            activeTool={activeTool}
-            selectedNodeId={selectedNodeId}
-            songOrigin={songOrigin}
-            pixelsPerSecond={pixelsPerSecond}
-            totalDuration={totalDuration}
-            onSelectNode={onSelectNode}
-            onNodeMove={startNodeMove}
-            onNodeResize={startNodeResize}
-          />
+          {/* 3. Visual Objects Lane (Only rendered in 'visuals' mode) */}
+          {timelineMode === 'visuals' && (
+            <VisualObjectsLane
+              nodes={visibleNodes}
+              totalNodesCount={sceneNodes.length}
+              activeLayer={activeLayer}
+              widthPx={widthPx}
+              activeTool={activeTool}
+              selectedNodeId={selectedNodeId}
+              songOrigin={songOrigin}
+              pixelsPerSecond={pixelsPerSecond}
+              totalDuration={totalDuration}
+              onSelectNode={onSelectNode}
+              onNodeMove={startNodeMove}
+              onNodeResize={startNodeResize}
+              onTrackClick={handleVisualTrackClick}
+              onRemoveNode={onRemoveNode}
+            />
+          )}
 
           {/* Marquee Selection Rectangle */}
           {marquee && (

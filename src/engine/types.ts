@@ -221,6 +221,8 @@ export interface SceneNodeData {
   visible?: boolean;
   /** Target rendering layer in the scene hierarchy. Defaults to 'sceneBack'. */
   layerId?: 'sceneBack' | 'sceneFront';
+  /** Timeline organizational layer number (1-based, e.g. 1, 2, 3). Defaults to 1. */
+  layer?: number;
   /** Optional temporal lifespan bounds. When absent, object is continuously active. */
   lifespan?: SceneNodeLifespan;
   transform?: SceneNodeTransform;
@@ -249,6 +251,8 @@ export interface TriggerData {
   duration: number;
   /** Key-value pairs of target properties (e.g. { x: 500, opacity: 0.8 }). */
   properties: Record<string, number | string | boolean>;
+  /** Timeline organizational layer number (1-based, e.g. 1, 2, 3). Defaults to 1. */
+  layer?: number;
 }
 
 export type EasingType =

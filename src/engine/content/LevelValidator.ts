@@ -1,4 +1,4 @@
-import type { LevelData, PadConfig, PadEvent, SceneNodeData, SceneNodeLifespan, TimingWindows } from '../types';
+import type { LevelData, PadConfig, PadEvent, SceneNodeData, SceneNodeLifespan, TimingWindows, TriggerData } from '../types';
 
 export interface ValidationResult {
   valid: boolean;
@@ -293,6 +293,12 @@ export class LevelValidator {
         };
       }
 
+      // Sanitize timeline organizational layer (defaults to 1)
+      const layer =
+        typeof node.layer === 'number' && Number.isFinite(node.layer) && node.layer >= 1
+          ? Math.floor(node.layer)
+          : 1;
+
       return {
         uid,
         name: typeof node.name === 'string' ? node.name : `node-${idx + 1}`,
@@ -308,6 +314,7 @@ export class LevelValidator {
         blendMode,
         visible: node.visible !== false,
         layerId,
+        layer,
         lifespan,
         transform,
         properties: (node.properties as Record<string, unknown>) || {},
@@ -316,6 +323,28 @@ export class LevelValidator {
 
     const levelId = String(metaRaw.id || 'level-001');
     const songId = String(raw.songId || songRaw.id || 'song-001');
+
+    const rawTriggers = Array.isArray(visualRaw.triggers) ? visualRaw.triggers : [];
+    const triggers: TriggerData[] = rawTriggers.map((t, idx) => {
+      const trig = t as Record<string, unknown>;
+      const layer =
+        typeof trig.layer === 'number' && Number.isFinite(trig.layer) && trig.layer >= 1
+          ? Math.floor(trig.layer)
+          : 1;
+      return {
+        id: String(trig.id || `trigger_${idx}_${Date.now()}`),
+        time: Math.max(0, Number(trig.time) || 0),
+        action: (trig.action as TriggerData['action']) || 'transform',
+        targetId:
+          typeof trig.targetId === 'number' || typeof trig.targetId === 'string'
+            ? trig.targetId
+            : 'all',
+        easing: trig.easing as TriggerData['easing'],
+        duration: Math.max(0, Number(trig.duration) || 0),
+        properties: (trig.properties as Record<string, number | string | boolean>) || {},
+        layer,
+      };
+    });
 
     return {
       formatVersion: Number(raw.formatVersion) || 1,
@@ -347,7 +376,7 @@ export class LevelValidator {
       visual: {
         nodes,
         animations: Array.isArray(visualRaw.animations) ? (visualRaw.animations as LevelData['visual']['animations']) : [],
-        triggers: Array.isArray(visualRaw.triggers) ? (visualRaw.triggers as LevelData['visual']['triggers']) : [],
+        triggers,
         audioMappings: Array.isArray(visualRaw.audioMappings)
           ? (visualRaw.audioMappings as LevelData['visual']['audioMappings'])
           : [],

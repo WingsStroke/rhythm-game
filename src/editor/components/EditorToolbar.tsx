@@ -30,7 +30,8 @@ interface EditorToolbarProps {
   onChangePixelsPerSecond: (fnOrValue: number | ((prev: number) => number)) => void;
   showWaveform?: boolean;
   onToggleWaveform?: () => void;
-  onCreatePrimitive?: (type: 'rectangle' | 'circle' | 'group') => void;
+  selectedPrimitiveType?: 'rectangle' | 'circle' | 'group';
+  onSelectPrimitiveType?: (type: 'rectangle' | 'circle' | 'group') => void;
 }
 
 export function EditorToolbar({
@@ -44,7 +45,8 @@ export function EditorToolbar({
   onChangePixelsPerSecond,
   showWaveform = true,
   onToggleWaveform,
-  onCreatePrimitive,
+  selectedPrimitiveType = 'rectangle',
+  onSelectPrimitiveType,
 }: EditorToolbarProps) {
   const [isPenMenuOpen, setIsPenMenuOpen] = useState(false);
   const [isObjectMenuOpen, setIsObjectMenuOpen] = useState(false);
@@ -293,6 +295,9 @@ export function EditorToolbar({
           >
             <Box className="w-3.5 h-3.5" />
             <span>Object (O)</span>
+            <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-white/10 uppercase font-semibold text-white/90">
+              {selectedPrimitiveType}
+            </span>
             <ChevronDown className={`w-3 h-3 transition-transform ${isObjectMenuOpen ? 'rotate-180 text-emerald-400' : 'text-white/40'}`} />
           </button>
 
@@ -300,32 +305,37 @@ export function EditorToolbar({
           {isObjectMenuOpen && (
             <div className="absolute left-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9)] p-1.5 z-50 flex flex-col gap-1 pointer-events-auto">
               <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-white/40 border-b border-white/10 flex items-center justify-between">
-                <span>Add Visual Primitive</span>
-                <span className="text-emerald-400">Scene Graph</span>
+                <span>Select Visual Primitive</span>
+                <span className="text-emerald-400">Object Tool</span>
               </div>
               {objectPrimitives.map((item, index) => (
                 <button
                   key={item.type}
                   onClick={() => {
-                    onCreatePrimitive?.(item.type);
+                    onSelectPrimitiveType?.(item.type);
+                    onSelectTool('object');
                     setIsObjectMenuOpen(false);
                   }}
                   style={{
                     animation: 'toolbarMenuStagger 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
                     animationDelay: `${index * 35}ms`,
                   }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer text-white/70 hover:text-white hover:bg-white/10 group"
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    selectedPrimitiveType === item.type
+                      ? 'bg-white/15 text-white border border-white/30 font-semibold shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
+                  }`}
                 >
                   <div className="flex items-center gap-2.5">
                     {item.icon}
                     <div className="flex flex-col text-left">
-                      <span className="font-semibold text-white/90 group-hover:text-white">{item.label}</span>
+                      <span className="font-semibold text-white/90">{item.label}</span>
                       <span className="text-[10px] text-white/40 font-mono">{item.description}</span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono text-emerald-400/70 group-hover:text-emerald-300">
-                    +Add
-                  </span>
+                  {selectedPrimitiveType === item.type && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00ff9d] shadow-[0_0_6px_#00ff9d]" />
+                  )}
                 </button>
               ))}
             </div>
