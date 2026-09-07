@@ -164,7 +164,7 @@ export function EditorToolbar({
   ];
 
   return (
-    <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-4 gap-2 shrink-0 select-none overflow-visible relative z-40">
+    <div className="h-11 border-b border-white/10 bg-black/30 flex items-center justify-between px-4 gap-2 shrink-0 select-none overflow-visible relative z-50">
       <style>{`
         @keyframes toolbarMenuStagger {
           0% {
@@ -222,7 +222,7 @@ export function EditorToolbar({
 
           {/* Floating Staggered Dropdown Menu for Pen Note Types */}
           {isPenMenuOpen && (
-            <div className="absolute left-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9)] p-1.5 z-50 flex flex-col gap-1 pointer-events-auto">
+            <div className="absolute left-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9)] p-1.5 z-[100] flex flex-col gap-1 pointer-events-auto">
               <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-white/40 border-b border-white/10 flex items-center justify-between">
                 <span>Select Note Type</span>
                 <span className="text-[#00ff9d]">Pen Tool</span>
@@ -303,7 +303,7 @@ export function EditorToolbar({
 
           {/* Floating Staggered Dropdown Menu for Object Primitives */}
           {isObjectMenuOpen && (
-            <div className="absolute left-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9)] p-1.5 z-50 flex flex-col gap-1 pointer-events-auto">
+            <div className="absolute left-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9)] p-1.5 z-[100] flex flex-col gap-1 pointer-events-auto">
               <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-white/40 border-b border-white/10 flex items-center justify-between">
                 <span>Select Visual Primitive</span>
                 <span className="text-emerald-400">Object Tool</span>

@@ -299,6 +299,12 @@ export class LevelValidator {
           ? Math.floor(node.layer)
           : 1;
 
+      // Sanitize subLane (0 to 3)
+      const subLane =
+        typeof node.subLane === 'number' && Number.isFinite(node.subLane) && node.subLane >= 0
+          ? Math.max(0, Math.min(3, Math.floor(node.subLane)))
+          : undefined;
+
       return {
         uid,
         name: typeof node.name === 'string' ? node.name : `node-${idx + 1}`,
@@ -315,6 +321,7 @@ export class LevelValidator {
         visible: node.visible !== false,
         layerId,
         layer,
+        subLane,
         lifespan,
         transform,
         properties: (node.properties as Record<string, unknown>) || {},
@@ -331,6 +338,10 @@ export class LevelValidator {
         typeof trig.layer === 'number' && Number.isFinite(trig.layer) && trig.layer >= 1
           ? Math.floor(trig.layer)
           : 1;
+      const subLane =
+        typeof trig.subLane === 'number' && Number.isFinite(trig.subLane) && trig.subLane >= 0
+          ? Math.max(0, Math.min(3, Math.floor(trig.subLane)))
+          : undefined;
       return {
         id: String(trig.id || `trigger_${idx}_${Date.now()}`),
         time: Math.max(0, Number(trig.time) || 0),
@@ -343,6 +354,7 @@ export class LevelValidator {
         duration: Math.max(0, Number(trig.duration) || 0),
         properties: (trig.properties as Record<string, number | string | boolean>) || {},
         layer,
+        subLane,
       };
     });
 

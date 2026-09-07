@@ -223,6 +223,8 @@ export interface SceneNodeData {
   layerId?: 'sceneBack' | 'sceneFront';
   /** Timeline organizational layer number (1-based, e.g. 1, 2, 3). Defaults to 1. */
   layer?: number;
+  /** Timeline visual sub-lane index (0-based, e.g. 0, 1, 2, 3). Defaults to auto. */
+  subLane?: number;
   /** Optional temporal lifespan bounds. When absent, object is continuously active. */
   lifespan?: SceneNodeLifespan;
   transform?: SceneNodeTransform;
@@ -253,6 +255,8 @@ export interface TriggerData {
   properties: Record<string, number | string | boolean>;
   /** Timeline organizational layer number (1-based, e.g. 1, 2, 3). Defaults to 1. */
   layer?: number;
+  /** Timeline visual sub-lane index (0-based, e.g. 0, 1, 2, 3). Defaults to auto. */
+  subLane?: number;
 }
 
 export type EasingType =

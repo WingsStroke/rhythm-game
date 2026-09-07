@@ -16,15 +16,16 @@ interface EditorPropertiesPanelProps {
   selectedEvent: PadEvent | null;
   selectedEvents?: PadEvent[];
   selectedNode: SceneNodeData | null;
+  selectedNodes?: SceneNodeData[];
   selectedTrigger: TriggerData | null;
-  selectedTriggers?: TriggerData[];
+  selectedTriggers: TriggerData[];
   nodes: SceneNodeData[];
   pads: PadConfig[];
   activeTab: 'timeline' | 'preview';
   onUpdateEvent: (event: PadEvent) => void;
   onUpdateEventsBatch?: (events: PadEvent[]) => void;
   onRemoveEvent: (id: string) => void;
-  onRemoveBatch?: (eventIds: Set<string>, triggerIds: Set<string>) => void;
+  onRemoveBatch?: (eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>) => void;
   onUpdateNode: (updates: Partial<SceneNodeData>) => void;
   onRemoveNode?: (id: string) => void;
   onUpdateTrigger: (trigger: TriggerData) => void;
@@ -53,6 +54,7 @@ export function EditorPropertiesPanel({
   selectedEvent,
   selectedEvents,
   selectedNode,
+  selectedNodes,
   selectedTrigger,
   selectedTriggers,
   nodes,
@@ -160,6 +162,27 @@ export function EditorPropertiesPanel({
             className="mt-2 w-full py-2 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold flex items-center justify-center gap-1.5 border border-red-500/30 transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" /> Delete {selectedTriggers.length} Triggers (Del)
+          </button>
+        </div>
+      ) : selectedNodes && selectedNodes.length > 1 ? (
+        <div className="flex flex-col gap-4 text-xs">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+            <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" /> Batch Selection
+            </span>
+            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/40">
+              {selectedNodes.length} Objects
+            </span>
+          </div>
+
+          <button
+            onClick={() => {
+              const ids = new Set(selectedNodes.map((n) => n.uid));
+              onRemoveBatch?.(new Set(), new Set(), ids);
+            }}
+            className="mt-2 w-full py-2 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold flex items-center justify-center gap-1.5 border border-red-500/30 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Delete {selectedNodes.length} Objects (Del)
           </button>
         </div>
       ) : selectedEvent ? (

@@ -72,7 +72,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   // Multi-selection state
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [selectedTriggerIds, setSelectedTriggerIds] = useState<Set<string>>(new Set());
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
 
   // Single active items for inspector (when single item is selected, or primary pivot)
   const selectedEventId = useMemo(
@@ -82,6 +82,10 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const selectedTriggerId = useMemo(
     () => (selectedTriggerIds.size === 1 ? Array.from(selectedTriggerIds)[0] : null),
     [selectedTriggerIds]
+  );
+  const selectedNodeId = useMemo(
+    () => (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null),
+    [selectedNodeIds]
   );
 
   const selectedEvents = useMemo(
@@ -94,13 +98,24 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     [level.visual?.triggers, selectedTriggerIds]
   );
 
+  const selectedNodes = useMemo(
+    () =>
+      (level.visual?.nodes || []).filter(
+        (n) =>
+          selectedNodeIds.has(n.uid) ||
+          (Boolean(n.id) && selectedNodeIds.has(String(n.id))) ||
+          (Boolean(n.name) && selectedNodeIds.has(n.name!))
+      ),
+    [level.visual?.nodes, selectedNodeIds]
+  );
+
   const selectEvent = useCallback((id: string | null) => {
     if (!id) {
       setSelectedEventIds(new Set());
     } else {
       setSelectedEventIds(new Set([id]));
       setSelectedTriggerIds(new Set());
-      setSelectedNodeId(null);
+      setSelectedNodeIds(new Set());
     }
   }, []);
 
@@ -110,13 +125,15 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     } else {
       setSelectedTriggerIds(new Set([id]));
       setSelectedEventIds(new Set());
-      setSelectedNodeId(null);
+      setSelectedNodeIds(new Set());
     }
   }, []);
 
   const selectNode = useCallback((id: string | null) => {
-    setSelectedNodeId(id);
-    if (id) {
+    if (!id) {
+      setSelectedNodeIds(new Set());
+    } else {
+      setSelectedNodeIds(new Set([id]));
       setSelectedEventIds(new Set());
       setSelectedTriggerIds(new Set());
     }
@@ -131,7 +148,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
     if (ids.size > 0 && !additive) {
       setSelectedTriggerIds(new Set());
-      setSelectedNodeId(null);
+      setSelectedNodeIds(new Set());
     }
   }, []);
 
@@ -144,7 +161,20 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
     if (ids.size > 0 && !additive) {
       setSelectedEventIds(new Set());
-      setSelectedNodeId(null);
+      setSelectedNodeIds(new Set());
+    }
+  }, []);
+
+  const selectNodesBatch = useCallback((ids: Set<string>, additive: boolean = false) => {
+    setSelectedNodeIds((prev) => {
+      if (!additive) return new Set(ids);
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    if (ids.size > 0 && !additive) {
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
     }
   }, []);
 
@@ -159,7 +189,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       return next;
     });
     setSelectedTriggerIds(new Set());
-    setSelectedNodeId(null);
+    setSelectedNodeIds(new Set());
   }, []);
 
   const toggleTriggerSelection = useCallback((id: string, multi: boolean = true) => {
@@ -173,7 +203,21 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       return next;
     });
     setSelectedEventIds(new Set());
-    setSelectedNodeId(null);
+    setSelectedNodeIds(new Set());
+  }, []);
+
+  const toggleNodeSelection = useCallback((id: string, multi: boolean = true) => {
+    setSelectedNodeIds((prev) => {
+      const next = multi ? new Set(prev) : new Set<string>();
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setSelectedEventIds(new Set());
+    setSelectedTriggerIds(new Set());
   }, []);
 
   const selectEventRange = useCallback((targetId: string) => {
@@ -200,12 +244,24 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
 
   const handleSelectAll = useCallback(() => {
     if (activeTab === 'timeline') {
-      const allEventIds = new Set(level.events.map((e) => e.id));
-      setSelectedEventIds(allEventIds);
-      setSelectedTriggerIds(new Set());
-      setSelectedNodeId(null);
+      if (timelineMode === 'notes') {
+        const allEventIds = new Set(level.events.map((e) => e.id));
+        setSelectedEventIds(allEventIds);
+        setSelectedTriggerIds(new Set());
+        setSelectedNodeIds(new Set());
+      } else if (timelineMode === 'triggers') {
+        const visibleTrigs = (level.visual?.triggers || []).filter((t) => (t.layer ?? 1) === activeLayer);
+        setSelectedTriggerIds(new Set(visibleTrigs.map((t) => t.id)));
+        setSelectedEventIds(new Set());
+        setSelectedNodeIds(new Set());
+      } else if (timelineMode === 'visuals') {
+        const visibleN = (level.visual?.nodes || []).filter((n) => (n.layer ?? 1) === activeLayer);
+        setSelectedNodeIds(new Set(visibleN.map((n) => n.uid)));
+        setSelectedEventIds(new Set());
+        setSelectedTriggerIds(new Set());
+      }
     }
-  }, [activeTab, level.events]);
+  }, [activeTab, timelineMode, level.events, level.visual?.triggers, level.visual?.nodes, activeLayer]);
 
   // 1. PadEvent mutations
   const handleAddEvent = useCallback((newEvent: PadEvent) => {
@@ -388,28 +444,57 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         ),
       },
     }));
-    setSelectedNodeId((prevId) => (prevId === id ? null : prevId));
+    setSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }, [setLevel]);
 
-  const handleRemoveBatch = useCallback((eventIds?: Set<string>, triggerIds?: Set<string>) => {
+  const handleUpdateNodesBatch = useCallback((updatedNodes: SceneNodeData[]) => {
+    setLevel((prev) => {
+      const map = new Map(updatedNodes.map((n) => [n.uid, n]));
+      const currentNodes = prev.visual?.nodes || [];
+      const newNodes = currentNodes.map((n) => map.get(n.uid) || n);
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          nodes: newNodes,
+        },
+      };
+    });
+  }, [setLevel]);
+
+  const handleRemoveBatch = useCallback((eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>) => {
     const eIds = eventIds ?? selectedEventIds;
     const tIds = triggerIds ?? selectedTriggerIds;
+    const nIds = nodeIds ?? selectedNodeIds;
 
-    if (eIds.size > 0 || tIds.size > 0) {
+    if (eIds.size > 0 || tIds.size > 0 || nIds.size > 0) {
       setLevel((prev) => ({
         ...prev,
         events: eIds.size > 0 ? prev.events.filter((e) => !eIds.has(e.id)) : prev.events,
         visual: {
           ...prev.visual,
           triggers: tIds.size > 0 ? (prev.visual?.triggers || []).filter((t) => !tIds.has(t.id)) : (prev.visual?.triggers || []),
+          nodes: nIds.size > 0
+            ? (prev.visual?.nodes || []).filter(
+                (n) =>
+                  !nIds.has(n.uid) &&
+                  (!n.id || !nIds.has(String(n.id))) &&
+                  (!n.name || !nIds.has(n.name))
+              )
+            : (prev.visual?.nodes || []),
         },
       }));
       setSelectedEventIds(new Set());
       setSelectedTriggerIds(new Set());
+      setSelectedNodeIds(new Set());
     } else if (selectedNodeId) {
       handleRemoveNode(selectedNodeId);
     }
-  }, [selectedEventIds, selectedTriggerIds, selectedNodeId, setLevel, handleRemoveNode]);
+  }, [selectedEventIds, selectedTriggerIds, selectedNodeIds, selectedNodeId, setLevel, handleRemoveNode]);
 
   // Modular Engine hook
   const {
@@ -499,7 +584,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       });
       setSelectedEventIds(newIds);
       setSelectedTriggerIds(new Set());
-      setSelectedNodeId(null);
+      setSelectedNodeIds(new Set());
     } else if (clipboardRef.current.type === 'triggers' && clipboardRef.current.triggers) {
       const baseTime = clipboardRef.current.baseTime;
       const newIds = new Set<string>();
@@ -528,7 +613,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       });
       setSelectedTriggerIds(newIds);
       setSelectedEventIds(new Set());
-      setSelectedNodeId(null);
+      setSelectedNodeIds(new Set());
     }
   }, [currentTime, gridSubdivision, level.timing.bpm, setLevel]);
 
@@ -609,7 +694,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   useEditorShortcuts({
     activeTab,
     isRecording,
-    canDelete: Boolean(selectedEventIds.size > 0 || selectedTriggerIds.size > 0 || selectedNodeId),
+    canDelete: Boolean(selectedEventIds.size > 0 || selectedTriggerIds.size > 0 || selectedNodeIds.size > 0 || selectedNodeId),
     onSelectTool: setActiveTool,
     onDeleteSelected: () => handleRemoveBatch(),
     onTogglePlay: togglePlay,
@@ -790,7 +875,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       />
 
       {/* Main Workspace Layout */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden relative z-10">
         {/* Central Workspace: Tab Switcher & Active View */}
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* View Tab Bar */}
@@ -881,13 +966,16 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 selectedTriggerId={selectedTriggerId}
                 selectedTriggerIds={selectedTriggerIds}
                 selectedNodeId={selectedNodeId}
+                selectedNodeIds={selectedNodeIds}
                 onSelectEvent={(evt) => selectEvent(evt?.id || null)}
                 onSelectEvents={selectEventsBatch}
                 onSelectTrigger={(trig) => selectTrigger(trig?.id || null)}
                 onSelectTriggers={selectTriggersBatch}
                 onSelectNode={(node) => selectNode(node?.uid || null)}
+                onSelectNodes={selectNodesBatch}
                 onToggleEventSelection={toggleEventSelection}
                 onToggleTriggerSelection={toggleTriggerSelection}
+                onToggleNodeSelection={toggleNodeSelection}
                 onSelectEventRange={selectEventRange}
                 onSeek={handleSeek}
                 onAddEvent={handleAddEvent}
@@ -900,6 +988,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 onRemoveTrigger={handleRemoveTrigger}
                 onAddNode={handleAddNode}
                 onUpdateNode={handleUpdateNodeById}
+                onUpdateNodesBatch={handleUpdateNodesBatch}
                 onRemoveNode={handleRemoveNode}
                 onChangePixelsPerSecond={setPixelsPerSecond}
               />
@@ -920,6 +1009,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           selectedTrigger={selectedTrigger}
           selectedTriggers={selectedTriggers}
           selectedNode={selectedNode}
+          selectedNodes={selectedNodes}
           nodes={level.visual?.nodes || []}
           pads={level.pads}
           activeTab={activeTab}

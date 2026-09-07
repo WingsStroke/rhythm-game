@@ -33,7 +33,7 @@ interface PlayheadProps {
 const Playhead = React.memo(function Playhead({ currentTime, pixelsPerSecond }: PlayheadProps) {
   return (
     <div
-      className="absolute top-0 bottom-0 w-px bg-red-500 z-40 pointer-events-none"
+      className="absolute top-0 bottom-0 w-px bg-red-500 z-30 pointer-events-none"
       style={{ left: currentTime * pixelsPerSecond }}
     >
       <div className="w-4 h-4 bg-red-500 rotate-45 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_#ff0000]" />
@@ -238,7 +238,6 @@ interface TriggersLaneProps {
 
 const TriggersLane = React.memo(function TriggersLane({
   triggers,
-  totalTriggersCount,
   activeLayer = 1,
   widthPx,
   activeTool,
@@ -250,98 +249,99 @@ const TriggersLane = React.memo(function TriggersLane({
   onTriggerResize,
 }: TriggersLaneProps) {
   return (
-    <>
-      {/* Triggers Section Title Row */}
-      <div className="h-9 border-y border-violet-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3 flex-shrink-0">
-        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-yellow-300">
-          FX & TRIGGERS AUTOMATION — LAYER {activeLayer}
-        </span>
-        <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
-          {triggers.length} on this layer
-          {typeof totalTriggersCount === 'number' ? ` (${totalTriggersCount} total)` : ''}
-        </span>
+    <div
+      className={`flex-1 min-h-[288px] bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
+        activeTool === 'pen' ? 'hover:bg-violet-950/[0.14] cursor-crosshair' : ''
+      }`}
+      style={{ width: widthPx, minWidth: widthPx }}
+      onClick={onTriggerTrackClick}
+    >
+      {/* 4 Sub-track horizontal dividers and visual guides */}
+      <div className="absolute inset-0 pointer-events-none flex flex-col z-0">
+        {[0, 1, 2, 3].map((lane) => (
+          <div
+            key={lane}
+            className={`h-[72px] border-b border-violet-500/15 ${
+              lane % 2 === 1 ? 'bg-violet-950/[0.04]' : 'bg-transparent'
+            }`}
+          />
+        ))}
       </div>
 
-      {/* FX Lane Track */}
-      <div
-        className={`flex-1 min-h-[360px] bg-violet-950/[0.08] border-b border-violet-500/20 relative z-10 transition-colors flex-shrink-0 ${
-          activeTool === 'pen' ? 'hover:bg-violet-950/[0.16] cursor-crosshair' : ''
-        }`}
-        style={{ width: widthPx, minWidth: widthPx }}
-        onClick={onTriggerTrackClick}
-      >
-        {triggers.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="font-mono text-xs text-white/30 tracking-wide">
-              No triggers on Layer {activeLayer}. Click with Pen (B) to place triggers.
-            </span>
-          </div>
-        )}
-        {triggers.map((trigger, index) => {
-          const isSelected = effectiveTriggerIds.has(trigger.id);
-          const x = (trigger.time + songOrigin) * pixelsPerSecond;
-          const width = Math.max(32, (trigger.duration || 0) * pixelsPerSecond);
-          const color = getTriggerColor(trigger.action);
-          const topOffset = (index % 4) * 68 + 16;
-          return (
+      {triggers.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <span className="font-mono text-xs text-white/30 tracking-wide">
+            No triggers on Layer {activeLayer}. Click with Pen (B) on any sub-track to place triggers.
+          </span>
+        </div>
+      )}
+
+      {triggers.map((trigger, index) => {
+        const isSelected = effectiveTriggerIds.has(trigger.id);
+        const x = (trigger.time + songOrigin) * pixelsPerSecond;
+        const width = Math.max(36, (trigger.duration || 0) * pixelsPerSecond);
+        const color = getTriggerColor(trigger.action);
+        const laneIndex = Math.max(0, Math.min(3, trigger.subLane ?? (index % 4)));
+        const topOffset = laneIndex * 72 + 9;
+
+        return (
+          <div
+            key={trigger.id}
+            data-trigger-item="true"
+            data-trigger-id={trigger.id}
+            className={`absolute h-[54px] rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all overflow-hidden select-none ${
+              isSelected
+                ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
+                : 'hover:brightness-110'
+            }`}
+            style={{
+              top: `${topOffset}px`,
+              left: x,
+              width,
+              backgroundColor: `${color}25`,
+              border: `2px solid ${color}`,
+            }}
+            onPointerDown={(e) => onTriggerMove(e, trigger)}
+          >
             <div
-              key={trigger.id}
-              data-trigger-item="true"
-              data-trigger-id={trigger.id}
-              className={`absolute h-14 rounded-lg flex items-center z-20 cursor-grab active:cursor-grabbing transition-all ${
-                isSelected
-                  ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
-                  : 'hover:brightness-110'
-              }`}
-              style={{
-                top: `${topOffset}px`,
-                left: x,
-                width,
-                backgroundColor: `${color}25`,
-                border: `2px solid ${color}`,
-              }}
-              onPointerDown={(e) => onTriggerMove(e, trigger)}
+              className="w-6 h-6 rounded-md flex items-center justify-center ml-2 flex-shrink-0 shadow pointer-events-none"
+              style={{ backgroundColor: color }}
             >
-              <div
-                className="w-6 h-6 rounded-md flex items-center justify-center ml-2 flex-shrink-0 shadow"
-                style={{ backgroundColor: color }}
-              >
-                <Zap className="w-3.5 h-3.5 -rotate-45 text-black font-bold" />
-              </div>
-              <div className="flex flex-col px-2.5 overflow-hidden flex-1 select-none pointer-events-none">
-                <span className="text-[11px] font-mono font-bold uppercase truncate text-white">
-                  {trigger.action}
-                </span>
-                <span className="text-[10px] font-mono text-white/60 truncate">{trigger.targetId}</span>
-              </div>
-              {activeTool === 'select' && (
-                <div
-                  data-trigger-item="true"
-                  className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
-                  onPointerDown={(e) => onTriggerResize(e, trigger)}
-                >
-                  <div className="w-1.5 h-6 bg-white/60 rounded-full" />
-                </div>
-              )}
+              <Zap className="w-3.5 h-3.5 -rotate-45 text-black font-bold" />
             </div>
-          );
-        })}
-      </div>
-    </>
+            <div className="flex flex-col px-2 overflow-hidden flex-1 select-none pointer-events-none min-w-0">
+              <span className="text-[11px] font-mono font-bold uppercase truncate text-white">
+                {trigger.action}
+              </span>
+              <span className="text-[10px] font-mono text-white/60 truncate">{trigger.targetId}</span>
+            </div>
+            {activeTool === 'select' && (trigger.duration ?? 0) > 0 && (
+              <div
+                data-trigger-item="true"
+                className="absolute right-0 top-0 bottom-0 w-3 hover:bg-white/40 cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                onPointerDown={(e) => onTriggerResize(e, trigger)}
+              >
+                <div className="w-1 h-5 bg-white/70 rounded-full pointer-events-none" />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 });
 
 interface VisualObjectsLaneProps {
   nodes: SceneNodeData[];
-  totalNodesCount?: number;
   activeLayer?: number;
   widthPx: number;
   activeTool: EditorTool;
-  selectedNodeId?: string | null;
+  effectiveNodeIds: Set<string>;
   songOrigin: number;
   pixelsPerSecond: number;
   totalDuration: number;
   onSelectNode?: (node: SceneNodeData | null) => void;
+  onToggleNodeSelection?: (id: string, multi: boolean) => void;
   onNodeMove?: (e: React.PointerEvent, node: SceneNodeData) => void;
   onNodeResize?: (e: React.PointerEvent, node: SceneNodeData) => void;
   onTrackClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
@@ -350,151 +350,158 @@ interface VisualObjectsLaneProps {
 
 const VisualObjectsLane = React.memo(function VisualObjectsLane({
   nodes,
-  totalNodesCount,
   activeLayer = 1,
   widthPx,
   activeTool,
-  selectedNodeId,
+  effectiveNodeIds,
   songOrigin,
   pixelsPerSecond,
   totalDuration,
   onSelectNode,
+  onToggleNodeSelection,
   onNodeMove,
   onNodeResize,
   onTrackClick,
   onRemoveNode,
 }: VisualObjectsLaneProps) {
   return (
-    <>
-      {/* Visual Objects Section Title Row */}
-      <div className="h-9 border-y border-emerald-500/30 bg-black/80 my-1 relative z-20 shadow-md flex items-center pl-4 gap-3 flex-shrink-0">
-        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-300">
-          SCENE OBJECTS & LIFESPAN — LAYER {activeLayer}
-        </span>
-        <span className="text-[10px] font-mono text-white/70 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
-          {nodes.length} on this layer
-          {typeof totalNodesCount === 'number' ? ` (${totalNodesCount} total)` : ''}
-        </span>
+    <div
+      className={`flex-1 min-h-[288px] bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0 ${
+        activeTool === 'object' ? 'hover:bg-emerald-950/[0.14] cursor-crosshair' : ''
+      }`}
+      style={{ width: widthPx, minWidth: widthPx }}
+      onClick={onTrackClick}
+    >
+      {/* 4 Sub-track horizontal dividers and visual guides */}
+      <div className="absolute inset-0 pointer-events-none flex flex-col z-0">
+        {[0, 1, 2, 3].map((lane) => (
+          <div
+            key={lane}
+            className={`h-[72px] border-b border-emerald-500/15 ${
+              lane % 2 === 1 ? 'bg-emerald-950/[0.04]' : 'bg-transparent'
+            }`}
+          />
+        ))}
       </div>
 
-      {/* Visual Objects Track Lane */}
-      <div
-        className={`flex-1 min-h-[360px] bg-emerald-950/[0.08] border-b border-emerald-500/20 relative z-10 transition-colors flex-shrink-0 ${
-          activeTool === 'object' ? 'hover:bg-emerald-950/[0.16] cursor-crosshair' : ''
-        }`}
-        style={{ width: widthPx, minWidth: widthPx }}
-        onClick={onTrackClick}
-      >
-        {nodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="font-mono text-xs text-white/30 tracking-wide">
-              No visual objects on Layer {activeLayer}. Click with Object (O) to place elements.
-            </span>
-          </div>
-        )}
-        {nodes.map((node, index) => {
-          const isSelected = selectedNodeId === node.uid || selectedNodeId === node.id || selectedNodeId === node.name;
-          const isFront = node.layerId === 'sceneFront';
-          const layerColor = isFront ? '#00e5ff' : '#00ff9d';
-          const layerLabel = isFront ? 'FRONT' : 'BACK';
-          const zIndexVal = isFront ? 'z:22' : 'z:2';
+      {nodes.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <span className="font-mono text-xs text-white/30 tracking-wide">
+            No visual objects on Layer {activeLayer}. Click with Object (O) on any sub-track to place elements.
+          </span>
+        </div>
+      )}
 
-          const hasLifespan = Boolean(node.lifespan);
-          const startTime = node.lifespan ? node.lifespan.startTime : 0;
-          const duration = node.lifespan ? node.lifespan.duration : totalDuration;
-          const x = (startTime + songOrigin) * pixelsPerSecond;
-          const width = Math.max(54, duration * pixelsPerSecond);
+      {nodes.map((node, index) => {
+        const isSelected =
+          effectiveNodeIds.has(node.uid) ||
+          (Boolean(node.id) && effectiveNodeIds.has(String(node.id))) ||
+          (Boolean(node.name) && effectiveNodeIds.has(node.name!));
+        const isFront = node.layerId === 'sceneFront';
+        const layerColor = isFront ? '#00e5ff' : '#00ff9d';
+        const layerLabel = isFront ? 'FRONT' : 'BACK';
+        const zIndexVal = isFront ? 'z:22' : 'z:2';
 
-          // Stagger items into 4 visual tiers to prevent visual overlap
-          const topOffset = (index % 4) * 60 + 16;
+        const hasLifespan = Boolean(node.lifespan);
+        const startTime = node.lifespan ? node.lifespan.startTime : 0;
+        const duration = node.lifespan ? node.lifespan.duration : totalDuration;
+        const x = (startTime + songOrigin) * pixelsPerSecond;
+        const width = Math.max(54, duration * pixelsPerSecond);
 
-          return (
+        const laneIndex = Math.max(0, Math.min(3, node.subLane ?? (index % 4)));
+        const topOffset = laneIndex * 72 + 9;
+
+        return (
+          <div
+            key={node.uid || node.id || node.name || index}
+            data-node-item="true"
+            data-node-id={node.uid}
+            className={`absolute h-[54px] rounded-lg flex items-center z-20 cursor-pointer transition-all overflow-hidden select-none ${
+              isSelected
+                ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
+                : 'hover:brightness-125'
+            } ${hasLifespan ? '' : 'border-dashed opacity-85'}`}
+            style={{
+              top: `${topOffset}px`,
+              left: x,
+              width,
+              backgroundColor: `${layerColor}1a`,
+              border: `1.5px ${hasLifespan ? 'solid' : 'dashed'} ${layerColor}99`,
+            }}
+            onPointerDown={(e) => {
+              if (activeTool === 'eraser') {
+                e.stopPropagation();
+                onRemoveNode?.(node.uid);
+                return;
+              }
+              if (e.ctrlKey || e.metaKey) {
+                e.stopPropagation();
+                onToggleNodeSelection?.(node.uid, true);
+                return;
+              }
+              if (hasLifespan && onNodeMove) {
+                onNodeMove(e, node);
+              } else {
+                onSelectNode?.(node);
+              }
+            }}
+          >
+            {/* Fade-in visual ramp */}
+            {hasLifespan && (node.lifespan?.fadeInMs ?? 0) > 0 && (
+              <div
+                className="absolute left-0 top-0 bottom-0 pointer-events-none rounded-l-md overflow-hidden bg-gradient-to-r from-white/25 to-transparent border-r border-white/20"
+                style={{
+                  width: Math.min(width * 0.45, ((node.lifespan!.fadeInMs! / 1000) * pixelsPerSecond)),
+                }}
+              />
+            )}
+
+            {/* Fade-out visual ramp */}
+            {hasLifespan && (node.lifespan?.fadeOutMs ?? 0) > 0 && (
+              <div
+                className="absolute right-0 top-0 bottom-0 pointer-events-none rounded-r-md overflow-hidden bg-gradient-to-l from-white/25 to-transparent border-l border-white/20"
+                style={{
+                  width: Math.min(width * 0.45, ((node.lifespan!.fadeOutMs! / 1000) * pixelsPerSecond)),
+                }}
+              />
+            )}
+
+            {/* Layer Badge */}
             <div
-              key={node.uid || node.id || node.name || index}
-              data-node-item="true"
-              data-node-id={node.uid || node.id || node.name}
-              className={`absolute h-11 rounded-lg flex items-center z-20 cursor-pointer transition-all ${
-                isSelected
-                  ? 'ring-2 ring-white shadow-[0_0_20px_rgba(255,255,255,0.9)]'
-                  : 'hover:brightness-125'
-              } ${hasLifespan ? '' : 'border-dashed opacity-85'}`}
+              className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider ml-2 flex-shrink-0 uppercase pointer-events-none"
               style={{
-                top: `${topOffset}px`,
-                left: x,
-                width,
-                backgroundColor: `${layerColor}1a`,
-                border: `1.5px ${hasLifespan ? 'solid' : 'dashed'} ${layerColor}99`,
-              }}
-              onPointerDown={(e) => {
-                if (activeTool === 'eraser') {
-                  e.stopPropagation();
-                  onRemoveNode?.(node.uid);
-                  return;
-                }
-                if (hasLifespan && onNodeMove) {
-                  onNodeMove(e, node);
-                } else {
-                  onSelectNode?.(node);
-                }
+                backgroundColor: `${layerColor}30`,
+                color: layerColor,
+                border: `1px solid ${layerColor}60`,
               }}
             >
-              {/* Fade-in visual ramp */}
-              {hasLifespan && (node.lifespan?.fadeInMs ?? 0) > 0 && (
-                <div
-                  className="absolute left-0 top-0 bottom-0 pointer-events-none rounded-l-md overflow-hidden bg-gradient-to-r from-white/25 to-transparent border-r border-white/20"
-                  style={{
-                    width: Math.min(width * 0.45, ((node.lifespan!.fadeInMs! / 1000) * pixelsPerSecond)),
-                  }}
-                />
-              )}
-
-              {/* Fade-out visual ramp */}
-              {hasLifespan && (node.lifespan?.fadeOutMs ?? 0) > 0 && (
-                <div
-                  className="absolute right-0 top-0 bottom-0 pointer-events-none rounded-r-md overflow-hidden bg-gradient-to-l from-white/25 to-transparent border-l border-white/20"
-                  style={{
-                    width: Math.min(width * 0.45, ((node.lifespan!.fadeOutMs! / 1000) * pixelsPerSecond)),
-                  }}
-                />
-              )}
-
-              {/* Layer Badge */}
-              <div
-                className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider ml-2 flex-shrink-0 uppercase"
-                style={{
-                  backgroundColor: `${layerColor}30`,
-                  color: layerColor,
-                  border: `1px solid ${layerColor}60`,
-                }}
-              >
-                {layerLabel}
-              </div>
-
-              {/* Object Details */}
-              <div className="flex flex-col px-2 overflow-hidden flex-1 select-none pointer-events-none">
-                <span className="text-[11px] font-mono font-bold truncate text-white">
-                  {node.name || node.uid || 'SceneObject'}
-                </span>
-                <span className="text-[9px] font-mono text-white/60 truncate">
-                  {node.type} • {zIndexVal} {hasLifespan ? `• ${(node.lifespan!.duration).toFixed(1)}s` : '• all time'}
-                </span>
-              </div>
-
-              {/* Resize Handle */}
-              {hasLifespan && activeTool === 'select' && onNodeResize && (
-                <div
-                  data-node-item="true"
-                  className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
-                  onPointerDown={(e) => onNodeResize(e, node)}
-                >
-                  <div className="w-1.5 h-6 bg-white/60 rounded-full" />
-                </div>
-              )}
+              {layerLabel}
             </div>
-          );
-        })}
-      </div>
-    </>
+
+            {/* Object Details */}
+            <div className="flex flex-col px-2 overflow-hidden flex-1 select-none pointer-events-none min-w-0">
+              <span className="text-[11px] font-mono font-bold truncate text-white">
+                {node.name || node.uid || 'SceneObject'}
+              </span>
+              <span className="text-[9px] font-mono text-white/60 truncate">
+                {node.type} • {zIndexVal} {hasLifespan ? `• ${(node.lifespan!.duration).toFixed(1)}s` : '• all time'}
+              </span>
+            </div>
+
+            {/* Resize Handle */}
+            {hasLifespan && activeTool === 'select' && onNodeResize && (
+              <div
+                data-node-item="true"
+                className="absolute right-0 top-0 bottom-0 w-3 hover:bg-white/40 cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                onPointerDown={(e) => onNodeResize(e, node)}
+              >
+                <div className="w-1 h-5 bg-white/70 rounded-full pointer-events-none" />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 });
 
@@ -516,13 +523,16 @@ interface TimelineProps {
   selectedTriggerId?: string | null;
   selectedTriggerIds?: Set<string>;
   selectedNodeId?: string | null;
+  selectedNodeIds?: Set<string>;
   onSelectEvent: (event: PadEvent | null) => void;
   onSelectEvents?: (ids: Set<string>, additive?: boolean) => void;
   onSelectTrigger?: (trigger: TriggerData | null) => void;
   onSelectTriggers?: (ids: Set<string>, additive?: boolean) => void;
   onSelectNode?: (node: SceneNodeData | null) => void;
+  onSelectNodes?: (ids: Set<string>, additive?: boolean) => void;
   onToggleEventSelection?: (id: string, multi: boolean) => void;
   onToggleTriggerSelection?: (id: string, multi: boolean) => void;
+  onToggleNodeSelection?: (id: string, multi: boolean) => void;
   onSelectEventRange?: (targetId: string) => void;
   onSeek?: (time: number) => void;
   onAddEvent: (event: PadEvent) => void;
@@ -535,6 +545,7 @@ interface TimelineProps {
   onRemoveTrigger?: (id: string) => void;
   onAddNode?: (node: SceneNodeData) => void;
   onUpdateNode?: (id: string, updates: Partial<SceneNodeData>) => void;
+  onUpdateNodesBatch?: (nodes: SceneNodeData[]) => void;
   onRemoveNode?: (id: string) => void;
   onChangePixelsPerSecond?: (fnOrValue: number | ((prev: number) => number)) => void;
 }
@@ -557,13 +568,16 @@ export function Timeline({
   selectedTriggerId,
   selectedTriggerIds,
   selectedNodeId,
+  selectedNodeIds,
   onSelectEvent,
   onSelectEvents,
   onSelectTrigger,
   onSelectTriggers,
   onSelectNode,
+  onSelectNodes,
   onToggleEventSelection,
   onToggleTriggerSelection,
+  onToggleNodeSelection,
   onSelectEventRange,
   onSeek,
   onAddEvent,
@@ -576,6 +590,7 @@ export function Timeline({
   onRemoveTrigger,
   onAddNode,
   onUpdateNode,
+  onUpdateNodesBatch,
   onRemoveNode,
   onChangePixelsPerSecond,
 }: TimelineProps) {
@@ -597,6 +612,11 @@ export function Timeline({
     [selectedTriggerIds, selectedTriggerId]
   );
 
+  const effectiveNodeIds = useMemo(
+    () => selectedNodeIds ?? (selectedNodeId ? new Set([selectedNodeId]) : new Set<string>()),
+    [selectedNodeIds, selectedNodeId]
+  );
+
   useEffect(() => {
     const el = padTracksRef.current;
     if (!el) return;
@@ -610,16 +630,21 @@ export function Timeline({
   }, [timelineMode]);
 
   const [dragState, setDragState] = useState<{
-    targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers' | 'node';
+    targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers' | 'node' | 'batch_nodes';
     mode: 'move' | 'resize';
     event?: PadEvent;
     trigger?: TriggerData;
     node?: SceneNodeData;
     origEvents?: PadEvent[];
     origTriggers?: TriggerData[];
+    origNodes?: SceneNodeData[];
     startX: number;
+    startY: number;
     origTargetTime?: number;
     origDuration?: number;
+    origSubLane?: number;
+    origTriggerSubLanes?: Map<string, number>;
+    origNodeSubLanes?: Map<string, number>;
   } | null>(null);
 
   const [marquee, setMarquee] = useState<{
@@ -863,6 +888,8 @@ export function Timeline({
     if (activeTool === 'pen') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const subLane = Math.max(0, Math.min(3, Math.floor(clickY / 72)));
       const rawSongTime = timelineXToSongTime(clickX, pixelsPerSecond, leadIn, offset);
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), level.timing.bpm, gridSubdivision);
 
@@ -875,12 +902,14 @@ export function Timeline({
         easing: 'easeOutQuad',
         properties: { scaleX: 1.25, scaleY: 1.25 },
         layer: activeLayer,
+        subLane,
       };
       onAddTrigger?.(newTrigger);
       onSelectTrigger?.(newTrigger);
       onSelectEvent(null);
+      onSelectNode?.(null);
     }
-  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, activeLayer, onAddTrigger, onSelectTrigger, onSelectEvent]);
+  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, beatDuration, level.visual?.nodes, activeLayer, onAddTrigger, onSelectTrigger, onSelectEvent, onSelectNode]);
 
   const handleVisualTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (dragState) return;
@@ -889,6 +918,8 @@ export function Timeline({
     if (activeTool === 'object') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const subLane = Math.max(0, Math.min(3, Math.floor(clickY / 72)));
       const rawSongTime = timelineXToSongTime(clickX, pixelsPerSecond, leadIn, offset);
       const bpm = level.timing.bpm || 120;
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), bpm, gridSubdivision);
@@ -918,6 +949,7 @@ export function Timeline({
         id: null,
         type,
         layer: activeLayer,
+        subLane,
         visible: true,
         lifespan: {
           startTime: snappedTime,
@@ -976,6 +1008,7 @@ export function Timeline({
         onSelectNode?.(null);
         onSelectEvents?.(new Set(), false);
         onSelectTriggers?.(new Set(), false);
+        onSelectNodes?.(new Set(), false);
       }
 
       if (innerCanvasRef.current) {
@@ -992,7 +1025,7 @@ export function Timeline({
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       }
     }
-  }, [activeTool, onSelectEvent, onSelectTrigger, onSelectNode, onSelectEvents, onSelectTriggers]);
+  }, [activeTool, onSelectEvent, onSelectTrigger, onSelectNode, onSelectEvents, onSelectTriggers, onSelectNodes]);
 
   const startEventMove = useCallback((e: React.PointerEvent, event: PadEvent) => {
     e.stopPropagation();
@@ -1018,6 +1051,7 @@ export function Timeline({
     if (!isAlreadySelected) {
       onSelectEvent(event);
       onSelectTrigger?.(null);
+      onSelectNode?.(null);
     }
 
     if (activeTool === 'select') {
@@ -1029,6 +1063,7 @@ export function Timeline({
           event,
           origEvents: selectedEventsList,
           startX: e.clientX,
+          startY: e.clientY,
           origTargetTime: event.targetTime,
         });
       } else {
@@ -1037,28 +1072,32 @@ export function Timeline({
           mode: 'move',
           event,
           startX: e.clientX,
+          startY: e.clientY,
           origTargetTime: event.targetTime,
           origDuration: event.duration || beatDuration,
         });
       }
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
-  }, [activeTool, onRemoveEvent, onSelectEventRange, onToggleEventSelection, effectiveEventIds, onSelectEvent, onSelectTrigger, level.events, beatDuration]);
+  }, [activeTool, onRemoveEvent, onSelectEventRange, onToggleEventSelection, effectiveEventIds, onSelectEvent, onSelectTrigger, onSelectNode, level.events, beatDuration]);
 
   const startEventResize = useCallback((e: React.PointerEvent, event: PadEvent) => {
     e.stopPropagation();
     if (activeTool !== 'select') return;
     onSelectEvent(event);
+    onSelectTrigger?.(null);
+    onSelectNode?.(null);
     setDragState({
       targetType: 'event',
       mode: 'resize',
       event,
       startX: e.clientX,
+      startY: e.clientY,
       origTargetTime: event.targetTime,
       origDuration: event.duration || beatDuration,
     });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, [activeTool, onSelectEvent, beatDuration]);
+  }, [activeTool, onSelectEvent, onSelectTrigger, onSelectNode, beatDuration]);
 
   const startTriggerMove = useCallback((e: React.PointerEvent, trigger: TriggerData) => {
     e.stopPropagation();
@@ -1077,18 +1116,24 @@ export function Timeline({
     if (!isAlreadySelected) {
       onSelectTrigger?.(trigger);
       onSelectEvent(null);
+      onSelectNode?.(null);
     }
 
     if (activeTool === 'select') {
       if (isAlreadySelected && effectiveTriggerIds.size > 1) {
         const selectedTriggersList = triggers.filter((tr) => effectiveTriggerIds.has(tr.id));
+        const triggerSubLanes = new Map<string, number>();
+        selectedTriggersList.forEach((tr, i) => triggerSubLanes.set(tr.id, tr.subLane ?? (i % 4)));
         setDragState({
           targetType: 'batch_triggers',
           mode: 'move',
           trigger,
           origTriggers: selectedTriggersList,
           startX: e.clientX,
+          startY: e.clientY,
           origTargetTime: trigger.time,
+          origSubLane: trigger.subLane ?? 0,
+          origTriggerSubLanes: triggerSubLanes,
         });
       } else {
         setDragState({
@@ -1096,13 +1141,15 @@ export function Timeline({
           mode: 'move',
           trigger,
           startX: e.clientX,
+          startY: e.clientY,
           origTargetTime: trigger.time,
           origDuration: trigger.duration || beatDuration,
+          origSubLane: trigger.subLane ?? 0,
         });
       }
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
-  }, [activeTool, onRemoveTrigger, onToggleTriggerSelection, effectiveTriggerIds, onSelectTrigger, onSelectEvent, triggers, beatDuration]);
+  }, [activeTool, onRemoveTrigger, onToggleTriggerSelection, effectiveTriggerIds, onSelectTrigger, onSelectEvent, onSelectNode, triggers, beatDuration]);
 
   const startTriggerResize = useCallback((e: React.PointerEvent, trigger: TriggerData) => {
     e.stopPropagation();
@@ -1115,6 +1162,7 @@ export function Timeline({
       mode: 'resize',
       trigger,
       startX: e.clientX,
+      startY: e.clientY,
       origTargetTime: trigger.time,
       origDuration: trigger.duration || beatDuration,
     });
@@ -1127,22 +1175,60 @@ export function Timeline({
       onRemoveNode?.(node.uid);
       return;
     }
-    onSelectNode?.(node);
-    onSelectEvent(null);
-    onSelectTrigger?.(null);
+
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+    if (isCtrlOrMeta) {
+      onToggleNodeSelection?.(node.uid, true);
+      return;
+    }
+
+    const isAlreadySelected =
+      effectiveNodeIds.has(node.uid) ||
+      (Boolean(node.id) && effectiveNodeIds.has(String(node.id))) ||
+      (Boolean(node.name) && effectiveNodeIds.has(node.name!));
+
+    if (!isAlreadySelected) {
+      onSelectNode?.(node);
+      onSelectEvent(null);
+      onSelectTrigger?.(null);
+    }
 
     if (activeTool === 'select' && node.lifespan) {
-      setDragState({
-        targetType: 'node',
-        mode: 'move',
-        node,
-        startX: e.clientX,
-        origTargetTime: node.lifespan.startTime,
-        origDuration: node.lifespan.duration,
-      });
+      if (isAlreadySelected && effectiveNodeIds.size > 1) {
+        const selectedNodesList = sceneNodes.filter(
+          (n) =>
+            effectiveNodeIds.has(n.uid) ||
+            (Boolean(n.id) && effectiveNodeIds.has(String(n.id))) ||
+            (Boolean(n.name) && effectiveNodeIds.has(n.name!))
+        );
+        const nodeSubLanes = new Map<string, number>();
+        selectedNodesList.forEach((n, i) => nodeSubLanes.set(n.uid, n.subLane ?? (i % 4)));
+        setDragState({
+          targetType: 'batch_nodes',
+          mode: 'move',
+          node,
+          origNodes: selectedNodesList,
+          startX: e.clientX,
+          startY: e.clientY,
+          origTargetTime: node.lifespan.startTime,
+          origSubLane: node.subLane ?? 0,
+          origNodeSubLanes: nodeSubLanes,
+        });
+      } else {
+        setDragState({
+          targetType: 'node',
+          mode: 'move',
+          node,
+          startX: e.clientX,
+          startY: e.clientY,
+          origTargetTime: node.lifespan.startTime,
+          origDuration: node.lifespan.duration,
+          origSubLane: node.subLane ?? 0,
+        });
+      }
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
-  }, [activeTool, onRemoveNode, onSelectNode, onSelectEvent, onSelectTrigger]);
+  }, [activeTool, onRemoveNode, onToggleNodeSelection, effectiveNodeIds, onSelectNode, onSelectEvent, onSelectTrigger, sceneNodes]);
 
   const startNodeResize = useCallback((e: React.PointerEvent, node: SceneNodeData) => {
     e.stopPropagation();
@@ -1156,6 +1242,7 @@ export function Timeline({
       mode: 'resize',
       node,
       startX: e.clientX,
+      startY: e.clientY,
       origTargetTime: node.lifespan.startTime,
       origDuration: node.lifespan.duration,
     });
@@ -1202,14 +1289,31 @@ export function Timeline({
         }
       });
 
+      const nodeEls = innerCanvasRef.current.querySelectorAll<HTMLElement>('[data-node-id]');
+      const hitNodeIds = new Set<string>();
+      nodeEls.forEach((el) => {
+        const elRect = el.getBoundingClientRect();
+        const elX1 = elRect.left - canvasRect.left;
+        const elX2 = elRect.right - canvasRect.left;
+        const elY1 = elRect.top - canvasRect.top;
+        const elY2 = elRect.bottom - canvasRect.top;
+        if (elX1 < maxX && elX2 > minX && elY1 < maxY && elY2 > minY) {
+          const id = el.getAttribute('data-node-id');
+          if (id) hitNodeIds.add(id);
+        }
+      });
+
       onSelectEvents?.(hitEventIds, marquee.isAdditive);
       onSelectTriggers?.(hitTriggerIds, marquee.isAdditive);
+      onSelectNodes?.(hitNodeIds, marquee.isAdditive);
       return;
     }
 
     if (!dragState) return;
     const deltaX = e.clientX - dragState.startX;
     const deltaTime = deltaX / pixelsPerSecond;
+    const deltaY = e.clientY - dragState.startY;
+    const subLaneDelta = Math.round(deltaY / 72);
 
     if (dragState.targetType === 'event' && dragState.event) {
       if (dragState.mode === 'move') {
@@ -1233,7 +1337,10 @@ export function Timeline({
     } else if (dragState.targetType === 'trigger' && dragState.trigger) {
       if (dragState.mode === 'move') {
         const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
-        if (snapped !== dragState.trigger.time) onUpdateTrigger?.({ ...dragState.trigger, time: snapped });
+        const targetSubLane = Math.max(0, Math.min(3, (dragState.origSubLane ?? 0) + subLaneDelta));
+        if (snapped !== dragState.trigger.time || targetSubLane !== dragState.trigger.subLane) {
+          onUpdateTrigger?.({ ...dragState.trigger, time: snapped, subLane: targetSubLane });
+        }
       } else {
         const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
         const snapped = interval > 0 ? Math.max(interval, Math.round(Math.max(0, dragState.origDuration! + deltaTime) / interval) * interval) : Math.max(0, dragState.origDuration! + deltaTime);
@@ -1244,16 +1351,26 @@ export function Timeline({
       const deltaSnap = snappedPivot - dragState.origTargetTime!;
       const minTime = Math.min(...dragState.origTriggers.map((tr) => tr.time));
       const validDelta = (minTime + deltaSnap < 0) ? -minTime : deltaSnap;
-      const updated = dragState.origTriggers.map((tr) => ({
-        ...tr,
-        time: Math.max(0, Number((tr.time + validDelta).toFixed(4))),
-      }));
+      const currentLanes = dragState.origTriggers.map((tr) => dragState.origTriggerSubLanes?.get(tr.id) ?? (tr.subLane ?? 0));
+      const minLane = Math.min(...currentLanes);
+      const maxLane = Math.max(...currentLanes);
+      const clampedLaneDelta = Math.max(-minLane, Math.min(3 - maxLane, subLaneDelta));
+      const updated = dragState.origTriggers.map((tr) => {
+        const origLane = dragState.origTriggerSubLanes?.get(tr.id) ?? (tr.subLane ?? 0);
+        return {
+          ...tr,
+          time: Math.max(0, Number((tr.time + validDelta).toFixed(4))),
+          subLane: Math.max(0, Math.min(3, origLane + clampedLaneDelta)),
+        };
+      });
       onUpdateTriggersBatch?.(updated);
     } else if (dragState.targetType === 'node' && dragState.node && dragState.node.lifespan) {
       if (dragState.mode === 'move') {
         const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
-        if (snapped !== dragState.node.lifespan.startTime) {
+        const targetSubLane = Math.max(0, Math.min(3, (dragState.origSubLane ?? 0) + subLaneDelta));
+        if (snapped !== dragState.node.lifespan.startTime || targetSubLane !== dragState.node.subLane) {
           onUpdateNode?.(dragState.node.uid, {
+            subLane: targetSubLane,
             lifespan: {
               ...dragState.node.lifespan,
               startTime: snapped,
@@ -1274,6 +1391,30 @@ export function Timeline({
           });
         }
       }
+    } else if (dragState.targetType === 'batch_nodes' && dragState.origNodes && dragState.node) {
+      const snappedPivot = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
+      const deltaSnap = snappedPivot - dragState.origTargetTime!;
+      const minTime = Math.min(...dragState.origNodes.map((n) => n.lifespan?.startTime ?? 0));
+      const validDelta = (minTime + deltaSnap < 0) ? -minTime : deltaSnap;
+      const currentLanes = dragState.origNodes.map((n) => dragState.origNodeSubLanes?.get(n.uid) ?? (n.subLane ?? 0));
+      const minLane = Math.min(...currentLanes);
+      const maxLane = Math.max(...currentLanes);
+      const clampedLaneDelta = Math.max(-minLane, Math.min(3 - maxLane, subLaneDelta));
+      const updatedNodes = dragState.origNodes.map((n) => {
+        const origLane = dragState.origNodeSubLanes?.get(n.uid) ?? (n.subLane ?? 0);
+        const origTime = n.lifespan?.startTime ?? 0;
+        return {
+          ...n,
+          subLane: Math.max(0, Math.min(3, origLane + clampedLaneDelta)),
+          lifespan: n.lifespan
+            ? {
+                ...n.lifespan,
+                startTime: Math.max(0, Number((origTime + validDelta).toFixed(4))),
+              }
+            : undefined,
+        };
+      });
+      onUpdateNodesBatch?.(updatedNodes);
     }
   }, [
     marquee,
@@ -1283,11 +1424,13 @@ export function Timeline({
     gridSubdivision,
     onSelectEvents,
     onSelectTriggers,
+    onSelectNodes,
     onUpdateEvent,
     onUpdateEventsBatch,
     onUpdateTrigger,
     onUpdateTriggersBatch,
     onUpdateNode,
+    onUpdateNodesBatch,
   ]);
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -1302,12 +1445,19 @@ export function Timeline({
         if (dragState.event) {
           onSelectEvent(dragState.event);
           onSelectTrigger?.(null);
+          onSelectNode?.(null);
         }
       } else if (dragState.targetType === 'batch_triggers' && Math.abs(e.clientX - dragState.startX) < 3 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
         if (dragState.trigger) {
           onSelectTrigger?.(dragState.trigger);
           onSelectEvent(null);
           onSelectNode?.(null);
+        }
+      } else if (dragState.targetType === 'batch_nodes' && Math.abs(e.clientX - dragState.startX) < 3 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (dragState.node) {
+          onSelectNode?.(dragState.node);
+          onSelectEvent(null);
+          onSelectTrigger?.(null);
         }
       } else if (dragState.targetType === 'node' && Math.abs(e.clientX - dragState.startX) < 3) {
         if (dragState.node) {
@@ -1543,28 +1693,40 @@ export function Timeline({
           )}
 
           {timelineMode === 'triggers' && (
-            <div className="flex-1 min-h-[360px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-violet-500/30 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                <span className="text-xs font-mono font-bold text-white/90 tracking-wide">FX & TRIGGERS</span>
-              </div>
-              <span className="text-[10px] text-white/40 font-mono mt-1">Scene & Effects</span>
-              <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-mono text-yellow-300/90 bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/20 w-fit">
-                <span>Layer {activeLayer}</span>
-              </div>
+            <div className="flex-1 min-h-[288px] flex flex-col">
+              {[0, 1, 2, 3].map((lane) => (
+                <div
+                  key={lane}
+                  className="h-[72px] flex flex-col justify-center px-3 bg-black/90 border-b border-violet-500/20 shadow-sm"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-yellow-400/80" />
+                    <span className="text-xs font-mono font-bold text-white/90 tracking-wide">
+                      Track {lane + 1}
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-white/40 font-mono mt-0.5">FX Sub-Lane</span>
+                </div>
+              ))}
             </div>
           )}
 
           {timelineMode === 'visuals' && (
-            <div className="flex-1 min-h-[360px] flex flex-col justify-center px-3.5 bg-black/90 border-y border-emerald-500/30 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span className="text-xs font-mono font-bold text-white/90 tracking-wide">SCENE OBJECTS</span>
-              </div>
-              <span className="text-[10px] text-white/40 font-mono mt-1">Back & Front Elements</span>
-              <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-mono text-emerald-300/90 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20 w-fit">
-                <span>Layer {activeLayer}</span>
-              </div>
+            <div className="flex-1 min-h-[288px] flex flex-col">
+              {[0, 1, 2, 3].map((lane) => (
+                <div
+                  key={lane}
+                  className="h-[72px] flex flex-col justify-center px-3 bg-black/90 border-b border-emerald-500/20 shadow-sm"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-emerald-400/80" />
+                    <span className="text-xs font-mono font-bold text-white/90 tracking-wide">
+                      Track {lane + 1}
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-white/40 font-mono mt-0.5">Visual Sub-Lane</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1811,7 +1973,6 @@ export function Timeline({
           {timelineMode === 'triggers' && (
             <TriggersLane
               triggers={visibleTriggers}
-              totalTriggersCount={triggers.length}
               activeLayer={activeLayer}
               widthPx={widthPx}
               activeTool={activeTool}
@@ -1828,15 +1989,15 @@ export function Timeline({
           {timelineMode === 'visuals' && (
             <VisualObjectsLane
               nodes={visibleNodes}
-              totalNodesCount={sceneNodes.length}
               activeLayer={activeLayer}
               widthPx={widthPx}
               activeTool={activeTool}
-              selectedNodeId={selectedNodeId}
+              effectiveNodeIds={effectiveNodeIds}
               songOrigin={songOrigin}
               pixelsPerSecond={pixelsPerSecond}
               totalDuration={totalDuration}
               onSelectNode={onSelectNode}
+              onToggleNodeSelection={onToggleNodeSelection}
               onNodeMove={startNodeMove}
               onNodeResize={startNodeResize}
               onTrackClick={handleVisualTrackClick}
