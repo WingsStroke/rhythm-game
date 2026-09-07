@@ -325,7 +325,7 @@ Ideas y conceptos complementarios para evaluar durante el desarrollo:
 
 ## 12. Modo Showcase y Pipeline de Renderizado Offline (Showcase Mode & Video Export)
 
-Herramienta de automatizacion y exportacion de video de alta fidelidad, orientada a la generacion de material promocional, demostraciones en redes sociales y exhibicion comunitaria de beatmaps con precision cinematografica, renderizados cuadro a cuadro sin depender de la potencia en tiempo real del equipo del usuario:
+Herramienta de automatizacion y exportacion de video de alta fidelidad, orientada a la generacion de material promocional, demostraciones en redes sociales y exhibicion comunitaria de beatmaps con precision cinematografica; ejecutada mediante herramientas nativas del sistema operativo (Node.js CLI + FFmpeg) para aprovechar al maximo la aceleracion por hardware de la GPU local (NVENC/QSV/Metal) mediante un bucle de renderizado determinista cuadro a cuadro:
 
 - [ ] **[P1] Bot de Autoplay Determinista (Gameplay Autoplay Engine)**
   - Incorporacion de bandera de control `isAutoPlay: boolean` en el estado de `GameplayEngine.ts`.
