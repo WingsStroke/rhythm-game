@@ -1033,7 +1033,7 @@ export class VisualEngine {
     if (this.sceneGraph) {
       const spectrumNodes = this.sceneGraph.getSpectrumNodes();
       if (spectrumNodes.size > 0) {
-        if (this.audioEngine) {
+        if (this.audioEngine && this.audioEngine.isPlaying) {
           this.audioEngine.getSpectrumFrequencyData(this.spectrumBuffer);
           const sr = this.audioEngine.sampleRate;
           for (const node of spectrumNodes) {
@@ -1355,11 +1355,7 @@ export class VisualEngine {
   }
 
   public updateNode(nodeData: SceneNodeData): void {
-    const key = nodeData.uid || (typeof nodeData.id === 'string' ? nodeData.id : nodeData.name || '');
-    const node = this.sceneGraph.getNode(key);
-    if (node) {
-      node.updateData(nodeData);
-    }
+    this.sceneGraph.updateNode(nodeData);
   }
 
   setUpdateCallback(cb: (ticker: Ticker) => void): void {

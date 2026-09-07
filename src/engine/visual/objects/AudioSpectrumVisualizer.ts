@@ -107,7 +107,7 @@ export class AudioSpectrumVisualizer extends Container {
       const fStart = minF * Math.pow(maxF / minF, k / this.bandsCount);
       const fEnd = minF * Math.pow(maxF / minF, (k + 1) / this.bandsCount);
 
-      const binStart = Math.min(totalBins - 1, Math.max(0, Math.floor(fStart / binWidth)));
+      const binStart = Math.min(totalBins - 1, Math.max(1, Math.floor(fStart / binWidth)));
       const binEnd = Math.min(totalBins, Math.max(binStart + 1, Math.ceil(fEnd / binWidth)));
       this.binRanges.push([binStart, binEnd]);
     }
@@ -119,7 +119,6 @@ export class AudioSpectrumVisualizer extends Container {
   public update(fftData: Uint8Array): void {
     if (!fftData || fftData.length === 0) {
       this.decayOnly();
-      this.renderSpectrum();
       return;
     }
 
@@ -152,8 +151,19 @@ export class AudioSpectrumVisualizer extends Container {
   }
 
   public decayOnly(): void {
+    let hasChanged = false;
     for (let k = 0; k < this.bandsCount; k++) {
-      this.smoothedBands[k] *= this.decay;
+      const resting = 0.05 + Math.sin((k / this.bandsCount) * Math.PI) * 0.08;
+      if (this.smoothedBands[k] > resting + 0.001) {
+        this.smoothedBands[k] = Math.max(resting, this.smoothedBands[k] * this.decay);
+        hasChanged = true;
+      } else if (this.smoothedBands[k] < resting - 0.001) {
+        this.smoothedBands[k] = Math.min(resting, this.smoothedBands[k] + (resting - this.smoothedBands[k]) * 0.1);
+        hasChanged = true;
+      }
+    }
+    if (hasChanged) {
+      this.renderSpectrum();
     }
   }
 

@@ -65,13 +65,17 @@ export class AudioEngine implements TimeSource {
     this.analyser.fftSize = 256;
     this.analyser.smoothingTimeConstant = 0.75;
 
-    this.masterGain.connect(this.analyser);
-    this.analyser.connect(this.ctx.destination);
-
     this.spectrumAnalyser = this.ctx.createAnalyser();
     this.spectrumAnalyser.fftSize = 512;
     this.spectrumAnalyser.smoothingTimeConstant = 0.8;
+
+    // Series routing: masterGain -> spectrumAnalyser -> analyser -> destination
+    // Both AnalyserNodes are non-destructive, transparent pass-through nodes.
+    // Chaining them in series guarantees both nodes are actively pulled by AudioDestinationNode,
+    // ensuring real-time FFT processing with zero volume doubling or phase issues.
     this.masterGain.connect(this.spectrumAnalyser);
+    this.spectrumAnalyser.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
 
     this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
     this.waveData = new Uint8Array(this.analyser.frequencyBinCount);
@@ -673,6 +677,8 @@ export class AudioEngine implements TimeSource {
   getSpectrumFrequencyData(targetArray: Uint8Array): void {
     if (this.spectrumAnalyser) {
       this.spectrumAnalyser.getByteFrequencyData(targetArray);
+    } else if (this.analyser) {
+      this.analyser.getByteFrequencyData(targetArray);
     }
   }
 

@@ -132,6 +132,19 @@ export class SceneGraph {
     }
   }
 
+  public updateNode(nodeData: SceneNodeData): void {
+    const key = nodeData.uid || (typeof nodeData.id === 'string' ? nodeData.id : nodeData.name || '');
+    const node = this.getNode(key);
+    if (node) {
+      node.updateData(nodeData);
+      if (node.displayObject instanceof AudioSpectrumVisualizer) {
+        this.spectrumNodes.add(node);
+      } else {
+        this.spectrumNodes.delete(node);
+      }
+    }
+  }
+
   public removeNode(idOrUid: string) {
     const node = this.getNode(idOrUid);
     if (node) {

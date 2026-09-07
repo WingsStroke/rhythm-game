@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { SongRegistry } from '@/engine/content/SongRegistry';
 import { LevelValidator } from '@/engine/content/LevelValidator';
 import { BeatmapGenerator } from '@/engine/beatmap/BeatmapGenerator';
-import { SONG_URL, createPrototypeLevel } from '@/game/createPrototypeLevel';
+import { SONG_URL } from '@/game/createPrototypeLevel';
 import type { LevelData } from '@/engine/types';
 import {
   UploadCloud,
@@ -218,7 +218,6 @@ export const EditorSetupWizard: React.FC<EditorSetupWizardProps> = ({
       setProgressPercent(92);
 
       const duration = decodedBuffer ? decodedBuffer.duration : 120;
-      const basePrototype = createPrototypeLevel(audioUrl, 'Normal');
 
       const newLevel: LevelData = {
         formatVersion: 1,
@@ -239,7 +238,7 @@ export const EditorSetupWizard: React.FC<EditorSetupWizardProps> = ({
           url: audioUrl,
         },
         pads: BeatmapGenerator.defaultPads(),
-        events: basePrototype.events || [],
+        events: [],
         timing: {
           bpm: Math.max(40, Math.min(300, Number(bpm) || 128)),
           offset: (Number(songOffsetMs) || 0) / 1000,

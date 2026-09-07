@@ -234,6 +234,9 @@ export function useEditorEngine({
 
       ve.init().then(() => {
         visualRef.current = ve;
+        if (transportRef.current?.audioEngine) {
+          ve.setAudioEngine(transportRef.current.audioEngine);
+        }
         if (selectedNodeIds && selectedNodeIds.size > 0) {
           ve.setSelectedNodes(selectedNodeIds);
         } else {
@@ -247,11 +250,20 @@ export function useEditorEngine({
           gameplay.start(currentTime - leadIn);
         }
       });
+    } else if (transportRef.current?.audioEngine) {
+      visualRef.current.setAudioEngine(transportRef.current.audioEngine);
     }
     // All mutable values are accessed via refs; activeTab is the only
     // structural dependency that must reinitialize the engine.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // Synchronize audio engine with visual engine whenever transport becomes available
+  useEffect(() => {
+    if (visualRef.current && transportRef.current?.audioEngine) {
+      visualRef.current.setAudioEngine(transportRef.current.audioEngine);
+    }
+  }, [activeTab, isPlaying]);
 
   // Synchronize selection overlay with active selectedNodeIds / selectedNodeId
   useEffect(() => {
@@ -387,6 +399,9 @@ export function useEditorEngine({
         await transportRef.current.init();
         transportRef.current.setPlaybackSpeed(playbackSpeedRef.current);
       }
+      if (visualRef.current && transportRef.current) {
+        visualRef.current.setAudioEngine(transportRef.current.audioEngine);
+      }
 
       // Always synchronize transport audio buffer with active level song identity
       // (crucial for instant undo/redo track alignment and audio file replacement)
@@ -496,6 +511,9 @@ export function useEditorEngine({
         transportRef.current = new AudioTransport();
         await transportRef.current.init();
         transportRef.current.setPlaybackSpeed(playbackSpeedRef.current);
+      }
+      if (visualRef.current && transportRef.current) {
+        visualRef.current.setAudioEngine(transportRef.current.audioEngine);
       }
       const result = await transportRef.current.loadAudio(file, songId);
       if (result.success) {
