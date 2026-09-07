@@ -318,3 +318,7 @@ Ideas y conceptos complementarios para evaluar durante el desarrollo:
 - [x] **Control por Triggers y Editor:**
   - [x] Exponer propiedades en `EditorPropertiesPanel` (numero de bandas, modo, ancho, alto, gap, color, attack, decay, gain).
   - [x] Indice cacheado en `SceneGraph` (`spectrumNodes`) y captura FFT unica por fotograma en `VisualEngine`.
+  - [x] Enrutamiento en serie en Web Audio (`masterGain -> spectrumAnalyser -> analyser -> destination`) para garantizar el procesamiento continuo por el AudioDestinationNode.
+  - [x] Sincronizacion reactiva entre `AudioTransport.audioEngine` y `VisualEngine` en todas las etapas del editor y runtime standalone.
+  - [x] Omision del bin 0 (DC offset) y decaimiento fluido hacia curva de reposo estetica.
+  - [x] Estandarizacion del `EditorSetupWizard` con inicializacion de linea de tiempo limpia (`events: []`).

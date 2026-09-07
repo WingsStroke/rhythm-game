@@ -103,6 +103,7 @@ export class Game {
 
     // 3. Initialize visual engine (PixiJS)
     await this.visual.init();
+    this.visual.setAudioEngine(this.transport.audioEngine);
 
     // 4. Wire up input -> gameplay -> visual feedback
     this.setupInput();

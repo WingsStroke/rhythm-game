@@ -1,6 +1,6 @@
 # Rhythm Game - Technical Documentation
 
-**Last updated:** 2026-09-06
+**Last updated:** 2026-09-07
 **Version:** Phase 6 in progress (Engine Optimization, NotePool & Settings Modularization)
 **Repository:** rhythm-game
 
@@ -468,6 +468,9 @@ SceneNodeData fields:
 - Decoupled Keybinding Remapper: `Keybindings.ts` and interactive pad remapping in `SongPadsModal` supporting non-alphabetic keys.
 - Explicit Trigger Creation: Deprecation and elimination of blind fallback to `triggers[0]`; visual `UNASSIGNED` warning badge for unlinked triggers.
 - LOOP Semantic Freeze: Formal freeze on `loop` code expansion pending gameplay design validation on real tracks.
+- Standardized Editor Setup Wizard (`EditorSetupWizard`): Pre-editor onboarding flow handling track metadata, BPM, song offsets, PCM decoding, True Peak/RMS energy profiling for automatic spectrum gain baseline, and verified level initialization with clean timelines.
+- Oriented Bounding Box (`TransformGizmo`): Hardware-projected OBB for single rotated objects preserving local axes and fixed opposite anchors; screen-aligned collective AABB for multi-selections; robust `blur` and `pointercancel` window event defense.
+- Real-Time Audio Spectrum Pipeline (`AudioSpectrumVisualizer`): Series routing (`masterGain -> spectrumAnalyser -> analyser -> destination`) ensuring active Web Audio pull scheduling; dynamic `sampleRate` hardware sync; logarithmic frequency bands excluding DC offset; aesthetic resting state curve with graceful decay during pauses.
 
 ### Planned (not yet implemented)
 
