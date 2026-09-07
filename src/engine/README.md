@@ -20,7 +20,7 @@ Single source of truth for all shared type definitions. Every other module impor
 
 | File | Description |
 |---|---|
-| `AudioEngine.ts` | Web Audio API wrapper. Master clock, procedural synthesizer, external file playback, FFT analysis, hitsounds. |
+| `AudioEngine.ts` | Web Audio API wrapper. Master clock, procedural synthesizer, external file playback, multi-resolution FFT analysis (main analyser + 512-fft spectrum analyser), hitsounds. |
 | `AudioModulator.ts` | Envelope shaper for FFT band signals. Configurable asymmetric attack and release. |
 
 AudioEngine is the sole `AudioContext` owner. All time references in the game derive from `AudioContext.currentTime` exposed via its `getTime()` method.
@@ -71,23 +71,31 @@ The engine does not receive key codes directly during gameplay. `InputManager` t
 
 | File | Description |
 |---|---|
-| `VisualEngine.ts` | Main PixiJS rendering class. Layer hierarchy management, note fall animation, pad visuals, HUD, beat pulses, FFT reactivity. |
+| `VisualEngine.ts` | Main PixiJS rendering orchestrator. Layer hierarchy, note fall animation, pad visuals, HUD, beat pulses, FFT reactivity, post-processing filters, and editor gizmo integration. |
 | `SceneGraph.ts` | Manages the hierarchy of `SceneNode` objects. Builds from `LevelData`. Supports UID, name, numeric ID, and group lookups. |
-| `objects/SceneNode.ts` | Wraps one PixiJS Container. Holds `uid`, `name`, and numeric `targetId`. Renders as rectangle, circle, line, container, or group. |
-| `TriggerDispatcher.ts` | Reads sorted `TriggerData` and fires each trigger at the correct audio time. Seek-safe via binary search and cumulative state replay. |
 | `Animator.ts` | Manages active property transitions with easing. Writes interpolated values to PixiJS objects each frame. |
+| `TriggerDispatcher.ts` | Reads sorted `TriggerData` and fires each trigger at the correct audio time. Seek-safe via binary search and cumulative state replay. |
+| `GlowTextureCache.ts` | Shared texture cache for radial glows, soft lights, and particle halos to prevent redundant canvas texture generation and GPU spikes. |
+| `NotePool.ts` | Pre-allocated pool of PixiJS Graphics objects for falling notes and sustain trails. |
 | `ParticlePool.ts` | Pre-allocated pool of PixiJS Graphics objects used as particles. Provides `burst()`. |
+| `objects/SceneNode.ts` | Wraps one PixiJS Container. Holds `uid`, `name`, and numeric `targetId`. Manages transforms, opacity, blend modes, and hit testing. |
+| `objects/PrimitiveRegistry.ts` | Procedural vector shape generator for rectangles, circles, lines, triangles, diamonds, stars, hexagons, point lights, and beam lights. |
+| `objects/AudioSpectrumVisualizer.ts` | Dynamic audio spectrum visualizer rendering animated EQ frequency bars in real time from Web Audio FFT data. |
+| `effects/EffectRegistry.ts` | Registry and manager for full-screen and targeted visual shader filters (bloom, RGB split, chromatic aberration, glitch, blur, vignette, scanlines, color tint). |
+| `editor/TransformGizmo.ts` | Interactive canvas transform gizmo providing translation drag and 8-point proportional/directional scale handles for single and multi-node selection in Live Preview. |
 
 #### Layer Hierarchy
 
 ```
-bgLayer    (zIndex 0)  : Background and grid
-sceneLayer (zIndex 5)  : Designer scene nodes
-laneLayer  (zIndex 10) : Hit receptors
-noteLayer  (zIndex 15) : Falling notes
-padLayer   (zIndex 20) : Pads
-fxLayer    (zIndex 25) : Particles and flares
-hudLayer   (zIndex 30) : Score, combo, judgements
+bgLayer                (zIndex 0)  : Background and grid
+sceneLayer             (zIndex 5)  : Designer scene nodes (background)
+laneLayer              (zIndex 10) : Hit receptors
+noteLayer              (zIndex 15) : Falling notes
+padLayer               (zIndex 20) : Pads
+sceneForegroundLayer   (zIndex 22) : Designer scene nodes (foreground)
+fxLayer                (zIndex 25) : Particles, flares, and judgement popups
+hudLayer               (zIndex 30) : Score, combo, accuracy HUD
+editorOverlayContainer (zIndex 99) : TransformGizmo and selection bounds (isolated from post-fx)
 ```
 
-The sceneLayer operates in a virtual 1920x1080 coordinate space scaled to fit the actual viewport.
+The sceneLayer operates in a virtual 1920x1080 coordinate space scaled to fit the actual viewport. Top-level post-processing filters are applied to the internal `mainStage` container, ensuring editor tooling on `editorOverlayContainer` remains crisp and undistorted.

@@ -236,6 +236,7 @@ export class TransformGizmo extends Container {
     this.captureInitialState();
     window.addEventListener('pointermove', this.boundOnPointerMove);
     window.addEventListener('pointerup', this.boundOnPointerUp);
+    window.addEventListener('pointercancel', this.boundOnPointerUp);
   }
 
   private onScaleStart(type: GizmoHandleType, e: { stopPropagation: () => void; clientX?: number; clientY?: number }): void {
@@ -255,6 +256,7 @@ export class TransformGizmo extends Container {
     this.captureInitialState();
     window.addEventListener('pointermove', this.boundOnPointerMove);
     window.addEventListener('pointerup', this.boundOnPointerUp);
+    window.addEventListener('pointercancel', this.boundOnPointerUp);
   }
 
   private captureInitialState(): void {
@@ -377,22 +379,14 @@ export class TransformGizmo extends Container {
         }
       }
 
-      if (this.selectedNodes.length === 1) {
-        const state = Array.from(this.initialStates.values())[0];
-        if (state) {
-          state.node.container.scale.x = Math.max(0.02, state.scaleX * ratioX);
-          state.node.container.scale.y = Math.max(0.02, state.scaleY * ratioY);
-        }
-      } else {
-        // Multi-selection: scale positions and scales proportionally relative to anchor
-        for (const state of this.initialStates.values()) {
-          const relX = state.x - anchorX;
-          const relY = state.y - anchorY;
-          state.node.container.x = Math.round(anchorX + relX * ratioX);
-          state.node.container.y = Math.round(anchorY + relY * ratioY);
-          state.node.container.scale.x = Math.max(0.02, state.scaleX * ratioX);
-          state.node.container.scale.y = Math.max(0.02, state.scaleY * ratioY);
-        }
+      // Scale positions and scales proportionally relative to anchor
+      for (const state of this.initialStates.values()) {
+        const relX = state.x - anchorX;
+        const relY = state.y - anchorY;
+        state.node.container.x = Math.round(anchorX + relX * ratioX);
+        state.node.container.y = Math.round(anchorY + relY * ratioY);
+        state.node.container.scale.x = Math.max(0.02, state.scaleX * ratioX);
+        state.node.container.scale.y = Math.max(0.02, state.scaleY * ratioY);
       }
     }
 
@@ -409,6 +403,7 @@ export class TransformGizmo extends Container {
 
     window.removeEventListener('pointermove', this.boundOnPointerMove);
     window.removeEventListener('pointerup', this.boundOnPointerUp);
+    window.removeEventListener('pointercancel', this.boundOnPointerUp);
 
     // Commit changes to LevelData
     const updated: SceneNodeData[] = [];
@@ -436,6 +431,7 @@ export class TransformGizmo extends Container {
   public destroy(): void {
     window.removeEventListener('pointermove', this.boundOnPointerMove);
     window.removeEventListener('pointerup', this.boundOnPointerUp);
+    window.removeEventListener('pointercancel', this.boundOnPointerUp);
     super.destroy({ children: true });
   }
 }
