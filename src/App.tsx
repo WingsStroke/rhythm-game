@@ -5,6 +5,7 @@ import { ContentManager, type LevelPackage } from '@/engine/content/ContentManag
 import { LevelValidator } from '@/engine/content/LevelValidator';
 import { SongRegistry } from '@/engine/content/SongRegistry';
 import { EditorApp } from '@/editor/EditorApp';
+import { EditorSetupWizard } from '@/editor/components/EditorSetupWizard';
 import { ErrorBoundary } from '@/editor/components/ErrorBoundary';
 import { GameScreen } from '@/game/GameScreen';
 import { Play, Upload, Edit3, Disc3, Activity, AlertTriangle, CheckCircle2, Keyboard } from 'lucide-react';
@@ -29,6 +30,7 @@ export default function App() {
   const [playtestFromEditor, setPlaytestFromEditor] = useState(false);
   const [isAudioCached, setIsAudioCached] = useState(false);
   const [isControlsModalOpen, setIsControlsModalOpen] = useState(false);
+  const [isSetupWizardOpen, setIsSetupWizardOpen] = useState(false);
   const [currentKeybindings, setCurrentKeybindings] = useState<KeybindingMap>(() => loadUserKeybindings());
 
   // Check if external audio file exists in public/audio/
@@ -113,7 +115,7 @@ export default function App() {
           selectedDifficulty={selectedDifficulty}
           onSelectDifficulty={setSelectedDifficulty}
           onStart={handleStartSelected}
-          onOpenEditor={() => setScreen('editor')}
+          onOpenEditor={() => setIsSetupWizardOpen(true)}
           onOpenControls={() => setIsControlsModalOpen(true)}
           keybindings={currentKeybindings}
           onLoadJson={handleLoadJsonLevel}
@@ -148,6 +150,18 @@ export default function App() {
         isOpen={isControlsModalOpen}
         onClose={() => setIsControlsModalOpen(false)}
         onBindingsChange={(newBindings) => setCurrentKeybindings(newBindings)}
+      />
+
+      {/* Standardized Level Editor Setup Wizard */}
+      <EditorSetupWizard
+        isOpen={isSetupWizardOpen}
+        onClose={() => setIsSetupWizardOpen(false)}
+        initialLevel={editorLevel}
+        onComplete={(preparedLevel) => {
+          setEditorLevel(preparedLevel);
+          setIsSetupWizardOpen(false);
+          setScreen('editor');
+        }}
       />
     </div>
   );

@@ -1301,21 +1301,73 @@ export function EditorPropertiesPanel({
                     />
                   </label>
                 </div>
-                <label className="flex flex-col text-white/60">
-                  Bar Gap (px)
-                  <input
-                    type="number"
-                    min={0}
-                    max={20}
-                    value={(selectedNode.properties?.gap as number) ?? 3}
-                    onChange={(e) =>
-                      onUpdateNode({
-                        properties: { ...selectedNode.properties, gap: Number(e.target.value) },
-                      })
-                    }
-                    className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
-                  />
-                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Bar Gap (px)
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={(selectedNode.properties?.gap as number) ?? 3}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, gap: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Gain ({((selectedNode.properties?.gain as number) ?? 1.0).toFixed(1)}x)
+                    <input
+                      type="number"
+                      min={0.2}
+                      max={4.0}
+                      step={0.1}
+                      value={(selectedNode.properties?.gain as number) ?? 1.0}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, gain: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col text-white/60">
+                    Decay ({((selectedNode.properties?.decay as number) ?? 0.88).toFixed(2)})
+                    <input
+                      type="number"
+                      min={0.5}
+                      max={0.99}
+                      step={0.02}
+                      value={(selectedNode.properties?.decay as number) ?? 0.88}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, decay: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                  <label className="flex flex-col text-white/60">
+                    Attack ({((selectedNode.properties?.attack as number) ?? 0.75).toFixed(2)})
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={1.0}
+                      step={0.05}
+                      value={(selectedNode.properties?.attack as number) ?? 0.75}
+                      onChange={(e) =>
+                        onUpdateNode({
+                          properties: { ...selectedNode.properties, attack: Number(e.target.value) },
+                        })
+                      }
+                      className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                    />
+                  </label>
+                </div>
               </div>
             )}
 

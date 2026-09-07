@@ -66,6 +66,15 @@ Top navigation bar. Contains:
   5. `Export Beatmap (JSON)`
   6. `Exit Editor`
 
+### EditorSetupWizard.tsx
+
+Standardized entry point modal executed prior to mounting the editor. Manages the ingestion pipeline:
+- Input metadata: Title, Artist, BPM, Lead-In, and Audio Offset.
+- Audio source: File explorer, drag-and-drop (.mp3, .wav, .ogg), or instant prototype track loader.
+- Native asynchronous decoding with Web Audio API (`decodeAudioData`) into `SongRegistry`.
+- Dynamic True Peak and RMS energy analysis for visualizer Auto-Gain normalization.
+- Structural verification via `LevelValidator` before hydrating `EditorApp.tsx`.
+
 ### SongPadsModal.tsx
 
 Centralized settings modal divided into two operational tabs:
@@ -104,7 +113,7 @@ Context-sensitive inspector strictly constrained to viewport height with interna
 
 - **PadEvent selected**: targetTime, padId, behavior (tap, hold, loop, trigger), duration (automatically hidden for tap events), triggerId.
 - **TriggerData selected**: time, action type, targetId (numeric or string), easing, duration, properties (transform/color/pulse values).
-- **SceneNode selected**: name, numeric ID (trigger group), type-specific properties (x, y, scaleX, scaleY, rotation, opacity, color, width, height, radius, innerRadius, points, light properties), blend mode, visibility, and delete node button.
+- **SceneNode selected**: name, numeric ID (trigger group), type-specific properties (x, y, scaleX, scaleY, rotation, opacity, color, width, height, radius, innerRadius, points, light properties, audioSpectrum decay/attack/gain), blend mode, visibility, and delete node button.
 - **Multi-selection**: Displays item count and allows batch deletion and grouped inspection.
 
 ---
@@ -113,9 +122,10 @@ Context-sensitive inspector strictly constrained to viewport height with interna
 
 In the Preview tab, visual objects can be selected and modified directly in the viewport:
 - **Direct Selection**: Clicking a scene object selects it; Shift-clicking toggles multi-selection.
-- **Transform Gizmo**: A responsive bounding box with 8 scale handles (NW, N, NE, E, SE, S, SW, W) and a move body.
-  - **Translation**: Dragging inside the bounding box moves all selected objects.
-  - **Proportional/Directional Scaling**: Dragging any of the 8 handles resizes single or multiple objects anchored to the opposing edge or corner.
+- **Oriented Bounding Box (OBB) & Collective AABB**:
+  - **Single Rotated Objects**: Bounding box and handles orient with the object's local rotation matrix (`node.container.rotation`), projecting mouse movements along the object's local width and height axes to prevent geometric distortion.
+  - **Multi-Selection**: Collective Axis-Aligned Bounding Box (AABB) scaling all objects proportionally relative to the opposing anchor point.
+  - **Interruption Defense**: `pointercancel` and window `blur` event listeners ensure drag states are cleanly reset on tab switch or window defocus.
   - **Live Preview Sync**: Updates the scene graph interactively and commits undoable history entries to `LevelData` upon pointer release.
   - **Isolated Overlay**: Rendered on `editorOverlayContainer` (zIndex 99), ensuring post-processing filters (bloom, glitch) do not distort handles or selection frames.
 

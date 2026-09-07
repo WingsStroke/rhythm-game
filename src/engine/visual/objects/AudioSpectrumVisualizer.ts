@@ -12,8 +12,10 @@ export interface AudioSpectrumProperties {
   gap?: number;
   attack?: number;
   decay?: number;
+  gain?: number;
   minFreq?: number;
   maxFreq?: number;
+  sampleRate?: number;
 }
 
 /**
@@ -30,9 +32,12 @@ export class AudioSpectrumVisualizer extends Container {
   public gap = 3;
   public attack = 0.75;
   public decay = 0.88;
+  public gain = 1.0;
   public minFreq = 40;
   public maxFreq = 14000;
 
+  private currentSampleRate = 44100;
+  private currentFftSize = 512;
   private smoothedBands: Float32Array;
   private binRanges: [number, number][] = [];
 
@@ -45,7 +50,7 @@ export class AudioSpectrumVisualizer extends Container {
     this.smoothedBands = new Float32Array(this.bandsCount);
 
     this.applyProperties(props);
-    this.recomputeBinRanges(44100, 512);
+    this.recomputeBinRanges(this.currentSampleRate, this.currentFftSize);
     this.renderFallback();
   }
 
@@ -62,15 +67,28 @@ export class AudioSpectrumVisualizer extends Container {
     }
     if (props.attack !== undefined) this.attack = Math.max(0.1, Math.min(1.0, props.attack as number));
     if (props.decay !== undefined) this.decay = Math.max(0.1, Math.min(0.99, props.decay as number));
+    if (props.gain !== undefined) this.gain = Math.max(0.1, Math.min(5.0, props.gain as number));
+    if (props.sampleRate !== undefined) {
+      const sr = Number(props.sampleRate);
+      if (sr > 0 && sr !== this.currentSampleRate) {
+        this.currentSampleRate = sr;
+      }
+    }
 
     if (props.bands !== undefined) {
       const newBands = Math.max(8, Math.min(64, props.bands as number));
       if (newBands !== this.bandsCount) {
         this.bandsCount = newBands;
         this.smoothedBands = new Float32Array(this.bandsCount);
-        this.recomputeBinRanges(44100, 512);
+        this.recomputeBinRanges(this.currentSampleRate, this.currentFftSize);
       }
     }
+  }
+
+  public setSampleRate(sampleRate: number): void {
+    if (!sampleRate || sampleRate <= 0 || sampleRate === this.currentSampleRate) return;
+    this.currentSampleRate = sampleRate;
+    this.recomputeBinRanges(this.currentSampleRate, this.currentFftSize);
   }
 
   /**
@@ -120,7 +138,7 @@ export class AudioSpectrumVisualizer extends Container {
         }
       }
 
-      const raw = count > 0 ? (sum / count) / 255.0 : 0;
+      const raw = count > 0 ? Math.min(1.2, ((sum / count) / 255.0) * this.gain) : 0;
 
       // Asymmetric ballistics: fast attack on onset, smooth exponential decay on release
       if (raw > this.smoothedBands[k]) {

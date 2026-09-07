@@ -16,12 +16,15 @@ interface NodeInitialState {
   y: number;
   scaleX: number;
   scaleY: number;
+  rotation: number;
+  localBounds: { x: number; y: number; width: number; height: number };
 }
 
 /**
  * TransformGizmo provides an interactive move and resize/scale widget directly inside
  * the PixiJS Live Preview viewport.
- * Supports both single-object and multi-object collective bounding boxes.
+ * Supports Oriented Bounding Box (OBB) for single rotated objects, and collective
+ * Axis-Aligned Bounding Box (AABB) for multi-object selections.
  */
 export class TransformGizmo extends Container {
   private app: Application;
@@ -41,7 +44,7 @@ export class TransformGizmo extends Container {
   private initialStates: Map<string, NodeInitialState> = new Map();
 
   private boundOnPointerMove: (e: PointerEvent) => void;
-  private boundOnPointerUp: (e: PointerEvent) => void;
+  private boundOnPointerUp: () => void;
 
   public onCommit?: (updatedNodes: SceneNodeData[]) => void;
   public onChange?: () => void;
@@ -86,7 +89,7 @@ export class TransformGizmo extends Container {
     }
 
     this.boundOnPointerMove = this.onGlobalPointerMove.bind(this);
-    this.boundOnPointerUp = this.onGlobalPointerUp.bind(this);
+    this.boundOnPointerUp = () => this.onGlobalPointerUp();
 
     this.visible = false;
   }
@@ -108,7 +111,89 @@ export class TransformGizmo extends Container {
 
     this.visible = true;
 
-    // Compute collective screen bounds of all selected nodes
+    // A. Single Selection: Oriented Bounding Box (OBB) following node rotation
+    if (this.selectedNodes.length === 1) {
+      const node = this.selectedNodes[0];
+      if (node.container.destroyed) {
+        this.outlineGraphics.clear();
+        this.moveHitArea.clear();
+        for (const h of this.handles.values()) h.graphics.clear();
+        return;
+      }
+
+      const lb = node.container.getLocalBounds();
+      const lx = Number.isFinite(lb.x) ? lb.x : (Number.isFinite(lb.minX) ? lb.minX : 0);
+      const ly = Number.isFinite(lb.y) ? lb.y : (Number.isFinite(lb.minY) ? lb.minY : 0);
+      const lw = Math.max(1, Number.isFinite(lb.width) ? lb.width : (Number.isFinite(lb.maxX) ? lb.maxX - lb.minX : 10));
+      const lh = Math.max(1, Number.isFinite(lb.height) ? lb.height : (Number.isFinite(lb.maxY) ? lb.maxY - lb.minY : 10));
+
+      const pNW = node.container.toGlobal({ x: lx, y: ly });
+      const pNE = node.container.toGlobal({ x: lx + lw, y: ly });
+      const pSE = node.container.toGlobal({ x: lx + lw, y: ly + lh });
+      const pSW = node.container.toGlobal({ x: lx, y: ly + lh });
+
+      const pN = node.container.toGlobal({ x: lx + lw / 2, y: ly });
+      const pE = node.container.toGlobal({ x: lx + lw, y: ly + lh / 2 });
+      const pS = node.container.toGlobal({ x: lx + lw / 2, y: ly + lh });
+      const pW = node.container.toGlobal({ x: lx, y: ly + lh / 2 });
+
+      const pCenter = node.container.toGlobal({ x: lx + lw / 2, y: ly + lh / 2 });
+
+      // 1. Move Hit Area: oriented polygon
+      this.moveHitArea.clear();
+      this.moveHitArea.poly([pNW.x, pNW.y, pNE.x, pNE.y, pSE.x, pSE.y, pSW.x, pSW.y]).fill({ color: 0x000000, alpha: 0.001 });
+
+      // 2. Dashed Oriented Bounding Box
+      this.outlineGraphics.clear();
+      const dash = 6;
+      const gap = 4;
+      this.drawDashed(pNW.x, pNW.y, pNE.x, pNE.y, dash, gap);
+      this.drawDashed(pNE.x, pNE.y, pSE.x, pSE.y, dash, gap);
+      this.drawDashed(pSE.x, pSE.y, pSW.x, pSW.y, dash, gap);
+      this.drawDashed(pSW.x, pSW.y, pNW.x, pNW.y, dash, gap);
+
+      // 3. Center pivot crosshair
+      this.outlineGraphics
+        .circle(pCenter.x, pCenter.y, 3.5)
+        .fill({ color: 0x00e5ff, alpha: 0.6 })
+        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
+      this.outlineGraphics
+        .moveTo(pCenter.x - 6, pCenter.y)
+        .lineTo(pCenter.x + 6, pCenter.y)
+        .stroke({ width: 1, color: 0x00e5ff, alpha: 0.8 });
+      this.outlineGraphics
+        .moveTo(pCenter.x, pCenter.y - 6)
+        .lineTo(pCenter.x, pCenter.y + 6)
+        .stroke({ width: 1, color: 0x00e5ff, alpha: 0.8 });
+
+      // 4. Update 8 Handles positions
+      const handlePositions: Record<GizmoHandleType, { x: number; y: number }> = {
+        nw: pNW,
+        n: pN,
+        ne: pNE,
+        e: pE,
+        se: pSE,
+        s: pS,
+        sw: pSW,
+        w: pW,
+      };
+
+      const handleSize = 7;
+      const half = handleSize / 2;
+
+      for (const [type, info] of this.handles.entries()) {
+        const pos = handlePositions[type];
+        info.graphics.position.set(pos.x, pos.y);
+        info.graphics.clear();
+        info.graphics
+          .rect(-half, -half, handleSize, handleSize)
+          .fill({ color: 0xffffff, alpha: 0.95 })
+          .stroke({ width: 1.5, color: 0x00e5ff, alpha: 1 });
+      }
+      return;
+    }
+
+    // B. Multi-selection: collective Axis-Aligned Bounding Box (AABB)
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
@@ -237,6 +322,7 @@ export class TransformGizmo extends Container {
     window.addEventListener('pointermove', this.boundOnPointerMove);
     window.addEventListener('pointerup', this.boundOnPointerUp);
     window.addEventListener('pointercancel', this.boundOnPointerUp);
+    window.addEventListener('blur', this.boundOnPointerUp);
   }
 
   private onScaleStart(type: GizmoHandleType, e: { stopPropagation: () => void; clientX?: number; clientY?: number }): void {
@@ -257,6 +343,7 @@ export class TransformGizmo extends Container {
     window.addEventListener('pointermove', this.boundOnPointerMove);
     window.addEventListener('pointerup', this.boundOnPointerUp);
     window.addEventListener('pointercancel', this.boundOnPointerUp);
+    window.addEventListener('blur', this.boundOnPointerUp);
   }
 
   private captureInitialState(): void {
@@ -272,12 +359,21 @@ export class TransformGizmo extends Container {
 
     for (const node of this.selectedNodes) {
       if (node.container.destroyed) continue;
+
+      const lb = node.container.getLocalBounds();
+      const lx = Number.isFinite(lb.x) ? lb.x : (Number.isFinite(lb.minX) ? lb.minX : 0);
+      const ly = Number.isFinite(lb.y) ? lb.y : (Number.isFinite(lb.minY) ? lb.minY : 0);
+      const lw = Math.max(1, Number.isFinite(lb.width) ? lb.width : (Number.isFinite(lb.maxX) ? lb.maxX - lb.minX : 10));
+      const lh = Math.max(1, Number.isFinite(lb.height) ? lb.height : (Number.isFinite(lb.maxY) ? lb.maxY - lb.minY : 10));
+
       this.initialStates.set(node.uid, {
         node,
         x: node.container.x,
         y: node.container.y,
         scaleX: node.container.scale.x,
         scaleY: node.container.scale.y,
+        rotation: node.container.rotation,
+        localBounds: { x: lx, y: ly, width: lw, height: lh },
       });
 
       const b = node.container.getBounds();
@@ -310,83 +406,179 @@ export class TransformGizmo extends Container {
         state.node.container.y = Math.round(state.y + deltaStageY);
       }
     } else if (this.dragMode === 'scale' && this.activeHandle) {
-      const bbox = this.startBBox;
-      let ratioX = 1;
-      let ratioY = 1;
-      let anchorX = bbox.x;
-      let anchorY = bbox.y;
+      if (this.selectedNodes.length === 1) {
+        // Single rotated/oriented node scale
+        const state = Array.from(this.initialStates.values())[0];
+        if (state) {
+          const angle = state.rotation || 0;
+          const cos = Math.cos(angle);
+          const sin = Math.sin(angle);
 
-      switch (this.activeHandle) {
-        case 'se': {
-          anchorX = bbox.x;
-          anchorY = bbox.y;
-          const newW = Math.max(10, bbox.width + deltaStageX);
-          const newH = Math.max(10, bbox.height + deltaStageY);
-          ratioX = newW / bbox.width;
-          ratioY = newH / bbox.height;
-          break;
-        }
-        case 'nw': {
-          anchorX = bbox.x + bbox.width;
-          anchorY = bbox.y + bbox.height;
-          const newW = Math.max(10, bbox.width - deltaStageX);
-          const newH = Math.max(10, bbox.height - deltaStageY);
-          ratioX = newW / bbox.width;
-          ratioY = newH / bbox.height;
-          break;
-        }
-        case 'ne': {
-          anchorX = bbox.x;
-          anchorY = bbox.y + bbox.height;
-          const newW = Math.max(10, bbox.width + deltaStageX);
-          const newH = Math.max(10, bbox.height - deltaStageY);
-          ratioX = newW / bbox.width;
-          ratioY = newH / bbox.height;
-          break;
-        }
-        case 'sw': {
-          anchorX = bbox.x + bbox.width;
-          anchorY = bbox.y;
-          const newW = Math.max(10, bbox.width - deltaStageX);
-          const newH = Math.max(10, bbox.height + deltaStageY);
-          ratioX = newW / bbox.width;
-          ratioY = newH / bbox.height;
-          break;
-        }
-        case 'e': {
-          anchorX = bbox.x;
-          const newW = Math.max(10, bbox.width + deltaStageX);
-          ratioX = newW / bbox.width;
-          break;
-        }
-        case 'w': {
-          anchorX = bbox.x + bbox.width;
-          const newW = Math.max(10, bbox.width - deltaStageX);
-          ratioX = newW / bbox.width;
-          break;
-        }
-        case 's': {
-          anchorY = bbox.y;
-          const newH = Math.max(10, bbox.height + deltaStageY);
-          ratioY = newH / bbox.height;
-          break;
-        }
-        case 'n': {
-          anchorY = bbox.y + bbox.height;
-          const newH = Math.max(10, bbox.height - deltaStageY);
-          ratioY = newH / bbox.height;
-          break;
-        }
-      }
+          // Project deltaStage into node's local coordinate frame
+          const localDeltaX = deltaStageX * cos + deltaStageY * sin;
+          const localDeltaY = -deltaStageX * sin + deltaStageY * cos;
 
-      // Scale positions and scales proportionally relative to anchor
-      for (const state of this.initialStates.values()) {
-        const relX = state.x - anchorX;
-        const relY = state.y - anchorY;
-        state.node.container.x = Math.round(anchorX + relX * ratioX);
-        state.node.container.y = Math.round(anchorY + relY * ratioY);
-        state.node.container.scale.x = Math.max(0.02, state.scaleX * ratioX);
-        state.node.container.scale.y = Math.max(0.02, state.scaleY * ratioY);
+          const lb = state.localBounds;
+          const initRenderW = Math.max(10, lb.width * state.scaleX);
+          const initRenderH = Math.max(10, lb.height * state.scaleY);
+
+          let ratioX = 1;
+          let ratioY = 1;
+          let shiftLocalX = 0;
+          let shiftLocalY = 0;
+
+          switch (this.activeHandle) {
+            case 'se': {
+              const newW = Math.max(10, initRenderW + localDeltaX);
+              const newH = Math.max(10, initRenderH + localDeltaY);
+              ratioX = newW / initRenderW;
+              ratioY = newH / initRenderH;
+              shiftLocalX = -lb.x * (ratioX - 1);
+              shiftLocalY = -lb.y * (ratioY - 1);
+              break;
+            }
+            case 'nw': {
+              const newW = Math.max(10, initRenderW - localDeltaX);
+              const newH = Math.max(10, initRenderH - localDeltaY);
+              ratioX = newW / initRenderW;
+              ratioY = newH / initRenderH;
+              shiftLocalX = -(lb.x + lb.width) * (ratioX - 1);
+              shiftLocalY = -(lb.y + lb.height) * (ratioY - 1);
+              break;
+            }
+            case 'ne': {
+              const newW = Math.max(10, initRenderW + localDeltaX);
+              const newH = Math.max(10, initRenderH - localDeltaY);
+              ratioX = newW / initRenderW;
+              ratioY = newH / initRenderH;
+              shiftLocalX = -lb.x * (ratioX - 1);
+              shiftLocalY = -(lb.y + lb.height) * (ratioY - 1);
+              break;
+            }
+            case 'sw': {
+              const newW = Math.max(10, initRenderW - localDeltaX);
+              const newH = Math.max(10, initRenderH + localDeltaY);
+              ratioX = newW / initRenderW;
+              ratioY = newH / initRenderH;
+              shiftLocalX = -(lb.x + lb.width) * (ratioX - 1);
+              shiftLocalY = -lb.y * (ratioY - 1);
+              break;
+            }
+            case 'e': {
+              const newW = Math.max(10, initRenderW + localDeltaX);
+              ratioX = newW / initRenderW;
+              shiftLocalX = -lb.x * (ratioX - 1);
+              break;
+            }
+            case 'w': {
+              const newW = Math.max(10, initRenderW - localDeltaX);
+              ratioX = newW / initRenderW;
+              shiftLocalX = -(lb.x + lb.width) * (ratioX - 1);
+              break;
+            }
+            case 's': {
+              const newH = Math.max(10, initRenderH + localDeltaY);
+              ratioY = newH / initRenderH;
+              shiftLocalY = -lb.y * (ratioY - 1);
+              break;
+            }
+            case 'n': {
+              const newH = Math.max(10, initRenderH - localDeltaY);
+              ratioY = newH / initRenderH;
+              shiftLocalY = -(lb.y + lb.height) * (ratioY - 1);
+              break;
+            }
+          }
+
+          // Transform shiftLocal back into stage coordinate space
+          const stageShiftX = shiftLocalX * cos - shiftLocalY * sin;
+          const stageShiftY = shiftLocalX * sin + shiftLocalY * cos;
+
+          state.node.container.x = Math.round(state.x + stageShiftX);
+          state.node.container.y = Math.round(state.y + stageShiftY);
+          state.node.container.scale.x = Math.max(0.02, state.scaleX * ratioX);
+          state.node.container.scale.y = Math.max(0.02, state.scaleY * ratioY);
+        }
+      } else {
+        // Multi-selection: collective AABB scaling relative to anchor
+        const bbox = this.startBBox;
+        let ratioX = 1;
+        let ratioY = 1;
+        let anchorX = bbox.x;
+        let anchorY = bbox.y;
+
+        switch (this.activeHandle) {
+          case 'se': {
+            anchorX = bbox.x;
+            anchorY = bbox.y;
+            const newW = Math.max(10, bbox.width + deltaStageX);
+            const newH = Math.max(10, bbox.height + deltaStageY);
+            ratioX = newW / bbox.width;
+            ratioY = newH / bbox.height;
+            break;
+          }
+          case 'nw': {
+            anchorX = bbox.x + bbox.width;
+            anchorY = bbox.y + bbox.height;
+            const newW = Math.max(10, bbox.width - deltaStageX);
+            const newH = Math.max(10, bbox.height - deltaStageY);
+            ratioX = newW / bbox.width;
+            ratioY = newH / bbox.height;
+            break;
+          }
+          case 'ne': {
+            anchorX = bbox.x;
+            anchorY = bbox.y + bbox.height;
+            const newW = Math.max(10, bbox.width + deltaStageX);
+            const newH = Math.max(10, bbox.height - deltaStageY);
+            ratioX = newW / bbox.width;
+            ratioY = newH / bbox.height;
+            break;
+          }
+          case 'sw': {
+            anchorX = bbox.x + bbox.width;
+            anchorY = bbox.y;
+            const newW = Math.max(10, bbox.width - deltaStageX);
+            const newH = Math.max(10, bbox.height + deltaStageY);
+            ratioX = newW / bbox.width;
+            ratioY = newH / bbox.height;
+            break;
+          }
+          case 'e': {
+            anchorX = bbox.x;
+            const newW = Math.max(10, bbox.width + deltaStageX);
+            ratioX = newW / bbox.width;
+            break;
+          }
+          case 'w': {
+            anchorX = bbox.x + bbox.width;
+            const newW = Math.max(10, bbox.width - deltaStageX);
+            ratioX = newW / bbox.width;
+            break;
+          }
+          case 's': {
+            anchorY = bbox.y;
+            const newH = Math.max(10, bbox.height + deltaStageY);
+            ratioY = newH / bbox.height;
+            break;
+          }
+          case 'n': {
+            anchorY = bbox.y + bbox.height;
+            const newH = Math.max(10, bbox.height - deltaStageY);
+            ratioY = newH / bbox.height;
+            break;
+          }
+        }
+
+        // Scale positions and scales proportionally relative to anchor
+        for (const state of this.initialStates.values()) {
+          const relX = state.x - anchorX;
+          const relY = state.y - anchorY;
+          state.node.container.x = Math.round(anchorX + relX * ratioX);
+          state.node.container.y = Math.round(anchorY + relY * ratioY);
+          state.node.container.scale.x = Math.max(0.02, state.scaleX * ratioX);
+          state.node.container.scale.y = Math.max(0.02, state.scaleY * ratioY);
+        }
       }
     }
 
@@ -404,6 +596,7 @@ export class TransformGizmo extends Container {
     window.removeEventListener('pointermove', this.boundOnPointerMove);
     window.removeEventListener('pointerup', this.boundOnPointerUp);
     window.removeEventListener('pointercancel', this.boundOnPointerUp);
+    window.removeEventListener('blur', this.boundOnPointerUp);
 
     // Commit changes to LevelData
     const updated: SceneNodeData[] = [];
@@ -432,6 +625,7 @@ export class TransformGizmo extends Container {
     window.removeEventListener('pointermove', this.boundOnPointerMove);
     window.removeEventListener('pointerup', this.boundOnPointerUp);
     window.removeEventListener('pointercancel', this.boundOnPointerUp);
+    window.removeEventListener('blur', this.boundOnPointerUp);
     super.destroy({ children: true });
   }
 }

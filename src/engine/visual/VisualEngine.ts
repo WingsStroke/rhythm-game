@@ -153,6 +153,12 @@ export class VisualEngine {
 
   public setAudioEngine(audio: AudioEngine | null): void {
     this.audioEngine = audio;
+    if (this.audioEngine && this.sceneGraph) {
+      const sr = this.audioEngine.sampleRate;
+      for (const node of this.sceneGraph.getSpectrumNodes()) {
+        (node.displayObject as AudioSpectrumVisualizer).setSampleRate(sr);
+      }
+    }
   }
 
   async init(): Promise<void> {
@@ -1025,13 +1031,19 @@ export class VisualEngine {
 
     // 5d. Real-time audio spectrum generator update
     if (this.sceneGraph) {
-      for (const node of this.sceneGraph.getAllNodes()) {
-        if (node.displayObject instanceof AudioSpectrumVisualizer) {
-          if (this.audioEngine) {
-            this.audioEngine.getSpectrumFrequencyData(this.spectrumBuffer);
-            node.displayObject.update(this.spectrumBuffer);
-          } else {
-            node.displayObject.decayOnly();
+      const spectrumNodes = this.sceneGraph.getSpectrumNodes();
+      if (spectrumNodes.size > 0) {
+        if (this.audioEngine) {
+          this.audioEngine.getSpectrumFrequencyData(this.spectrumBuffer);
+          const sr = this.audioEngine.sampleRate;
+          for (const node of spectrumNodes) {
+            const visualizer = node.displayObject as AudioSpectrumVisualizer;
+            visualizer.setSampleRate(sr);
+            visualizer.update(this.spectrumBuffer);
+          }
+        } else {
+          for (const node of spectrumNodes) {
+            (node.displayObject as AudioSpectrumVisualizer).decayOnly();
           }
         }
       }

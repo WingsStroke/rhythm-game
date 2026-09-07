@@ -1,5 +1,6 @@
 import { Container } from 'pixi.js';
 import { SceneNode } from './objects/SceneNode';
+import { AudioSpectrumVisualizer } from './objects/AudioSpectrumVisualizer';
 import type { LevelData, SceneNodeData } from '../types';
 
 /**
@@ -10,6 +11,7 @@ export class SceneGraph {
   public foregroundRoot?: Container;
   public onNodeSelect?: (nodeId: string, isShift?: boolean) => void;
   private nodes: Map<string, SceneNode> = new Map();
+  private spectrumNodes: Set<SceneNode> = new Set();
 
   constructor(container: Container, foregroundContainer?: Container) {
     this.root = container;
@@ -33,6 +35,9 @@ export class SceneGraph {
         this.onNodeSelect?.(node.uid, Boolean((e as unknown as { shiftKey?: boolean }).shiftKey));
       });
       this.nodes.set(node.uid, node);
+      if (node.displayObject instanceof AudioSpectrumVisualizer) {
+        this.spectrumNodes.add(node);
+      }
     }
 
     // 2. Build hierarchy
@@ -106,6 +111,9 @@ export class SceneGraph {
       this.onNodeSelect?.(node.uid, Boolean((e as unknown as { shiftKey?: boolean }).shiftKey));
     });
     this.nodes.set(node.uid, node);
+    if (node.displayObject instanceof AudioSpectrumVisualizer) {
+      this.spectrumNodes.add(node);
+    }
     
     const targetRoot =
       this.foregroundRoot && nodeData.layerId === 'sceneFront'
@@ -127,9 +135,16 @@ export class SceneGraph {
   public removeNode(idOrUid: string) {
     const node = this.getNode(idOrUid);
     if (node) {
+      if (this.spectrumNodes.has(node)) {
+        this.spectrumNodes.delete(node);
+      }
       node.destroy();
       this.nodes.delete(node.uid);
     }
+  }
+
+  public getSpectrumNodes(): ReadonlySet<SceneNode> {
+    return this.spectrumNodes;
   }
 
   public setParent(childKey: string, parentKey?: string) {
@@ -157,6 +172,7 @@ export class SceneGraph {
   }
 
   public dispose() {
+    this.spectrumNodes.clear();
     for (const node of this.nodes.values()) {
       node.destroy();
     }

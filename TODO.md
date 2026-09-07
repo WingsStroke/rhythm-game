@@ -218,10 +218,10 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
     - [x] Limitacion interactiva de opacidad a 0.35 y filtrado de modos de fusion en modo primer plano.
     - [x] Insignias de capa integradas en la lista del `SceneOutliner`.
 
-- [ ] **[P1] Fase 6B.2 — Transformacion Interactiva y Modulacion Dinamica**
-  - [ ] Arrastre interactivo en canvas (`Gizmo / Transform Handles`): mover por posicion X/Y arrastrando la caja, escalar desde las esquinas y rotar con handle superior.
+- [x] **[P1] Fase 6B.2 — Transformacion Interactiva y Modulacion Dinamica**
+  - [x] Arrastre interactivo en canvas (`TransformGizmo`): mover por posicion X/Y arrastrando la caja y redimensionar/escalar mediante 8 tiradores con Oriented Bounding Box (OBB) en objetos rotados.
+  - [x] Multi-seleccion de nodos escenicos en outliner y canvas con caja delimitadora combinada (AABB).
   - [ ] Snapping opcional a la cuadricula espacial (e.g. 16px, 32px, centros de pantalla).
-  - [ ] Multi-seleccion de nodos escenicos en outliner y canvas con caja delimitadora combinada.
 
 ---
 
@@ -303,17 +303,18 @@ Ideas y conceptos complementarios para evaluar durante el desarrollo:
    - `git push` y `npm run dev` nunca deben ejecutarse mediante agentes automatizados; son controlados por el propietario del repositorio.
 
 ## 11. Visualizadores de Espectro de Audio (Audio Spectrum & Decorative Vectors)
-- [ ] **Procesamiento y Balística Espectral:**
-  - [ ] Agrupar datos FFT del `AnalyserNode` en bandas logarítmicas (32, 48 o 64 bandas) cubriendo sub-graves, medios y agudos en escala musical.
-  - [ ] Integrar balística asimétrica (attack instantáneo con decay exponencial suave) para evitar parpadeo errático en pantalla.
-- [ ] **Integración en SceneGraph como `SceneNode`:**
-  - [ ] Crear el tipo de nodo declarativo (`'spectrum_bars'` y `'spectrum_wave'`) configurable desde `level.visual.nodes`.
-  - [ ] Restringir su renderizado a capas decorativas (`bgLayer` o `sceneLayer`) respetando la jerarquía estricta de 7 capas (`zIndex`).
-  - [ ] Soporte para transformaciones nativas heredadas (posición X/Y, rotación, escala, pivote y opacidad).
-- [ ] **Renderizado Eficiente en PixiJS (WebGL):**
-  - [ ] Modo barras: Geometría instanciada / `SimpleMesh` batcheado en un solo draw call.
-  - [ ] Modo onda / cinta: Interpolación suave de puntos mediante `SimpleRope` o curvas Bézier.
-  - [ ] Configuración de modos de fusión (`blendMode: 'add'` / `'screen'`) para efectos de brillo neón de bajo contraste.
-- [ ] **Control por Triggers y Editor:**
-  - [ ] Exponer propiedades en `EditorPropertiesPanel` (número de barras, grosor, color base, sensibilidad).
-  - [ ] Permitir que los triggers modulen dinámicamente la escala, tinte de color o activación del espectro en drops y transiciones.
+- [x] **Procesamiento y Balistica Espectral:**
+  - [x] Agrupar datos FFT del `spectrumAnalyser` (512-fft) en bandas logaritmicas (8 a 64 bandas) cubriendo sub-graves, medios y agudos en escala musical.
+  - [x] Sincronizacion dinamica de frecuencia de muestreo del hardware (`sampleRate` 44.1kHz / 48kHz).
+  - [x] Integrar balistica asimetrica configurable (attack rapido con decay exponencial suave) y factor de ganancia.
+- [x] **Integracion en SceneGraph como `SceneNode`:**
+  - [x] Tipo de nodo declarativo (`'audioSpectrum'`) configurable desde `level.visual.nodes`.
+  - [x] Renderizado en capas decorativas respetando la jerarquia estricta de capas (`zIndex`).
+  - [x] Soporte para transformaciones nativas heredadas (posicion X/Y, rotacion, escala, opacidad) y OBB en el editor.
+- [x] **Renderizado Eficiente en PixiJS (WebGL):**
+  - [x] Modo barras: Renderizado vectorial agrupado mediante `PIXI.Graphics` con batching automatico por hardware de PixiJS v8. (Migracion opcional a `SimpleMesh` documentada para resoluciones masivas de 128+ bandas).
+  - [x] Modo curva / onda y modo radial circular decorativo.
+  - [x] Configuracion de modos de fusion y paleta de color.
+- [x] **Control por Triggers y Editor:**
+  - [x] Exponer propiedades en `EditorPropertiesPanel` (numero de bandas, modo, ancho, alto, gap, color, attack, decay, gain).
+  - [x] Indice cacheado en `SceneGraph` (`spectrumNodes`) y captura FFT unica por fotograma en `VisualEngine`.
