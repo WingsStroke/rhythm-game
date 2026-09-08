@@ -405,6 +405,7 @@ export class VisualEngine {
       this.fxLayer,
       this.hudLayer
     );
+    this.mainStage.sortChildren();
 
     this.app.stage.addChild(
       this.mainStage,
@@ -484,10 +485,11 @@ export class VisualEngine {
       const container = new Container();
       container.x = x;
       container.y = this.padY;
+      container.sortableChildren = true;
+
+      // Pointer interactive setup for touch / click
       container.eventMode = 'static';
       container.cursor = 'pointer';
-
-      // Mouse & touch interaction on pad
       container.on('pointerdown', (e) => {
         e.stopPropagation();
         this.onPadInput?.(pad.id, true);
@@ -500,15 +502,21 @@ export class VisualEngine {
         this.onPadInput?.(pad.id, false);
       });
 
+      // Dark opaque backing to occlude background visual objects in sceneLayer
+      const backing = new Graphics();
+      backing.roundRect(0, 0, 100, PAD_HEIGHT, 10).fill({ color: 0x070716, alpha: 0.96 });
+      backing.zIndex = 0;
+      container.addChild(backing);
+
       const glow = new Graphics();
       glow.roundRect(-15, -15, 130, PAD_HEIGHT + 30, 14).fill({ color, alpha: 0.15 });
-      glow.zIndex = 0;
+      glow.zIndex = 1;
       container.addChild(glow);
 
       const rect = new Graphics();
       rect.roundRect(0, 0, 100, PAD_HEIGHT, 10).fill({ color, alpha: 0.25 });
       rect.stroke({ color, width: 2, alpha: 0.7 });
-      rect.zIndex = 1;
+      rect.zIndex = 2;
       container.addChild(rect);
 
       // Key hint (A, S, D, F)
@@ -519,7 +527,7 @@ export class VisualEngine {
       keyText.anchor.set(0.5);
       keyText.x = 50;
       keyText.y = PAD_HEIGHT / 2 - 10;
-      keyText.zIndex = 2;
+      keyText.zIndex = 3;
       container.addChild(keyText);
 
       // Pad role label (Kick, Snare, etc)
@@ -530,9 +538,10 @@ export class VisualEngine {
       label.anchor.set(0.5);
       label.x = 50;
       label.y = PAD_HEIGHT / 2 + 16;
-      label.zIndex = 2;
+      label.zIndex = 3;
       container.addChild(label);
 
+      container.sortChildren();
       this.padLayer.addChild(container);
       this.padVisuals.set(pad.id, {
         container,
@@ -640,6 +649,9 @@ export class VisualEngine {
       if (x === undefined) continue;
       const color = this.hexToInt(pad.color);
 
+      // Dark opaque backing to occlude background visual objects in sceneLayer
+      this.laneGfx.rect(x, 0, 100, this.padY + PAD_HEIGHT).fill({ color: 0x060714, alpha: 0.92 });
+
       // Lane background column
       this.laneGfx.rect(x, 0, 100, this.padY + PAD_HEIGHT).fill({ color, alpha: 0.035 });
 
@@ -712,6 +724,7 @@ export class VisualEngine {
     }
 
     this.drawLanes();
+    this.mainStage.sortChildren();
   }
 
   private setupFilters(): void {

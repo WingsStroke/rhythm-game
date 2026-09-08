@@ -548,6 +548,8 @@ interface ShadersLaneProps {
   subLaneHeight: number;
   onSelectEffect?: (effect: VisualEffect | null) => void;
   onToggleEffectSelection?: (id: string, multi: boolean) => void;
+  onEffectMove?: (e: React.PointerEvent, effect: VisualEffect) => void;
+  onEffectResize?: (e: React.PointerEvent, effect: VisualEffect) => void;
   onTrackClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   onRemoveEffect?: (id: string) => void;
 }
@@ -563,6 +565,8 @@ const ShadersLane = React.memo(function ShadersLane({
   subLaneHeight,
   onSelectEffect,
   onToggleEffectSelection,
+  onEffectMove,
+  onEffectResize,
   onTrackClick,
   onRemoveEffect,
 }: ShadersLaneProps) {
@@ -635,17 +639,21 @@ const ShadersLane = React.memo(function ShadersLane({
               border: `1.5px ${hasTime ? 'solid' : 'dashed'} rgba(216, 180, 254, 0.6)`,
             }}
             onPointerDown={(e) => {
-              if (activeTool === 'eraser') {
-                e.stopPropagation();
-                onRemoveEffect?.(effect.id);
-                return;
+              if (onEffectMove) {
+                onEffectMove(e, effect);
+              } else {
+                if (activeTool === 'eraser') {
+                  e.stopPropagation();
+                  onRemoveEffect?.(effect.id);
+                  return;
+                }
+                if (e.ctrlKey || e.metaKey) {
+                  e.stopPropagation();
+                  onToggleEffectSelection?.(effect.id, true);
+                  return;
+                }
+                onSelectEffect?.(effect);
               }
-              if (e.ctrlKey || e.metaKey) {
-                e.stopPropagation();
-                onToggleEffectSelection?.(effect.id, true);
-                return;
-              }
-              onSelectEffect?.(effect);
             }}
           >
             {/* Shader Type Badge */}
@@ -662,6 +670,18 @@ const ShadersLane = React.memo(function ShadersLane({
                 {hasTime ? `${duration.toFixed(1)}s` : 'Always on'} • int: {effect.intensity ?? 1.0}
               </span>
             </div>
+
+            {/* Resize Handle */}
+            {hasTime && activeTool === 'select' && onEffectResize && (
+              <div
+                data-shader-item="true"
+                className="absolute right-0 top-0 bottom-0 w-3 hover:bg-fuchsia-400/40 cursor-ew-resize flex items-center justify-center flex-shrink-0 z-30"
+                onPointerDown={(e) => onEffectResize(e, effect)}
+                title="Ajustar duración"
+              >
+                <div className="w-1 h-5 bg-fuchsia-200 rounded-full pointer-events-none" />
+              </div>
+            )}
           </div>
         );
       })}
@@ -839,11 +859,12 @@ export function Timeline({
   const subLaneHeight = Math.max(64, Math.floor(availableLaneAreaHeight / SUB_LANE_COUNT));
 
   const [dragState, setDragState] = useState<{
-    targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers' | 'node' | 'batch_nodes';
+    targetType: 'event' | 'trigger' | 'batch_events' | 'batch_triggers' | 'node' | 'batch_nodes' | 'effect';
     mode: 'move' | 'resize';
     event?: PadEvent;
     trigger?: TriggerData;
     node?: SceneNodeData;
+    effect?: VisualEffect;
     origEvents?: PadEvent[];
     origTriggers?: TriggerData[];
     origNodes?: SceneNodeData[];
@@ -1504,6 +1525,58 @@ export function Timeline({
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }, [activeTool, onSelectNode, onSelectEvent, onSelectTrigger]);
 
+  const startEffectMove = useCallback((e: React.PointerEvent, effect: VisualEffect) => {
+    e.stopPropagation();
+    if (activeTool === 'eraser') {
+      onRemoveEffect?.(effect.id);
+      return;
+    }
+    const isMulti = e.ctrlKey || e.metaKey;
+    if (isMulti) {
+      onToggleEffectSelection?.(effect.id, true);
+      return;
+    }
+    onSelectEffect?.(effect);
+    onSelectEvent(null);
+    onSelectTrigger?.(null);
+    onSelectNode?.(null);
+
+    const hasTime = typeof effect.startTime === 'number';
+    if (activeTool === 'select' && hasTime) {
+      setDragState({
+        targetType: 'effect',
+        mode: 'move',
+        effect,
+        startX: e.clientX,
+        startY: e.clientY,
+        origTargetTime: effect.startTime ?? 0,
+        origDuration: effect.duration ?? 2.0,
+      });
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+  }, [activeTool, onRemoveEffect, onToggleEffectSelection, onSelectEffect, onSelectEvent, onSelectTrigger, onSelectNode]);
+
+  const startEffectResize = useCallback((e: React.PointerEvent, effect: VisualEffect) => {
+    e.stopPropagation();
+    const hasTime = typeof effect.startTime === 'number';
+    if (activeTool !== 'select' || !hasTime) return;
+    onSelectEffect?.(effect);
+    onSelectEvent(null);
+    onSelectTrigger?.(null);
+    onSelectNode?.(null);
+
+    setDragState({
+      targetType: 'effect',
+      mode: 'resize',
+      effect,
+      startX: e.clientX,
+      startY: e.clientY,
+      origTargetTime: effect.startTime ?? 0,
+      origDuration: effect.duration ?? 2.0,
+    });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [activeTool, onSelectEffect, onSelectEvent, onSelectTrigger, onSelectNode]);
+
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (marquee && innerCanvasRef.current) {
       const canvasRect = innerCanvasRef.current.getBoundingClientRect();
@@ -1670,6 +1743,21 @@ export function Timeline({
         };
       });
       onUpdateNodesBatch?.(updatedNodes);
+    } else if (dragState.targetType === 'effect' && dragState.effect) {
+      if (dragState.mode === 'move') {
+        const snapped = snapTimeToGrid(Math.max(0, dragState.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
+        if (snapped !== dragState.effect.startTime) {
+          onUpdateEffect?.({ ...dragState.effect, startTime: snapped });
+        }
+      } else {
+        const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
+        const snapped = interval > 0
+          ? Math.max(interval, Math.round(Math.max(0.1, dragState.origDuration! + deltaTime) / interval) * interval)
+          : Math.max(0.1, dragState.origDuration! + deltaTime);
+        if (snapped !== dragState.effect.duration) {
+          onUpdateEffect?.({ ...dragState.effect, duration: snapped });
+        }
+      }
     }
   }, [
     marquee,
@@ -1687,6 +1775,7 @@ export function Timeline({
     onUpdateTriggersBatch,
     onUpdateNode,
     onUpdateNodesBatch,
+    onUpdateEffect,
   ]);
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -1720,6 +1809,13 @@ export function Timeline({
           onSelectNode?.(dragState.node);
           onSelectEvent(null);
           onSelectTrigger?.(null);
+        }
+      } else if (dragState.targetType === 'effect' && Math.abs(e.clientX - dragState.startX) < 3) {
+        if (dragState.effect) {
+          onSelectEffect?.(dragState.effect);
+          onSelectEvent(null);
+          onSelectTrigger?.(null);
+          onSelectNode?.(null);
         }
       }
       setDragState(null);
@@ -2298,6 +2394,8 @@ export function Timeline({
               subLaneHeight={subLaneHeight}
               onSelectEffect={onSelectEffect}
               onToggleEffectSelection={onToggleEffectSelection}
+              onEffectMove={startEffectMove}
+              onEffectResize={startEffectResize}
               onTrackClick={handleShaderTrackClick}
               onRemoveEffect={onRemoveEffect}
             />

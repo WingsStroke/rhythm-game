@@ -14,6 +14,7 @@ import type {
   VisualEffectScope,
 } from '../../engine/types';
 import { EffectRegistry } from '../../engine/visual/effects/EffectRegistry';
+import { NumericInput } from './NumericInput';
 
 interface EditorPropertiesPanelProps {
   selectedEvent: PadEvent | null;
@@ -265,14 +266,14 @@ export function EditorPropertiesPanel({
               >
                 -0.05
               </button>
-              <input
-                type="number"
+              <NumericInput
                 step="0.01"
+                min={0}
                 value={selectedEvent.targetTime}
-                onChange={(e) =>
+                onChange={(val) =>
                   onUpdateEvent({
                     ...selectedEvent,
-                    targetTime: Math.max(0, Number(e.target.value)),
+                    targetTime: val,
                   })
                 }
                 className="flex-1 min-w-0 bg-black/50 border border-white/10 rounded px-1.5 py-1 text-white outline-none focus:border-[#00e5ff] font-mono text-center text-xs"
@@ -322,15 +323,14 @@ export function EditorPropertiesPanel({
                   {(selectedEvent.duration ?? 1.0).toFixed(2)}s
                 </span>
               </div>
-              <input
-                type="number"
+              <NumericInput
                 step="0.05"
-                min="0.05"
+                min={0.05}
                 value={selectedEvent.duration ?? 1.0}
-                onChange={(e) =>
+                onChange={(val) =>
                   onUpdateEvent({
                     ...selectedEvent,
-                    duration: Math.max(0.05, Number(e.target.value)),
+                    duration: val,
                   })
                 }
                 className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#00e5ff] font-mono"
@@ -378,15 +378,12 @@ export function EditorPropertiesPanel({
                 Layer {selectedTrigger.layer ?? 1}
               </span>
             </div>
-            <input
-              type="number"
+            <NumericInput
+              step="1"
               min={1}
               max={99}
               value={selectedTrigger.layer ?? 1}
-              onChange={(e) => {
-                const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                onUpdateTrigger({ ...selectedTrigger, layer: val });
-              }}
+              onChange={(val) => onUpdateTrigger({ ...selectedTrigger, layer: Math.round(val) })}
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#ffea00] outline-none"
             />
             <span className="text-[10px] text-white/40">
@@ -412,16 +409,11 @@ export function EditorPropertiesPanel({
               >
                 -0.05
               </button>
-              <input
-                type="number"
+              <NumericInput
                 step="0.01"
+                min={0}
                 value={selectedTrigger.time}
-                onChange={(e) =>
-                  onUpdateTrigger({
-                    ...selectedTrigger,
-                    time: Math.max(0, Number(e.target.value)),
-                  })
-                }
+                onChange={(val) => onUpdateTrigger({ ...selectedTrigger, time: val })}
                 className="flex-1 min-w-0 bg-black/50 border border-white/10 rounded px-1.5 py-1 text-white outline-none focus:border-[#ffea00] font-mono text-center text-xs"
               />
               <button
@@ -446,17 +438,11 @@ export function EditorPropertiesPanel({
                 {selectedTrigger.duration > 0 ? `${selectedTrigger.duration.toFixed(2)}s` : 'Instant'}
               </span>
             </div>
-            <input
-              type="number"
+            <NumericInput
               step="0.05"
-              min="0"
+              min={0}
               value={selectedTrigger.duration}
-              onChange={(e) =>
-                onUpdateTrigger({
-                  ...selectedTrigger,
-                  duration: Math.max(0, Number(e.target.value)),
-                })
-              }
+              onChange={(val) => onUpdateTrigger({ ...selectedTrigger, duration: val })}
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#ffea00] font-mono"
             />
           </label>
@@ -591,17 +577,16 @@ export function EditorPropertiesPanel({
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col text-white/60">
                   Scale
-                  <input
-                    type="number"
+                  <NumericInput
                     step="0.1"
                     value={(selectedTrigger.properties.scaleX as number) ?? 1}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       onUpdateTrigger({
                         ...selectedTrigger,
                         properties: {
                           ...selectedTrigger.properties,
-                          scaleX: Number(e.target.value),
-                          scaleY: Number(e.target.value),
+                          scaleX: val,
+                          scaleY: val,
                         },
                       })
                     }
@@ -610,16 +595,15 @@ export function EditorPropertiesPanel({
                 </label>
                 <label className="flex flex-col text-white/60">
                   Rot (deg)
-                  <input
-                    type="number"
+                  <NumericInput
                     step="15"
                     value={Math.round((((selectedTrigger.properties.rotation as number) ?? 0) * 180) / Math.PI)}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       onUpdateTrigger({
                         ...selectedTrigger,
                         properties: {
                           ...selectedTrigger.properties,
-                          rotation: (Number(e.target.value) * Math.PI) / 180,
+                          rotation: (val * Math.PI) / 180,
                         },
                       })
                     }
@@ -701,16 +685,15 @@ export function EditorPropertiesPanel({
                 </label>
                 <label className="flex flex-col text-white/60">
                   Multiplicador
-                  <input
-                    type="number"
+                  <NumericInput
                     step="0.1"
-                    min="0.5"
-                    max="3"
+                    min={0.5}
+                    max={3}
                     value={(selectedTrigger.properties.multiplier as number) ?? 1.5}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       onUpdateTrigger({
                         ...selectedTrigger,
-                        properties: { ...selectedTrigger.properties, multiplier: Number(e.target.value) },
+                        properties: { ...selectedTrigger.properties, multiplier: val },
                       })
                     }
                     className="mt-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -844,13 +827,13 @@ export function EditorPropertiesPanel({
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col gap-1 text-white/60">
                   <span>Min Z-Index</span>
-                  <input
-                    type="number"
+                  <NumericInput
+                    step="1"
                     value={selectedEffect.zIndexMin ?? 0}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       onUpdateEffect?.({
                         ...selectedEffect,
-                        zIndexMin: parseInt(e.target.value, 10) || 0,
+                        zIndexMin: Math.round(val),
                       })
                     }
                     className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -858,13 +841,13 @@ export function EditorPropertiesPanel({
                 </label>
                 <label className="flex flex-col gap-1 text-white/60">
                   <span>Max Z-Index</span>
-                  <input
-                    type="number"
+                  <NumericInput
+                    step="1"
                     value={selectedEffect.zIndexMax ?? 100}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       onUpdateEffect?.({
                         ...selectedEffect,
-                        zIndexMax: parseInt(e.target.value, 10) || 0,
+                        zIndexMax: Math.round(val),
                       })
                     }
                     className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -951,15 +934,15 @@ export function EditorPropertiesPanel({
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col gap-1 text-white/60">
                   <span>Velocity X</span>
-                  <input
-                    type="number"
+                  <NumericInput
+                    step="1"
                     value={Number(selectedEffect.parameters.velocityX ?? 16)}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       onUpdateEffect?.({
                         ...selectedEffect,
                         parameters: {
                           ...selectedEffect.parameters,
-                          velocityX: Number(e.target.value),
+                          velocityX: val,
                         },
                       })
                     }
@@ -968,15 +951,15 @@ export function EditorPropertiesPanel({
                 </label>
                 <label className="flex flex-col gap-1 text-white/60">
                   <span>Velocity Y</span>
-                  <input
-                    type="number"
+                  <NumericInput
+                    step="1"
                     value={Number(selectedEffect.parameters.velocityY ?? 0)}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       onUpdateEffect?.({
                         ...selectedEffect,
                         parameters: {
                           ...selectedEffect.parameters,
-                          velocityY: Number(e.target.value),
+                          velocityY: val,
                         },
                       })
                     }
@@ -1016,15 +999,14 @@ export function EditorPropertiesPanel({
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col gap-1 text-white/60">
                 <span>Start Time (s)</span>
-                <input
-                  type="number"
+                <NumericInput
                   step="0.1"
-                  min="0"
+                  min={0}
                   value={selectedEffect.startTime ?? 0}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     onUpdateEffect?.({
                       ...selectedEffect,
-                      startTime: Math.max(0, parseFloat(e.target.value) || 0),
+                      startTime: val,
                     })
                   }
                   className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1032,15 +1014,14 @@ export function EditorPropertiesPanel({
               </label>
               <label className="flex flex-col gap-1 text-white/60">
                 <span>Duration (s)</span>
-                <input
-                  type="number"
+                <NumericInput
                   step="0.1"
-                  min="0.1"
+                  min={0.1}
                   value={selectedEffect.duration ?? 2.0}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     onUpdateEffect?.({
                       ...selectedEffect,
-                      duration: Math.max(0.1, parseFloat(e.target.value) || 1),
+                      duration: val,
                     })
                   }
                   className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1119,15 +1100,12 @@ export function EditorPropertiesPanel({
                 Layer {selectedNode.layer ?? 1}
               </span>
             </div>
-            <input
-              type="number"
+            <NumericInput
+              step="1"
               min={1}
               max={99}
               value={selectedNode.layer ?? 1}
-              onChange={(e) => {
-                const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                onUpdateNode({ layer: val });
-              }}
+              onChange={(val) => onUpdateNode({ layer: Math.round(val) })}
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
             />
             <span className="text-[10px] text-white/40">
@@ -1145,31 +1123,27 @@ export function EditorPropertiesPanel({
             </div>
 
             {/* Numeric Z-Index Input with Step Controls */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-white/60 w-16">Z-Index:</span>
-              <div className="flex items-center gap-1 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-white/60">Z-Index:</span>
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => onUpdateNode({ zIndex: (selectedNode.zIndex ?? 0) - 1 })}
-                  className="w-7 h-7 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-xs font-mono font-bold cursor-pointer"
+                  className="w-7 h-7 shrink-0 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-xs font-mono font-bold cursor-pointer"
                   title="Lower Z-Index (-1)"
                 >
                   -
                 </button>
-                <input
-                  type="number"
+                <NumericInput
                   step="1"
                   value={selectedNode.zIndex ?? 0}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    onUpdateNode({ zIndex: Number.isNaN(val) ? 0 : val });
-                  }}
-                  className="flex-1 bg-black/50 border border-white/20 rounded px-2 py-1 text-xs text-white text-center font-mono focus:border-[#00e5ff] outline-none"
+                  onChange={(val) => onUpdateNode({ zIndex: Math.round(val) })}
+                  className="w-14 min-w-0 shrink-0 bg-black/50 border border-white/20 rounded px-1.5 py-1 text-xs text-white text-center font-mono focus:border-[#00e5ff] outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => onUpdateNode({ zIndex: (selectedNode.zIndex ?? 0) + 1 })}
-                  className="w-7 h-7 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-xs font-mono font-bold cursor-pointer"
+                  className="w-7 h-7 shrink-0 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-xs font-mono font-bold cursor-pointer"
                   title="Increase Z-Index (+1)"
                 >
                   +
@@ -1240,16 +1214,15 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Start Time (s)
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.1"
-                      min="0"
+                      min={0}
                       value={selectedNode.lifespan.startTime}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
                           lifespan: {
                             ...selectedNode.lifespan!,
-                            startTime: Math.max(0, Number(e.target.value)),
+                            startTime: val,
                           },
                         })
                       }
@@ -1258,16 +1231,15 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Duration (s)
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.1"
-                      min="0.1"
+                      min={0.1}
                       value={selectedNode.lifespan.duration}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
                           lifespan: {
                             ...selectedNode.lifespan!,
-                            duration: Math.max(0.1, Number(e.target.value)),
+                            duration: val,
                           },
                         })
                       }
@@ -1279,16 +1251,15 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Fade In (ms)
-                    <input
-                      type="number"
+                    <NumericInput
                       step="50"
-                      min="0"
+                      min={0}
                       value={selectedNode.lifespan.fadeInMs ?? 0}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
                           lifespan: {
                             ...selectedNode.lifespan!,
-                            fadeInMs: Math.max(0, Number(e.target.value)),
+                            fadeInMs: val,
                           },
                         })
                       }
@@ -1297,16 +1268,15 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Fade Out (ms)
-                    <input
-                      type="number"
+                    <NumericInput
                       step="50"
-                      min="0"
+                      min={0}
                       value={selectedNode.lifespan.fadeOutMs ?? 0}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
                           lifespan: {
                             ...selectedNode.lifespan!,
-                            fadeOutMs: Math.max(0, Number(e.target.value)),
+                            fadeOutMs: val,
                           },
                         })
                       }
@@ -1324,12 +1294,12 @@ export function EditorPropertiesPanel({
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col text-white/60">
                 X
-                <input
-                  type="number"
+                <NumericInput
+                  step="1"
                   value={selectedNode.transform?.x ?? 0}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     onUpdateNode({
-                      transform: { ...selectedNode.transform, x: Number(e.target.value) },
+                      transform: { ...selectedNode.transform, x: val },
                     })
                   }
                   className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
@@ -1337,12 +1307,12 @@ export function EditorPropertiesPanel({
               </label>
               <label className="flex flex-col text-white/60">
                 Y
-                <input
-                  type="number"
+                <NumericInput
+                  step="1"
                   value={selectedNode.transform?.y ?? 0}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     onUpdateNode({
-                      transform: { ...selectedNode.transform, y: Number(e.target.value) },
+                      transform: { ...selectedNode.transform, y: val },
                     })
                   }
                   className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00ff9d] outline-none"
@@ -1355,16 +1325,15 @@ export function EditorPropertiesPanel({
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col text-white/60">
               Scale
-              <input
-                type="number"
+              <NumericInput
                 step="0.1"
                 value={selectedNode.transform?.scaleX ?? 1}
-                onChange={(e) =>
+                onChange={(val) =>
                   onUpdateNode({
                     transform: {
                       ...selectedNode.transform,
-                      scaleX: Number(e.target.value),
-                      scaleY: Number(e.target.value),
+                      scaleX: val,
+                      scaleY: val,
                     },
                   })
                 }
@@ -1373,15 +1342,14 @@ export function EditorPropertiesPanel({
             </label>
             <label className="flex flex-col text-white/60">
               Rotation (deg)
-              <input
-                type="number"
+              <NumericInput
                 step="15"
                 value={Math.round((((selectedNode.transform?.rotation ?? 0) * 180) / Math.PI))}
-                onChange={(e) =>
+                onChange={(val) =>
                   onUpdateNode({
                     transform: {
                       ...selectedNode.transform,
-                      rotation: (Number(e.target.value) * Math.PI) / 180,
+                      rotation: (val * Math.PI) / 180,
                     },
                   })
                 }
@@ -1420,14 +1388,14 @@ export function EditorPropertiesPanel({
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col text-white/60">
                   Width
-                  <input
-                    type="number"
+                  <NumericInput
+                    step="1"
+                    min={10}
                     value={
                       (selectedNode.properties?.width as number) ??
                       ((selectedNode.properties?.radius as number) ? (selectedNode.properties?.radius as number) * 2 : 120)
                     }
-                    onChange={(e) => {
-                      const val = Math.max(10, Number(e.target.value));
+                    onChange={(val) => {
                       const props: Record<string, unknown> = {
                         ...selectedNode.properties,
                         width: val,
@@ -1443,14 +1411,14 @@ export function EditorPropertiesPanel({
                 </label>
                 <label className="flex flex-col text-white/60">
                   Height
-                  <input
-                    type="number"
+                  <NumericInput
+                    step="1"
+                    min={10}
                     value={
                       (selectedNode.properties?.height as number) ??
                       ((selectedNode.properties?.radius as number) ? (selectedNode.properties?.radius as number) * 2 : 120)
                     }
-                    onChange={(e) => {
-                      const val = Math.max(10, Number(e.target.value));
+                    onChange={(val) => {
                       const props: Record<string, unknown> = {
                         ...selectedNode.properties,
                         height: val,
@@ -1470,20 +1438,20 @@ export function EditorPropertiesPanel({
             {(selectedNode.type === 'circle' || selectedNode.type === 'hexagon') && (
               <label className="flex flex-col text-white/60">
                 Radius
-                <input
-                  type="number"
+                <NumericInput
+                  step="1"
+                  min={5}
                   value={
                     (selectedNode.properties?.radius as number) ??
                     ((selectedNode.properties?.width as number) ? Math.round((selectedNode.properties?.width as number) / 2) : 60)
                   }
-                  onChange={(e) => {
-                    const r = Math.max(5, Number(e.target.value));
+                  onChange={(val) => {
                     onUpdateNode({
                       properties: {
                         ...selectedNode.properties,
-                        radius: r,
-                        width: r * 2,
-                        height: r * 2,
+                        radius: val,
+                        width: val * 2,
+                        height: val * 2,
                       },
                     });
                   }}
@@ -1497,14 +1465,14 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Width
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={10}
                       value={
                         (selectedNode.properties?.width as number) ??
                         ((selectedNode.properties?.outerRadius as number) ? (selectedNode.properties?.outerRadius as number) * 2 : 120)
                       }
-                      onChange={(e) => {
-                        const val = Math.max(10, Number(e.target.value));
+                      onChange={(val) => {
                         const outerR = Math.round(val / 2);
                         const oldOuter = (selectedNode.properties?.outerRadius as number) || 60;
                         const oldInner = (selectedNode.properties?.innerRadius as number) || 28;
@@ -1524,14 +1492,14 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Height
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={10}
                       value={
                         (selectedNode.properties?.height as number) ??
                         ((selectedNode.properties?.outerRadius as number) ? (selectedNode.properties?.outerRadius as number) * 2 : 120)
                       }
-                      onChange={(e) => {
-                        const val = Math.max(10, Number(e.target.value));
+                      onChange={(val) => {
                         const outerR = Math.round(val / 2);
                         const oldOuter = (selectedNode.properties?.outerRadius as number) || 60;
                         const oldInner = (selectedNode.properties?.innerRadius as number) || 28;
@@ -1552,14 +1520,14 @@ export function EditorPropertiesPanel({
                 </div>
                 <label className="flex flex-col text-white/60">
                   Star Points (Spikes)
-                  <input
-                    type="number"
+                  <NumericInput
+                    step="1"
                     min={3}
                     max={20}
                     value={(selectedNode.properties?.points as number) ?? 5}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       onUpdateNode({
-                        properties: { ...selectedNode.properties, points: Math.max(3, Math.min(20, Number(e.target.value))) },
+                        properties: { ...selectedNode.properties, points: Math.max(3, Math.min(20, Math.round(val))) },
                       })
                     }
                     className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1568,17 +1536,17 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Outer Radius
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={5}
                       value={(selectedNode.properties?.outerRadius as number) ?? 60}
-                      onChange={(e) => {
-                        const r = Math.max(5, Number(e.target.value));
+                      onChange={(val) => {
                         onUpdateNode({
                           properties: {
                             ...selectedNode.properties,
-                            outerRadius: r,
-                            width: r * 2,
-                            height: r * 2,
+                            outerRadius: val,
+                            width: val * 2,
+                            height: val * 2,
                           },
                         });
                       }}
@@ -1587,12 +1555,13 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Inner Radius
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={2}
                       value={(selectedNode.properties?.innerRadius as number) ?? 28}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, innerRadius: Number(e.target.value) },
+                          properties: { ...selectedNode.properties, innerRadius: val },
                         })
                       }
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1607,14 +1576,14 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Width
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={10}
                       value={
                         (selectedNode.properties?.width as number) ??
                         ((selectedNode.properties?.radius as number) ? (selectedNode.properties?.radius as number) * 2 : 200)
                       }
-                      onChange={(e) => {
-                        const val = Math.max(10, Number(e.target.value));
+                      onChange={(val) => {
                         onUpdateNode({
                           properties: {
                             ...selectedNode.properties,
@@ -1629,14 +1598,14 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Height
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={10}
                       value={
                         (selectedNode.properties?.height as number) ??
                         ((selectedNode.properties?.radius as number) ? (selectedNode.properties?.radius as number) * 2 : 200)
                       }
-                      onChange={(e) => {
-                        const val = Math.max(10, Number(e.target.value));
+                      onChange={(val) => {
                         onUpdateNode({
                           properties: {
                             ...selectedNode.properties,
@@ -1652,22 +1621,21 @@ export function EditorPropertiesPanel({
                 </div>
                 <label className="flex flex-col text-white/60">
                   Glow Radius
-                  <input
-                    type="number"
+                  <NumericInput
+                    step="1"
                     min={10}
                     max={1000}
                     value={
                       (selectedNode.properties?.radius as number) ??
                       ((selectedNode.properties?.width as number) ? Math.round((selectedNode.properties?.width as number) / 2) : 100)
                     }
-                    onChange={(e) => {
-                      const r = Math.max(5, Number(e.target.value));
+                    onChange={(val) => {
                       onUpdateNode({
                         properties: {
                           ...selectedNode.properties,
-                          radius: r,
-                          width: r * 2,
-                          height: r * 2,
+                          radius: val,
+                          width: val * 2,
+                          height: val * 2,
                         },
                       });
                     }}
@@ -1701,11 +1669,11 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Beam Length
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={10}
                       value={(selectedNode.properties?.length as number) ?? (selectedNode.properties?.height as number) ?? 320}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
+                      onChange={(val) => {
                         onUpdateNode({
                           properties: { ...selectedNode.properties, length: val, height: val },
                         });
@@ -1715,11 +1683,11 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Beam Thickness
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={5}
                       value={(selectedNode.properties?.width as number) ?? 70}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
+                      onChange={(val) => {
                         onUpdateNode({
                           properties: { ...selectedNode.properties, width: val },
                         });
@@ -1755,12 +1723,13 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Spectrum Width
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={50}
                       value={(selectedNode.properties?.width as number) ?? 420}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, width: Number(e.target.value) },
+                          properties: { ...selectedNode.properties, width: val },
                         })
                       }
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1768,12 +1737,13 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Peak Height
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
+                      min={20}
                       value={(selectedNode.properties?.height as number) ?? 120}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, height: Number(e.target.value) },
+                          properties: { ...selectedNode.properties, height: val },
                         })
                       }
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1799,15 +1769,14 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Bands (8 - 64)
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="4"
                       min={8}
                       max={64}
-                      step={4}
                       value={(selectedNode.properties?.bands as number) ?? 32}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, bands: Number(e.target.value) },
+                          properties: { ...selectedNode.properties, bands: Math.round(val) },
                         })
                       }
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1867,18 +1836,16 @@ export function EditorPropertiesPanel({
                   <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
                     <label className="flex flex-col text-white/60 text-[11px]">
                       Min Freq (Hz)
-                      <input
-                        type="number"
+                      <NumericInput
+                        step="10"
                         min={20}
                         max={20000}
-                        step={10}
                         value={(selectedNode.properties?.minFreq as number) ?? 40}
-                        onChange={(e) => {
-                          const val = Math.max(20, Number(e.target.value));
+                        onChange={(val) => {
                           onUpdateNode({
                             properties: {
                               ...selectedNode.properties,
-                              minFreq: val,
+                              minFreq: Math.round(val),
                               frequencyBand: 'custom',
                             },
                           });
@@ -1888,18 +1855,16 @@ export function EditorPropertiesPanel({
                     </label>
                     <label className="flex flex-col text-white/60 text-[11px]">
                       Max Freq (Hz)
-                      <input
-                        type="number"
+                      <NumericInput
+                        step="50"
                         min={20}
                         max={20000}
-                        step={50}
                         value={(selectedNode.properties?.maxFreq as number) ?? 14000}
-                        onChange={(e) => {
-                          const val = Math.max(20, Number(e.target.value));
+                        onChange={(val) => {
                           onUpdateNode({
                             properties: {
                               ...selectedNode.properties,
-                              maxFreq: val,
+                              maxFreq: Math.round(val),
                               frequencyBand: 'custom',
                             },
                           });
@@ -1912,14 +1877,14 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Bar Gap (px)
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="1"
                       min={0}
                       max={20}
                       value={(selectedNode.properties?.gap as number) ?? 3}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, gap: Number(e.target.value) },
+                          properties: { ...selectedNode.properties, gap: val },
                         })
                       }
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1927,15 +1892,14 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Gain ({((selectedNode.properties?.gain as number) ?? 1.0).toFixed(1)}x)
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="0.1"
                       min={0.2}
                       max={4.0}
-                      step={0.1}
                       value={(selectedNode.properties?.gain as number) ?? 1.0}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, gain: Number(e.target.value) },
+                          properties: { ...selectedNode.properties, gain: val },
                         })
                       }
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1945,15 +1909,14 @@ export function EditorPropertiesPanel({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col text-white/60">
                     Decay ({((selectedNode.properties?.decay as number) ?? 0.88).toFixed(2)})
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="0.02"
                       min={0.5}
                       max={0.99}
-                      step={0.02}
                       value={(selectedNode.properties?.decay as number) ?? 0.88}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, decay: Number(e.target.value) },
+                          properties: { ...selectedNode.properties, decay: val },
                         })
                       }
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
@@ -1961,15 +1924,14 @@ export function EditorPropertiesPanel({
                   </label>
                   <label className="flex flex-col text-white/60">
                     Attack ({((selectedNode.properties?.attack as number) ?? 0.75).toFixed(2)})
-                    <input
-                      type="number"
+                    <NumericInput
+                      step="0.05"
                       min={0.1}
                       max={1.0}
-                      step={0.05}
                       value={(selectedNode.properties?.attack as number) ?? 0.75}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         onUpdateNode({
-                          properties: { ...selectedNode.properties, attack: Number(e.target.value) },
+                          properties: { ...selectedNode.properties, attack: val },
                         })
                       }
                       className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
