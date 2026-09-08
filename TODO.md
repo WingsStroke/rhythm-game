@@ -221,6 +221,8 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
 - [x] **[P1] Fase 6B.2 — Transformacion Interactiva y Modulacion Dinamica**
   - [x] Arrastre interactivo en canvas (`TransformGizmo`): mover por posicion X/Y arrastrando la caja y redimensionar/escalar mediante 8 tiradores con Oriented Bounding Box (OBB) en objetos rotados.
   - [x] Multi-seleccion de nodos escenicos en outliner y canvas con caja delimitadora combinada (AABB).
+  - [x] Invarianza estricta de posicion (X, Y) durante el redimensionamiento, asignando dimensiones independientes (width y height) a todas las primitivas visuales en Live Preview y panel de propiedades.
+  - [x] Insercion interactiva de objetos directamente en el lienzo de Live Preview mediante clic de raton y seleccion de primitivas en modal flotante sin redirecciones forzadas.
   - [ ] Snapping opcional a la cuadricula espacial (e.g. 16px, 32px, centros de pantalla).
 
 ---
