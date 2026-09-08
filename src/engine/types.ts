@@ -168,7 +168,7 @@ export interface VisualEffect {
   id: string;
   type: string;
   scope: VisualEffectScope;
-  enabled: boolean;
+  enabled?: boolean;
   intensity?: number;
   targetNodeId?: string;
   zIndexMin?: number;
@@ -274,7 +274,17 @@ export interface VisualGroupData extends SceneNodeData {
 }
 
 export type TriggerActionType = 'transform' | 'color' | 'pulse' | 'effect' | 'appearance';
-export type EffectType = 'reactivePulse' | 'particleBurst';
+export type TriggerEffectType = 'reactivePulse' | 'particleBurst';
+export type ShaderEffectType =
+  | 'bloom'
+  | 'pixelate'
+  | 'chromatic'
+  | 'motionBlur'
+  | 'scanlines'
+  | 'glitch'
+  | 'colorGrade'
+  | 'rgbShift';
+export type EffectType = TriggerEffectType | ShaderEffectType | string;
 
 export interface TriggerData {
   id: string;

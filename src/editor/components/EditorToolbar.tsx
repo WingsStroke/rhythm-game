@@ -19,13 +19,11 @@ import {
   Activity,
 } from 'lucide-react';
 import type { EditorTool, GridSubdivision } from '../Timeline';
-import type { PadBehavior, ScenePrimitiveType } from '../../engine/types';
+import type { ScenePrimitiveType } from '../../engine/types';
 
 interface EditorToolbarProps {
   activeTool: EditorTool;
   onSelectTool: (tool: EditorTool) => void;
-  creationBehavior: PadBehavior;
-  onChangeCreationBehavior: (behavior: PadBehavior) => void;
   gridSubdivision: GridSubdivision;
   onChangeGridSubdivision: (subdivision: GridSubdivision) => void;
   pixelsPerSecond: number;
@@ -41,8 +39,6 @@ interface EditorToolbarProps {
 export function EditorToolbar({
   activeTool,
   onSelectTool,
-  creationBehavior,
-  onChangeCreationBehavior,
   gridSubdivision,
   onChangeGridSubdivision,
   pixelsPerSecond,

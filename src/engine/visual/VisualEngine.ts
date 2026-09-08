@@ -1031,13 +1031,14 @@ export class VisualEngine {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
 
+    const settings = this.level.visual?.settings;
+
     // 3. Modulated background response from level visual settings
     if (this.isEditorPreview) {
       this.bgRect.clear();
       this.bgRect.rect(0, 0, w, h).fill({ color: 0x000000 });
       this.bgGrid.clear();
     } else {
-      const settings = this.level.visual?.settings;
       const bgReactive = settings?.backgroundReactive !== false;
       const bgBassMult = settings?.backgroundBassMultiplier ?? 0.6;
       const bgIntensity = bgReactive ? (channels.bassIntensity * bgBassMult + this.beatPulse * 0.4) : 0;

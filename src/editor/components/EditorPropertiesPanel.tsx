@@ -33,7 +33,7 @@ interface EditorPropertiesPanelProps {
   onUpdateEvent: (event: PadEvent) => void;
   onUpdateEventsBatch?: (events: PadEvent[]) => void;
   onRemoveEvent: (id: string) => void;
-  onRemoveBatch?: (eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>) => void;
+  onRemoveBatch?: (eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>, effectIds?: Set<string>) => void;
   onUpdateNode: (updates: Partial<SceneNodeData>) => void;
   onRemoveNode?: (id: string) => void;
   onUpdateTrigger: (trigger: TriggerData) => void;

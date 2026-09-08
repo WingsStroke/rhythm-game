@@ -1209,8 +1209,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       <EditorToolbar
         activeTool={activeTool}
         onSelectTool={handleSelectTool}
-        creationBehavior={creationBehavior}
-        onChangeCreationBehavior={setCreationBehavior}
         gridSubdivision={gridSubdivision}
         onChangeGridSubdivision={setGridSubdivision}
         pixelsPerSecond={pixelsPerSecond}

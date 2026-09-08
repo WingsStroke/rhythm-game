@@ -404,7 +404,11 @@ export function useEditorEngine({
                   freqData: new Uint8Array(0),
                   waveData: new Uint8Array(0),
                 };
-          visualRef.current.update(audioTime, bands);
+          try {
+            visualRef.current.update(audioTime, bands);
+          } catch (err) {
+            console.error('[useEditorEngine] Error during visualEngine.update:', err);
+          }
         }
       }
       animFrameRef.current = requestAnimationFrame(loop);
