@@ -324,6 +324,14 @@ Ideas y conceptos complementarios para evaluar durante el desarrollo:
   - [x] Sincronizacion reactiva entre `AudioTransport.audioEngine` y `VisualEngine` en todas las etapas del editor y runtime standalone.
   - [x] Omision del bin 0 (DC offset) y decaimiento fluido hacia curva de reposo estetica.
   - [x] Estandarizacion del `EditorSetupWizard` con inicializacion de linea de tiempo limpia (`events: []`).
+- [x] **Perfeccionamiento y Pulido del Modo Editor:**
+  - [x] Inicio completamente limpio al entrar al editor (`nodes: []`, `triggers: []`, `animations: []`).
+  - [x] Fondo `#000000` puro en Live Preview (desactivacion de rejilla de fondo y pulsaciones de luz reactivas al audio).
+  - [x] Jerarquia de solapamiento por `zIndex` continuo, eliminando la restriccion binaria de Scene Layer y habilitando checkboxes de alta prioridad (`aboveLanes`, `abovePads`). Desbloqueo de opacidad hasta 1.0 y modos de fusion (`normal`, `add`, `screen`, `multiply`).
+  - [x] Sistema de Shaders y pestaña "Shaders" dedicada en la barra de modos superior junto a "Visuals".
+  - [x] Herramienta "Shader (S)" en la barra de herramientas, manteniendo estrictamente el "Eraser (E)" como ultima herramienta.
+  - [x] Shaders de post-procesado optimizados: Bloom, Pixelate, RGB Shift, Motion Blur, Scanlines y Glitch configurables por objeto unico, rango z-index o escenario global.
+  - [x] Motor de portapapeles completo para objetos visuales (`SceneNodeData`): copiar (`Ctrl+C`), cortar (`Ctrl+X`), pegar (`Ctrl+V`) y duplicar (`Ctrl+D`) con regeneracion de IDs unicos y offset temporal respecto al cabezal.
 
 ## 12. Modo Showcase y Pipeline de Renderizado Offline (Showcase Mode & Video Export)
 

@@ -77,12 +77,17 @@ export class VisualEngine {
   // Strict Layer Hierarchy
   private bgLayer!: Container;
   private sceneLayer!: Container; // sceneBackgroundLayer (zIndex: 2)
-  private sceneForegroundLayer!: Container; // sceneForegroundLayer (zIndex: 22)
+  private sceneAboveLanesLayer!: Container; // sceneAboveLanesLayer (zIndex: 18)
+  private sceneAbovePadsLayer!: Container; // sceneAbovePadsLayer (zIndex: 22)
+  private sceneForegroundLayer!: Container; // legacy alias for sceneAbovePadsLayer
   private laneLayer!: Container;
   private noteLayer!: Container;
   private padLayer!: Container;
   private fxLayer!: Container;
   private hudLayer!: Container;
+
+  // Editor preview flag
+  private isEditorPreview = false;
 
   // Editor tooling overlay (isolated from level serialization)
   private editorOverlayContainer!: Container;
@@ -132,6 +137,7 @@ export class VisualEngine {
     filters: Filter[];
     container?: Container;
     targetNodeId?: string;
+    matchedNodes?: import('./objects/SceneNode').SceneNode[];
   }[] = [];
 
   /** Emitted when player clicks/touches a pad directly */
@@ -144,12 +150,18 @@ export class VisualEngine {
   public onCanvasClick?: ((stageX: number, stageY: number) => void) | null = null;
   private currentTool: string = 'select';
 
-  constructor(root: HTMLElement, level: LevelData, audio?: AudioEngine | null) {
+  constructor(
+    root: HTMLElement,
+    level: LevelData,
+    audio?: AudioEngine | null,
+    options?: { isEditorPreview?: boolean }
+  ) {
     this.root = root;
     this.level = level;
     this.pads = level.pads;
     this.events = level.events;
     this.audioEngine = audio ?? null;
+    this.isEditorPreview = Boolean(options?.isEditorPreview);
     this.app = new Application();
     this.audioModulator = new AudioModulator();
   }
@@ -345,6 +357,7 @@ export class VisualEngine {
 
     this.sceneLayer = new Container();
     this.sceneLayer.zIndex = 2; // sceneBackgroundLayer
+    this.sceneLayer.sortableChildren = true;
 
     this.laneLayer = new Container();
     this.laneLayer.zIndex = 10;
@@ -352,11 +365,17 @@ export class VisualEngine {
     this.noteLayer = new Container();
     this.noteLayer.zIndex = 15;
 
+    this.sceneAboveLanesLayer = new Container();
+    this.sceneAboveLanesLayer.zIndex = 18;
+    this.sceneAboveLanesLayer.sortableChildren = true;
+
     this.padLayer = new Container();
     this.padLayer.zIndex = 20;
 
-    this.sceneForegroundLayer = new Container();
-    this.sceneForegroundLayer.zIndex = 22; // sceneForegroundLayer
+    this.sceneAbovePadsLayer = new Container();
+    this.sceneAbovePadsLayer.zIndex = 22;
+    this.sceneAbovePadsLayer.sortableChildren = true;
+    this.sceneForegroundLayer = this.sceneAbovePadsLayer;
 
     this.fxLayer = new Container();
     this.fxLayer.zIndex = 25;
@@ -380,8 +399,9 @@ export class VisualEngine {
       this.sceneLayer,
       this.laneLayer,
       this.noteLayer,
+      this.sceneAboveLanesLayer,
       this.padLayer,
-      this.sceneForegroundLayer,
+      this.sceneAbovePadsLayer,
       this.fxLayer,
       this.hudLayer
     );
@@ -393,16 +413,20 @@ export class VisualEngine {
 
     // Scale and center scene layers to virtual 1920x1080 stage
     const sceneScale = Math.min(w / 1920, h / 1080);
-    this.sceneLayer.scale.set(sceneScale);
-    this.sceneLayer.x = (w - 1920 * sceneScale) / 2;
-    this.sceneLayer.y = (h - 1080 * sceneScale) / 2;
-
-    this.sceneForegroundLayer.scale.set(sceneScale);
-    this.sceneForegroundLayer.x = (w - 1920 * sceneScale) / 2;
-    this.sceneForegroundLayer.y = (h - 1080 * sceneScale) / 2;
+    const offsetX = (w - 1920 * sceneScale) / 2;
+    const offsetY = (h - 1080 * sceneScale) / 2;
+    for (const layer of [this.sceneLayer, this.sceneAboveLanesLayer, this.sceneAbovePadsLayer]) {
+      layer.scale.set(sceneScale);
+      layer.x = offsetX;
+      layer.y = offsetY;
+    }
 
     // 2. Initialize SceneGraph, Animator, and TriggerDispatcher
-    this.sceneGraph = new SceneGraph(this.sceneLayer, this.sceneForegroundLayer);
+    this.sceneGraph = new SceneGraph(
+      this.sceneLayer,
+      this.sceneAboveLanesLayer,
+      this.sceneAbovePadsLayer
+    );
     this.animator = new Animator(this.sceneGraph);
     this.triggerDispatcher = new TriggerDispatcher(this.sceneGraph, this.animator);
 
@@ -646,15 +670,15 @@ export class VisualEngine {
 
     // Scale and center scene layers to 1920x1080 reference stage
     const sceneScale = Math.min(screenW / 1920, screenH / 1080);
-    if (this.sceneLayer) {
-      this.sceneLayer.scale.set(sceneScale);
-      this.sceneLayer.x = (screenW - 1920 * sceneScale) / 2;
-      this.sceneLayer.y = (screenH - 1080 * sceneScale) / 2;
-    }
-    if (this.sceneForegroundLayer) {
-      this.sceneForegroundLayer.scale.set(sceneScale);
-      this.sceneForegroundLayer.x = (screenW - 1920 * sceneScale) / 2;
-      this.sceneForegroundLayer.y = (screenH - 1080 * sceneScale) / 2;
+    const offsetX = (screenW - 1920 * sceneScale) / 2;
+    const offsetY = (screenH - 1080 * sceneScale) / 2;
+    const sceneLayers = [this.sceneLayer, this.sceneAboveLanesLayer, this.sceneAbovePadsLayer];
+    for (const layer of sceneLayers) {
+      if (layer) {
+        layer.scale.set(sceneScale);
+        layer.x = offsetX;
+        layer.y = offsetY;
+      }
     }
 
     if (this.transformGizmo) {
@@ -775,6 +799,17 @@ export class VisualEngine {
           node.container.filters = filters;
           this.activeVisualEffects.push({ effect, filters, targetNodeId: effect.targetNodeId });
         }
+      } else if (effect.scope === 'range') {
+        const minZ = effect.zIndexMin ?? -Infinity;
+        const maxZ = effect.zIndexMax ?? Infinity;
+        const matchedNodes = (this.sceneGraph?.getAllNodes() || []).filter((node) => {
+          const z = node.data.zIndex ?? 0;
+          return z >= minZ && z <= maxZ;
+        });
+        for (const node of matchedNodes) {
+          node.container.filters = filters;
+        }
+        this.activeVisualEffects.push({ effect, filters, matchedNodes });
       } else if (effect.scope === 'region' && effect.region) {
         const regionContainer = new Container();
         const maskGfx = new Graphics();
@@ -976,32 +1011,38 @@ export class VisualEngine {
     const h = this.app.screen.height;
 
     // 3. Modulated background response from level visual settings
-    const settings = this.level.visual?.settings;
-    const bgReactive = settings?.backgroundReactive !== false;
-    const bgBassMult = settings?.backgroundBassMultiplier ?? 0.6;
-    const bgIntensity = bgReactive ? (channels.bassIntensity * bgBassMult + this.beatPulse * 0.4) : 0;
-    const br = Math.min(255, 7 + bgIntensity * 35);
-    const bg = Math.min(255, 7 + bgIntensity * 18);
-    const bb = Math.min(255, 20 + bgIntensity * 55);
-    this.bgRect.clear();
-    this.bgRect
-      .rect(0, 0, w, h)
-      .fill({ color: (Math.round(br) << 16) | (Math.round(bg) << 8) | Math.round(bb) });
+    if (this.isEditorPreview) {
+      this.bgRect.clear();
+      this.bgRect.rect(0, 0, w, h).fill({ color: 0x000000 });
+      this.bgGrid.clear();
+    } else {
+      const settings = this.level.visual?.settings;
+      const bgReactive = settings?.backgroundReactive !== false;
+      const bgBassMult = settings?.backgroundBassMultiplier ?? 0.6;
+      const bgIntensity = bgReactive ? (channels.bassIntensity * bgBassMult + this.beatPulse * 0.4) : 0;
+      const br = Math.min(255, 7 + bgIntensity * 35);
+      const bg = Math.min(255, 7 + bgIntensity * 18);
+      const bb = Math.min(255, 20 + bgIntensity * 55);
+      this.bgRect.clear();
+      this.bgRect
+        .rect(0, 0, w, h)
+        .fill({ color: (Math.round(br) << 16) | (Math.round(bg) << 8) | Math.round(bb) });
 
-    // 4. Modulated Grid pulse from level visual settings
-    this.bgGrid.clear();
-    const gridEnabled = settings?.gridEnabled !== false;
-    if (gridEnabled) {
-      const gridReactive = settings?.gridReactive !== false;
-      const gridAlpha = 0.04 + (gridReactive ? (this.beatPulse * 0.08 + channels.midsReactivity * 0.04) : 0);
-      const gridSpacing = 40 + (gridReactive ? channels.bassIntensity * 8 : 0);
-      for (let gx = 0; gx < w; gx += gridSpacing) {
-        this.bgGrid.moveTo(gx, 0).lineTo(gx, h);
+      // 4. Modulated Grid pulse from level visual settings
+      this.bgGrid.clear();
+      const gridEnabled = settings?.gridEnabled !== false;
+      if (gridEnabled) {
+        const gridReactive = settings?.gridReactive !== false;
+        const gridAlpha = 0.04 + (gridReactive ? (this.beatPulse * 0.08 + channels.midsReactivity * 0.04) : 0);
+        const gridSpacing = 40 + (gridReactive ? channels.bassIntensity * 8 : 0);
+        for (let gx = 0; gx < w; gx += gridSpacing) {
+          this.bgGrid.moveTo(gx, 0).lineTo(gx, h);
+        }
+        for (let gy = 0; gy < h; gy += gridSpacing) {
+          this.bgGrid.moveTo(0, gy).lineTo(w, gy);
+        }
+        this.bgGrid.stroke({ width: 1, color: 0x303055, alpha: gridAlpha });
       }
-      for (let gy = 0; gy < h; gy += gridSpacing) {
-        this.bgGrid.moveTo(0, gy).lineTo(w, gy);
-      }
-      this.bgGrid.stroke({ width: 1, color: 0x303055, alpha: gridAlpha });
     }
     this.beatPulse *= 0.92;
 
@@ -1031,15 +1072,34 @@ export class VisualEngine {
     // 5b. Apply declarative real-time Audio Mappings to SceneNodes
     this.applyAudioMappings(channels);
 
-    // 5c. Update dynamic uniforms for registered visual effects
+    // 5c. Update dynamic uniforms for registered visual effects and handle time-window activation
     for (const item of this.activeVisualEffects) {
-      EffectRegistry.update(
-        item.filters,
-        item.effect.type,
-        item.effect.parameters ?? {},
-        item.effect.intensity ?? 1.0,
-        audioTime
-      );
+      const { effect, filters } = item;
+      const hasTimeWindow = typeof effect.startTime === 'number' && typeof effect.duration === 'number';
+      const inWindow = !hasTimeWindow || (audioTime >= effect.startTime! && audioTime <= (effect.startTime! + effect.duration!));
+
+      if (hasTimeWindow) {
+        if (item.targetNodeId) {
+          const node = this.sceneGraph?.getNode(item.targetNodeId);
+          if (node) {
+            node.container.filters = inWindow ? filters : [];
+          }
+        } else if (item.matchedNodes) {
+          for (const node of item.matchedNodes) {
+            node.container.filters = inWindow ? filters : [];
+          }
+        }
+      }
+
+      if (inWindow) {
+        EffectRegistry.update(
+          item.filters,
+          item.effect.type,
+          item.effect.parameters ?? {},
+          item.effect.intensity ?? 1.0,
+          audioTime
+        );
+      }
     }
 
     // 5d. Real-time audio spectrum generator update

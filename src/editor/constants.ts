@@ -26,27 +26,8 @@ export const INITIAL_LEVEL: LevelData = {
     windows: { perfect: 0.045, good: 0.09, miss: 0.15 },
   },
   visual: {
-    nodes: [
-      {
-        uid: 'test_rect',
-        name: 'rect-1',
-        targetId: null,
-        id: null,
-        type: 'rectangle',
-        transform: { x: 500, y: 300 },
-        properties: { width: 200, height: 100, color: '#00e5ff' },
-      },
-    ],
+    nodes: [],
     animations: [],
-    triggers: [
-      {
-        id: 'trigger_1',
-        time: 0,
-        action: 'effect',
-        targetId: 'all',
-        duration: 0.5,
-        properties: { effectType: 'reactivePulse' },
-      },
-    ],
+    triggers: [],
   },
 };

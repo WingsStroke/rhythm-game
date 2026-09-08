@@ -246,36 +246,28 @@ export class LevelValidator {
           .sort((a, b) => a.targetTime - b.targetTime)
       : [];
 
-    // Clean visual nodes ensuring immutable uid, layerId, and optional lifespan
+    // Clean visual nodes ensuring immutable uid, zIndex, layer hierarchy, and optional lifespan
     const rawNodes = Array.isArray(visualRaw.nodes) ? visualRaw.nodes : [];
     const nodes: SceneNodeData[] = rawNodes.map((n, idx) => {
       const node = n as Record<string, unknown>;
       const uid = String(node.uid || node.id || `node_${idx}_${Date.now()}`);
 
-      // Sanitize layerId ('sceneBack' | 'sceneFront')
-      const rawLayerId = node.layerId;
-      const layerId: 'sceneBack' | 'sceneFront' =
-        rawLayerId === 'sceneFront' ? 'sceneFront' : 'sceneBack';
+      // Sanitize zIndex hierarchy
+      const zIndex =
+        typeof node.zIndex === 'number' && Number.isFinite(node.zIndex)
+          ? Math.round(node.zIndex)
+          : 0;
 
-      // Sanitize transform and blendMode with readability safeguard for sceneFront
+      // Sanitize hierarchy checkboxes (with backward compatibility for legacy layerId === 'sceneFront')
+      const legacyFront = node.layerId === 'sceneFront';
+      const abovePads = typeof node.abovePads === 'boolean' ? node.abovePads : legacyFront;
+      const aboveLanes = typeof node.aboveLanes === 'boolean' ? node.aboveLanes : false;
+
+      // Sanitize transform and blendMode without artificial opacity/blend restrictions
       const rawTransform = (node.transform as SceneNodeData['transform']) || { x: 960, y: 540 };
       const transform = { ...rawTransform };
-      let blendMode: SceneNodeData['blendMode'] =
+      const blendMode: SceneNodeData['blendMode'] =
         (node.blendMode as SceneNodeData['blendMode']) || 'normal';
-
-      if (layerId === 'sceneFront') {
-        // Enforce readability safeguard:
-        // 1. Cap opacity to max 0.35 so gameplay elements behind are fully legible
-        if (typeof transform.opacity === 'number') {
-          transform.opacity = Math.min(0.35, Math.max(0, transform.opacity));
-        } else {
-          transform.opacity = 0.35;
-        }
-        // 2. Restrict blendMode to additive/screen modes
-        if (blendMode !== 'add' && blendMode !== 'screen') {
-          blendMode = 'add';
-        }
-      }
 
       // Sanitize optional lifespan: startTime >= 0, duration > 0, fadeInMs, fadeOutMs
       let lifespan: SceneNodeLifespan | undefined;
@@ -319,7 +311,9 @@ export class LevelValidator {
         parentId: node.parentId ? String(node.parentId) : undefined,
         blendMode,
         visible: node.visible !== false,
-        layerId,
+        zIndex,
+        aboveLanes,
+        abovePads,
         layer,
         subLane,
         lifespan,
@@ -362,7 +356,27 @@ export class LevelValidator {
     const rawEffects = Array.isArray(visualRaw.effects) ? visualRaw.effects : [];
     const effects: VisualEffect[] = rawEffects.map((e, idx) => {
       const eff = e as Record<string, unknown>;
-      const scope = eff.scope === 'object' || eff.scope === 'region' ? eff.scope : 'global';
+      const scope =
+        eff.scope === 'object' || eff.scope === 'range' || eff.scope === 'region'
+          ? eff.scope
+          : 'global';
+      const zIndexMin =
+        typeof eff.zIndexMin === 'number' && Number.isFinite(eff.zIndexMin)
+          ? Math.round(eff.zIndexMin)
+          : undefined;
+      const zIndexMax =
+        typeof eff.zIndexMax === 'number' && Number.isFinite(eff.zIndexMax)
+          ? Math.round(eff.zIndexMax)
+          : undefined;
+      const startTime =
+        typeof eff.startTime === 'number' && Number.isFinite(eff.startTime)
+          ? Math.max(0, eff.startTime)
+          : undefined;
+      const duration =
+        typeof eff.duration === 'number' && Number.isFinite(eff.duration)
+          ? Math.max(0, eff.duration)
+          : undefined;
+
       return {
         id: String(eff.id || `effect_${idx}`),
         type: String(eff.type || 'bloom'),
@@ -370,6 +384,10 @@ export class LevelValidator {
         enabled: eff.enabled !== false,
         intensity: typeof eff.intensity === 'number' ? Math.max(0, Math.min(5, eff.intensity)) : 1.0,
         targetNodeId: eff.targetNodeId ? String(eff.targetNodeId) : undefined,
+        zIndexMin,
+        zIndexMax,
+        startTime,
+        duration,
         region:
           eff.region && typeof eff.region === 'object'
             ? (eff.region as { x: number; y: number; width: number; height: number })

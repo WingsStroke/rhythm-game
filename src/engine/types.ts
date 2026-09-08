@@ -162,7 +162,7 @@ export interface LevelData {
   };
 }
 
-export type VisualEffectScope = 'global' | 'object' | 'region';
+export type VisualEffectScope = 'global' | 'object' | 'range' | 'region';
 
 export interface VisualEffect {
   id: string;
@@ -171,6 +171,10 @@ export interface VisualEffect {
   enabled: boolean;
   intensity?: number;
   targetNodeId?: string;
+  zIndexMin?: number;
+  zIndexMax?: number;
+  startTime?: number;
+  duration?: number;
   region?: { x: number; y: number; width: number; height: number };
   parameters: Record<string, number | string | boolean>;
 }
@@ -246,7 +250,13 @@ export interface SceneNodeData {
   group?: string | number;
   blendMode?: BlendModeType;
   visible?: boolean;
-  /** Target rendering layer in the scene hierarchy. Defaults to 'sceneBack'. */
+  /** Stacking hierarchy order. Higher integer renders on top of lower integer. Defaults to 0. */
+  zIndex?: number;
+  /** When true, renders above gameplay lanes and falling notes. */
+  aboveLanes?: boolean;
+  /** When true, renders above interactive gameplay pads (highest scene stacking hierarchy). */
+  abovePads?: boolean;
+  /** Deprecated: Legacy target rendering layer in the scene hierarchy. */
   layerId?: 'sceneBack' | 'sceneFront';
   /** Timeline organizational layer number (1-based, e.g. 1, 2, 3). Defaults to 1. */
   layer?: number;

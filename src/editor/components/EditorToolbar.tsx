@@ -38,6 +38,8 @@ interface EditorToolbarProps {
   onToggleWaveform?: () => void;
   selectedPrimitiveType?: ScenePrimitiveType;
   onSelectPrimitiveType?: (type: ScenePrimitiveType) => void;
+  selectedShaderType?: string;
+  onSelectShaderType?: (type: string) => void;
 }
 
 export function EditorToolbar({
@@ -53,16 +55,20 @@ export function EditorToolbar({
   onToggleWaveform,
   selectedPrimitiveType = 'rectangle',
   onSelectPrimitiveType,
+  selectedShaderType = 'bloom',
+  onSelectShaderType,
 }: EditorToolbarProps) {
   const [isPenMenuOpen, setIsPenMenuOpen] = useState(false);
   const [isObjectMenuOpen, setIsObjectMenuOpen] = useState(false);
+  const [isShaderMenuOpen, setIsShaderMenuOpen] = useState(false);
 
   const penContainerRef = useRef<HTMLDivElement>(null);
   const objectContainerRef = useRef<HTMLDivElement>(null);
+  const shaderContainerRef = useRef<HTMLDivElement>(null);
 
   // Close menus on click outside or Escape
   useEffect(() => {
-    if (!isPenMenuOpen && !isObjectMenuOpen) return;
+    if (!isPenMenuOpen && !isObjectMenuOpen && !isShaderMenuOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -77,12 +83,19 @@ export function EditorToolbar({
       ) {
         setIsObjectMenuOpen(false);
       }
+      if (
+        shaderContainerRef.current &&
+        !shaderContainerRef.current.contains(e.target as Node)
+      ) {
+        setIsShaderMenuOpen(false);
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsPenMenuOpen(false);
         setIsObjectMenuOpen(false);
+        setIsShaderMenuOpen(false);
       }
     };
 
@@ -92,7 +105,7 @@ export function EditorToolbar({
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isPenMenuOpen, isObjectMenuOpen]);
+  }, [isPenMenuOpen, isObjectMenuOpen, isShaderMenuOpen]);
 
   const setZoom = (val: number | ((prev: number) => number)) => {
     if (typeof val === 'function') {
@@ -216,6 +229,19 @@ export function EditorToolbar({
       icon: <Folder className="w-3.5 h-3.5 text-white/70" />,
       color: '#ffffff',
     },
+  ];
+
+  const shaderOptions: {
+    type: string;
+    label: string;
+    description: string;
+  }[] = [
+    { type: 'bloom', label: 'Bloom (Glow)', description: 'Luminous halo glow boost' },
+    { type: 'pixelate', label: 'Pixel-Art', description: 'Retro pixelated mosaic grid' },
+    { type: 'chromatic', label: 'RGB Shift', description: 'Color aberration channel split' },
+    { type: 'motionBlur', label: 'Motion Blur', description: 'Velocity sample streak blur' },
+    { type: 'scanlines', label: 'CRT Scanlines', description: 'Retro arcade monitor raster' },
+    { type: 'glitch', label: 'Digital Glitch', description: 'Horizontal slice displacement' },
   ];
 
   return (
@@ -380,12 +406,82 @@ export function EditorToolbar({
           )}
         </div>
 
+        {/* Shader Tool */}
+        <div ref={shaderContainerRef} className="relative">
+          <button
+            onClick={() => {
+              if (activeTool === 'shader') {
+                setIsShaderMenuOpen((prev) => !prev);
+              } else {
+                onSelectTool('shader');
+                setIsShaderMenuOpen(true);
+              }
+              setIsPenMenuOpen(false);
+              setIsObjectMenuOpen(false);
+            }}
+            title="Shader Effect Tool (S)"
+            className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+              activeTool === 'shader'
+                ? 'bg-fuchsia-500/25 text-fuchsia-300 border border-fuchsia-500/60 shadow-[0_0_8px_rgba(217,70,239,0.3)]'
+                : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
+            <span>Shader (S)</span>
+            <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-white/10 uppercase font-semibold text-white/90">
+              {selectedShaderType}
+            </span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${isShaderMenuOpen ? 'rotate-180 text-fuchsia-400' : 'text-white/40'}`} />
+          </button>
+
+          {/* Floating Staggered Dropdown Menu for Shaders */}
+          {isShaderMenuOpen && (
+            <div className="absolute left-0 top-full mt-2 w-64 bg-[#0c0d16] border border-[#25283c] rounded-xl shadow-[0_16px_36px_rgba(0,0,0,0.9)] p-1.5 z-[100] flex flex-col gap-1 pointer-events-auto">
+              <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-white/40 border-b border-white/10 flex items-center justify-between">
+                <span>Select Shader Effect</span>
+                <span className="text-fuchsia-400">Shader Tool</span>
+              </div>
+              {shaderOptions.map((item, index) => (
+                <button
+                  key={item.type}
+                  onClick={() => {
+                    onSelectShaderType?.(item.type);
+                    onSelectTool('shader');
+                    setIsShaderMenuOpen(false);
+                  }}
+                  style={{
+                    animation: 'toolbarMenuStagger 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                    animationDelay: `${index * 35}ms`,
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    selectedShaderType === item.type
+                      ? 'bg-white/15 text-white border border-white/30 font-semibold shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
+                    <div className="flex flex-col text-left">
+                      <span className="font-semibold text-white/90">{item.label}</span>
+                      <span className="text-[10px] text-white/40 font-mono">{item.description}</span>
+                    </div>
+                  </div>
+                  {selectedShaderType === item.type && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 shadow-[0_0_6px_#e879f9]" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Eraser Tool */}
         <button
           onClick={() => {
             onSelectTool('eraser');
             setIsPenMenuOpen(false);
             setIsObjectMenuOpen(false);
+            setIsShaderMenuOpen(false);
           }}
           title="Eraser (E)"
           className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${

@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType, SceneNodeData, ScenePrimitiveType } from '../engine/types';
+import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType, SceneNodeData, ScenePrimitiveType, VisualEffect, EffectType } from '../engine/types';
 import { PrimitiveRegistry } from '../engine/visual/objects/PrimitiveRegistry';
 import { SongRegistry } from '../engine/content/SongRegistry';
 import { WaveformCanvas } from './components/WaveformCanvas';
-import { Zap, Repeat, Volume2, VolumeX, Clock, Layers } from 'lucide-react';
+import { Zap, Repeat, Volume2, VolumeX, Clock, Layers, Sparkles } from 'lucide-react';
 
 import { getSnapInterval, snapTimeToGrid, type GridSubdivision } from './utils';
 import {
@@ -15,7 +15,7 @@ import {
 } from '../engine/time/timeUtils';
 
 export type { GridSubdivision };
-export type EditorTool = 'select' | 'pen' | 'eraser' | 'object';
+export type EditorTool = 'select' | 'pen' | 'eraser' | 'object' | 'shader';
 export const SUB_LANE_COUNT = 8;
 
 function getTriggerColor(action: TriggerActionType): string {
@@ -425,10 +425,12 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
           effectiveNodeIds.has(node.uid) ||
           (Boolean(node.id) && effectiveNodeIds.has(String(node.id))) ||
           (Boolean(node.name) && effectiveNodeIds.has(node.name!));
-        const isFront = node.layerId === 'sceneFront';
-        const layerColor = isFront ? '#00e5ff' : '#00ff9d';
-        const layerLabel = isFront ? 'FRONT' : 'BACK';
-        const zIndexVal = isFront ? 'z:22' : 'z:2';
+        const zIndex = node.zIndex ?? 0;
+        const isAbovePads = Boolean(node.abovePads);
+        const isAboveLanes = Boolean(node.aboveLanes);
+        const layerColor = isAbovePads ? '#c084fc' : (isAboveLanes ? '#00e5ff' : '#00ff9d');
+        const hierarchyLabel = isAbovePads ? 'PADS' : (isAboveLanes ? 'LANES' : 'BASE');
+        const zIndexVal = `z:${zIndex}`;
 
         const hasLifespan = Boolean(node.lifespan);
         const startTime = node.lifespan ? node.lifespan.startTime : 0;
@@ -497,14 +499,15 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
 
             {/* Layer Badge */}
             <div
-              className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider ml-2 flex-shrink-0 uppercase pointer-events-none"
+              className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider ml-2 flex-shrink-0 uppercase pointer-events-none flex items-center gap-1"
               style={{
                 backgroundColor: `${layerColor}30`,
                 color: layerColor,
                 border: `1px solid ${layerColor}60`,
               }}
             >
-              {layerLabel}
+              <span>{hierarchyLabel}</span>
+              <span className="opacity-75">{zIndexVal}</span>
             </div>
 
             {/* Object Details */}
@@ -513,7 +516,7 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
                 {node.name || node.uid || 'SceneObject'}
               </span>
               <span className="text-[9px] font-mono text-white/60 truncate">
-                {node.type} • {zIndexVal} {hasLifespan ? `• ${(node.lifespan!.duration).toFixed(1)}s` : '• all time'}
+                {node.type} {hasLifespan ? `• ${(node.lifespan!.duration).toFixed(1)}s` : '• all time'}
               </span>
             </div>
 
@@ -534,6 +537,138 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
   );
 });
 
+interface ShadersLaneProps {
+  effects: VisualEffect[];
+  widthPx: number;
+  activeTool: EditorTool;
+  selectedEffectIds: Set<string>;
+  songOrigin: number;
+  pixelsPerSecond: number;
+  totalDuration: number;
+  subLaneHeight: number;
+  onSelectEffect?: (effect: VisualEffect | null) => void;
+  onToggleEffectSelection?: (id: string, multi: boolean) => void;
+  onTrackClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onRemoveEffect?: (id: string) => void;
+}
+
+const ShadersLane = React.memo(function ShadersLane({
+  effects,
+  widthPx,
+  activeTool,
+  selectedEffectIds,
+  songOrigin,
+  pixelsPerSecond,
+  totalDuration,
+  subLaneHeight,
+  onSelectEffect,
+  onToggleEffectSelection,
+  onTrackClick,
+  onRemoveEffect,
+}: ShadersLaneProps) {
+  const laneCount = 4;
+  const totalLaneHeight = laneCount * subLaneHeight;
+  const cardHeight = Math.min(52, Math.max(38, subLaneHeight - 16));
+  const cardOffset = (subLaneHeight - cardHeight) / 2;
+
+  return (
+    <div
+      className={`flex-1 bg-fuchsia-950/[0.08] border-b border-fuchsia-500/20 relative z-10 transition-colors flex-shrink-0 ${
+        activeTool === 'shader' ? 'hover:bg-fuchsia-950/[0.14] cursor-crosshair' : ''
+      }`}
+      style={{
+        width: widthPx,
+        minWidth: widthPx,
+        minHeight: `${totalLaneHeight}px`,
+        height: `${totalLaneHeight}px`,
+      }}
+      onClick={onTrackClick}
+    >
+      {/* 4 Sub-track horizontal dividers */}
+      <div className="absolute inset-0 pointer-events-none flex flex-col z-0">
+        {Array.from({ length: laneCount }, (_, lane) => (
+          <div
+            key={lane}
+            style={{ height: `${subLaneHeight}px` }}
+            className={`border-b border-fuchsia-500/15 ${
+              lane % 2 === 1 ? 'bg-fuchsia-950/[0.04]' : 'bg-transparent'
+            }`}
+          />
+        ))}
+      </div>
+
+      {effects.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <span className="font-mono text-xs text-white/30 tracking-wide">
+            No shader effects. Select Shader (S) tool to place effects along the timeline.
+          </span>
+        </div>
+      )}
+
+      {effects.map((effect, index) => {
+        const isSelected = selectedEffectIds.has(effect.id);
+        const hasTime = typeof effect.startTime === 'number';
+        const startTime = hasTime ? effect.startTime! : 0;
+        const duration = hasTime && effect.duration ? effect.duration : totalDuration;
+        const x = (startTime + songOrigin) * pixelsPerSecond;
+        const width = Math.max(64, duration * pixelsPerSecond);
+
+        const laneIndex = index % laneCount;
+        const topOffset = laneIndex * subLaneHeight + cardOffset;
+
+        return (
+          <div
+            key={effect.id}
+            data-shader-item="true"
+            data-shader-id={effect.id}
+            className={`absolute rounded-lg flex items-center z-20 cursor-pointer transition-all overflow-hidden select-none ${
+              isSelected
+                ? 'ring-2 ring-white shadow-[0_0_20px_rgba(232,121,249,0.9)]'
+                : 'hover:brightness-125'
+            } ${hasTime ? '' : 'border-dashed opacity-85'}`}
+            style={{
+              top: `${topOffset}px`,
+              left: x,
+              width,
+              height: `${cardHeight}px`,
+              backgroundColor: 'rgba(192, 132, 252, 0.18)',
+              border: `1.5px ${hasTime ? 'solid' : 'dashed'} rgba(216, 180, 254, 0.6)`,
+            }}
+            onPointerDown={(e) => {
+              if (activeTool === 'eraser') {
+                e.stopPropagation();
+                onRemoveEffect?.(effect.id);
+                return;
+              }
+              if (e.ctrlKey || e.metaKey) {
+                e.stopPropagation();
+                onToggleEffectSelection?.(effect.id, true);
+                return;
+              }
+              onSelectEffect?.(effect);
+            }}
+          >
+            {/* Shader Type Badge */}
+            <div className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider ml-2 flex-shrink-0 uppercase pointer-events-none bg-fuchsia-500/25 text-fuchsia-300 border border-fuchsia-500/40">
+              {effect.type}
+            </div>
+
+            {/* Scope / Target info */}
+            <div className="flex flex-col px-2 overflow-hidden flex-1 select-none pointer-events-none min-w-0">
+              <span className="text-[11px] font-mono font-bold truncate text-white">
+                {effect.scope === 'global' ? 'Global Stage' : effect.scope === 'range' ? `z:[${effect.zIndexMin ?? 0}..${effect.zIndexMax ?? 100}]` : `Target: ${effect.targetNodeId || 'Object'}`}
+              </span>
+              <span className="text-[9px] font-mono text-white/60 truncate">
+                {hasTime ? `${duration.toFixed(1)}s` : 'Always on'} • int: {effect.intensity ?? 1.0}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
 interface TimelineProps {
   level: LevelData;
   currentTime: number;
@@ -543,25 +678,30 @@ interface TimelineProps {
   gridSubdivision: GridSubdivision;
   pixelsPerSecond: number;
   showWaveform?: boolean;
-  timelineMode?: 'notes' | 'triggers' | 'visuals';
+  timelineMode?: 'notes' | 'triggers' | 'visuals' | 'shaders';
   activeLayer?: number;
   onChangeActiveLayer?: (layer: number) => void;
   selectedPrimitiveType?: ScenePrimitiveType;
+  selectedShaderType?: EffectType;
   selectedEventId?: string | null;
   selectedEventIds?: Set<string>;
   selectedTriggerId?: string | null;
   selectedTriggerIds?: Set<string>;
   selectedNodeId?: string | null;
   selectedNodeIds?: Set<string>;
+  selectedEffectId?: string | null;
+  selectedEffectIds?: Set<string>;
   onSelectEvent: (event: PadEvent | null) => void;
   onSelectEvents?: (ids: Set<string>, additive?: boolean) => void;
   onSelectTrigger?: (trigger: TriggerData | null) => void;
   onSelectTriggers?: (ids: Set<string>, additive?: boolean) => void;
   onSelectNode?: (node: SceneNodeData | null) => void;
   onSelectNodes?: (ids: Set<string>, additive?: boolean) => void;
+  onSelectEffect?: (effect: VisualEffect | null) => void;
   onToggleEventSelection?: (id: string, multi: boolean) => void;
   onToggleTriggerSelection?: (id: string, multi: boolean) => void;
   onToggleNodeSelection?: (id: string, multi: boolean) => void;
+  onToggleEffectSelection?: (id: string, multi: boolean) => void;
   onSelectEventRange?: (targetId: string) => void;
   onSeek?: (time: number) => void;
   onAddEvent: (event: PadEvent) => void;
@@ -576,6 +716,9 @@ interface TimelineProps {
   onUpdateNode?: (id: string, updates: Partial<SceneNodeData>) => void;
   onUpdateNodesBatch?: (nodes: SceneNodeData[]) => void;
   onRemoveNode?: (id: string) => void;
+  onAddEffect?: (effect: VisualEffect) => void;
+  onUpdateEffect?: (effect: VisualEffect) => void;
+  onRemoveEffect?: (id: string) => void;
   onChangePixelsPerSecond?: (fnOrValue: number | ((prev: number) => number)) => void;
 }
 
@@ -592,21 +735,26 @@ export function Timeline({
   activeLayer = 1,
   onChangeActiveLayer,
   selectedPrimitiveType = 'rectangle',
+  selectedShaderType = 'bloom',
   selectedEventId,
   selectedEventIds,
   selectedTriggerId,
   selectedTriggerIds,
   selectedNodeId,
   selectedNodeIds,
+  selectedEffectId,
+  selectedEffectIds,
   onSelectEvent,
   onSelectEvents,
   onSelectTrigger,
   onSelectTriggers,
   onSelectNode,
   onSelectNodes,
+  onSelectEffect,
   onToggleEventSelection,
   onToggleTriggerSelection,
   onToggleNodeSelection,
+  onToggleEffectSelection,
   onSelectEventRange,
   onSeek,
   onAddEvent,
@@ -621,6 +769,8 @@ export function Timeline({
   onUpdateNode,
   onUpdateNodesBatch,
   onRemoveNode,
+  onAddEffect,
+  onRemoveEffect,
   onChangePixelsPerSecond,
 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -645,6 +795,11 @@ export function Timeline({
   const effectiveNodeIds = useMemo(
     () => selectedNodeIds ?? (selectedNodeId ? new Set([selectedNodeId]) : new Set<string>()),
     [selectedNodeIds, selectedNodeId]
+  );
+
+  const effectiveEffectIds = useMemo(
+    () => selectedEffectIds ?? (selectedEffectId ? new Set([selectedEffectId]) : new Set<string>()),
+    [selectedEffectIds, selectedEffectId]
   );
 
   useEffect(() => {
@@ -1047,10 +1202,57 @@ export function Timeline({
     onSelectTrigger,
   ]);
 
+  const handleShaderTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (dragState) return;
+    if ((e.target as HTMLElement).closest('[data-shader-item]')) return;
+
+    if (activeTool === 'shader') {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const rawSongTime = timelineXToSongTime(clickX, pixelsPerSecond, leadIn, offset);
+      const bpm = level.timing.bpm || 120;
+      const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), bpm, gridSubdivision);
+
+      const type: EffectType = selectedShaderType || 'bloom';
+      const beatSec = 60 / bpm;
+      const defaultDuration = Math.max(1, Number((beatSec * 4).toFixed(3)));
+
+      const newEffect: VisualEffect = {
+        id: `fx_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`,
+        type,
+        scope: 'global',
+        intensity: 1.0,
+        startTime: snappedTime,
+        duration: defaultDuration,
+        parameters: {},
+      };
+
+      onAddEffect?.(newEffect);
+      onSelectEffect?.(newEffect);
+      onSelectEvent(null);
+      onSelectTrigger?.(null);
+      onSelectNode?.(null);
+    }
+  }, [
+    dragState,
+    activeTool,
+    pixelsPerSecond,
+    leadIn,
+    offset,
+    level.timing.bpm,
+    gridSubdivision,
+    selectedShaderType,
+    onAddEffect,
+    onSelectEffect,
+    onSelectEvent,
+    onSelectTrigger,
+    onSelectNode,
+  ]);
+
   const handleCanvasPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest('[data-event-item], [data-trigger-item], [data-node-item], [data-ruler]')) return;
+    if (target.closest('[data-event-item], [data-trigger-item], [data-node-item], [data-shader-item], [data-ruler]')) return;
 
     if (activeTool === 'select') {
       const isAdditive = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -1058,6 +1260,7 @@ export function Timeline({
         onSelectEvent(null);
         onSelectTrigger?.(null);
         onSelectNode?.(null);
+        onSelectEffect?.(null);
         onSelectEvents?.(new Set(), false);
         onSelectTriggers?.(new Set(), false);
         onSelectNodes?.(new Set(), false);
@@ -1077,7 +1280,7 @@ export function Timeline({
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       }
     }
-  }, [activeTool, onSelectEvent, onSelectTrigger, onSelectNode, onSelectEvents, onSelectTriggers, onSelectNodes]);
+  }, [activeTool, onSelectEvent, onSelectTrigger, onSelectNode, onSelectEffect, onSelectEvents, onSelectTriggers, onSelectNodes]);
 
   const startEventMove = useCallback((e: React.PointerEvent, event: PadEvent) => {
     e.stopPropagation();
@@ -1784,6 +1987,26 @@ export function Timeline({
               ))}
             </div>
           )}
+
+          {timelineMode === 'shaders' && (
+            <div className="flex flex-col" style={{ minHeight: `${4 * subLaneHeight}px` }}>
+              {Array.from({ length: 4 }, (_, lane) => (
+                <div
+                  key={lane}
+                  style={{ height: `${subLaneHeight}px` }}
+                  className="flex flex-col justify-center px-3 bg-black/90 border-b border-fuchsia-500/20 shadow-sm flex-shrink-0"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-fuchsia-400/80" />
+                    <span className="text-xs font-mono font-bold text-white/90 tracking-wide">
+                      Shader Track {lane + 1}
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-white/40 font-mono mt-0.5">Post-FX Lane</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -2059,6 +2282,24 @@ export function Timeline({
               onNodeResize={startNodeResize}
               onTrackClick={handleVisualTrackClick}
               onRemoveNode={onRemoveNode}
+            />
+          )}
+
+          {/* 4. Shaders Post-FX Lane (Only rendered in 'shaders' mode) */}
+          {timelineMode === 'shaders' && (
+            <ShadersLane
+              effects={level.visual?.effects || []}
+              widthPx={widthPx}
+              activeTool={activeTool}
+              selectedEffectIds={effectiveEffectIds}
+              songOrigin={songOrigin}
+              pixelsPerSecond={pixelsPerSecond}
+              totalDuration={totalDuration}
+              subLaneHeight={subLaneHeight}
+              onSelectEffect={onSelectEffect}
+              onToggleEffectSelection={onToggleEffectSelection}
+              onTrackClick={handleShaderTrackClick}
+              onRemoveEffect={onRemoveEffect}
             />
           )}
 

@@ -10,11 +10,11 @@ import { useEditorShortcuts } from './hooks/useEditorShortcuts';
 import { useEditorHistory } from './hooks/useEditorHistory';
 import { useAutoSave } from './hooks/useAutoSave';
 import { INITIAL_LEVEL } from './constants';
-import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData, ScenePrimitiveType } from '../engine/types';
+import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData, ScenePrimitiveType, VisualEffect, EffectType } from '../engine/types';
 import { LevelValidator } from '../engine/content/LevelValidator';
 import { timelineTimeToSongTime } from '../engine/time/timeUtils';
 import { PrimitiveRegistry } from '../engine/visual/objects/PrimitiveRegistry';
-import { ListVideo, Gamepad2, Zap, Layers } from 'lucide-react';
+import { ListVideo, Gamepad2, Zap, Layers, Sparkles } from 'lucide-react';
 
 type EditorTab = 'timeline' | 'preview';
 
@@ -63,7 +63,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
 
   // Authoring tools state
   const [activeTool, setActiveTool] = useState<EditorTool>('select');
-  const [timelineMode, setTimelineMode] = useState<'notes' | 'triggers' | 'visuals'>('notes');
+  const [timelineMode, setTimelineMode] = useState<'notes' | 'triggers' | 'visuals' | 'shaders'>('notes');
+  const [selectedShaderType, setSelectedShaderType] = useState<EffectType>('bloom');
   const [activeLayer, setActiveLayer] = useState<number>(1);
   const [selectedPrimitiveType, setSelectedPrimitiveType] = useState<ScenePrimitiveType>('rectangle');
   const [creationBehavior, setCreationBehavior] = useState<PadBehavior>('tap');
@@ -75,6 +76,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [selectedTriggerIds, setSelectedTriggerIds] = useState<Set<string>>(new Set());
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  const [selectedEffectIds, setSelectedEffectIds] = useState<Set<string>>(new Set());
 
   // Single active items for inspector (when single item is selected, or primary pivot)
   const selectedEventId = useMemo(
@@ -88,6 +90,10 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   const selectedNodeId = useMemo(
     () => (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null),
     [selectedNodeIds]
+  );
+  const selectedEffectId = useMemo(
+    () => (selectedEffectIds.size === 1 ? Array.from(selectedEffectIds)[0] : null),
+    [selectedEffectIds]
   );
 
   const selectedEvents = useMemo(
@@ -111,6 +117,16 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     [level.visual?.nodes, selectedNodeIds]
   );
 
+  const selectedEffect = useMemo(
+    () => (level.visual?.effects || []).find((e) => e.id === selectedEffectId) || null,
+    [level.visual?.effects, selectedEffectId]
+  );
+
+  const selectedEffects = useMemo(
+    () => (level.visual?.effects || []).filter((e) => selectedEffectIds.has(e.id)),
+    [level.visual?.effects, selectedEffectIds]
+  );
+
   const selectEvent = useCallback((id: string | null) => {
     if (!id) {
       setSelectedEventIds(new Set());
@@ -118,6 +134,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       setSelectedEventIds(new Set([id]));
       setSelectedTriggerIds(new Set());
       setSelectedNodeIds(new Set());
+      setSelectedEffectIds(new Set());
     }
   }, []);
 
@@ -128,6 +145,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       setSelectedTriggerIds(new Set([id]));
       setSelectedEventIds(new Set());
       setSelectedNodeIds(new Set());
+      setSelectedEffectIds(new Set());
     }
   }, []);
 
@@ -146,10 +164,23 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       });
       setSelectedEventIds(new Set());
       setSelectedTriggerIds(new Set());
+      setSelectedEffectIds(new Set());
     } else {
       setSelectedNodeIds(new Set([id]));
       setSelectedEventIds(new Set());
       setSelectedTriggerIds(new Set());
+      setSelectedEffectIds(new Set());
+    }
+  }, []);
+
+  const selectEffect = useCallback((effect: VisualEffect | null) => {
+    if (!effect) {
+      setSelectedEffectIds(new Set());
+    } else {
+      setSelectedEffectIds(new Set([effect.id]));
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
+      setSelectedNodeIds(new Set());
     }
   }, []);
 
@@ -163,6 +194,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     if (ids.size > 0 && !additive) {
       setSelectedTriggerIds(new Set());
       setSelectedNodeIds(new Set());
+      setSelectedEffectIds(new Set());
     }
   }, []);
 
@@ -176,6 +208,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     if (ids.size > 0 && !additive) {
       setSelectedEventIds(new Set());
       setSelectedNodeIds(new Set());
+      setSelectedEffectIds(new Set());
     }
   }, []);
 
@@ -189,6 +222,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     if (ids.size > 0 && !additive) {
       setSelectedEventIds(new Set());
       setSelectedTriggerIds(new Set());
+      setSelectedEffectIds(new Set());
     }
   }, []);
 
@@ -204,6 +238,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
     setSelectedTriggerIds(new Set());
     setSelectedNodeIds(new Set());
+    setSelectedEffectIds(new Set());
   }, []);
 
   const toggleTriggerSelection = useCallback((id: string, multi: boolean = true) => {
@@ -217,6 +252,22 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       return next;
     });
     setSelectedEventIds(new Set());
+    setSelectedNodeIds(new Set());
+    setSelectedEffectIds(new Set());
+  }, []);
+
+  const toggleEffectSelection = useCallback((id: string, multi: boolean = true) => {
+    setSelectedEffectIds((prev) => {
+      const next = multi ? new Set(prev) : new Set<string>();
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setSelectedEventIds(new Set());
+    setSelectedTriggerIds(new Set());
     setSelectedNodeIds(new Set());
   }, []);
 
@@ -232,6 +283,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
     setSelectedEventIds(new Set());
     setSelectedTriggerIds(new Set());
+    setSelectedEffectIds(new Set());
   }, []);
 
   const selectEventRange = useCallback((targetId: string) => {
@@ -263,19 +315,34 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         setSelectedEventIds(allEventIds);
         setSelectedTriggerIds(new Set());
         setSelectedNodeIds(new Set());
+        setSelectedEffectIds(new Set());
       } else if (timelineMode === 'triggers') {
         const visibleTrigs = (level.visual?.triggers || []).filter((t) => (t.layer ?? 1) === activeLayer);
         setSelectedTriggerIds(new Set(visibleTrigs.map((t) => t.id)));
         setSelectedEventIds(new Set());
         setSelectedNodeIds(new Set());
+        setSelectedEffectIds(new Set());
       } else if (timelineMode === 'visuals') {
         const visibleN = (level.visual?.nodes || []).filter((n) => (n.layer ?? 1) === activeLayer);
         setSelectedNodeIds(new Set(visibleN.map((n) => n.uid)));
         setSelectedEventIds(new Set());
         setSelectedTriggerIds(new Set());
+        setSelectedEffectIds(new Set());
+      } else if (timelineMode === 'shaders') {
+        const allEffects = level.visual?.effects || [];
+        setSelectedEffectIds(new Set(allEffects.map((e) => e.id)));
+        setSelectedEventIds(new Set());
+        setSelectedTriggerIds(new Set());
+        setSelectedNodeIds(new Set());
       }
+    } else if (activeTab === 'preview') {
+      const allNodes = level.visual?.nodes || [];
+      setSelectedNodeIds(new Set(allNodes.map((n) => n.uid)));
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
+      setSelectedEffectIds(new Set());
     }
-  }, [activeTab, timelineMode, level.events, level.visual?.triggers, level.visual?.nodes, activeLayer]);
+  }, [activeTab, timelineMode, level.events, level.visual?.triggers, level.visual?.nodes, level.visual?.effects, activeLayer]);
 
   // 1. PadEvent mutations
   const handleAddEvent = useCallback((newEvent: PadEvent) => {
@@ -478,12 +545,62 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
   }, [setLevel]);
 
-  const handleRemoveBatch = useCallback((eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>) => {
+  const handleSelectShaderType = useCallback((type: EffectType) => {
+    setSelectedShaderType(type);
+    setActiveTool('shader');
+  }, []);
+
+  // 4. VisualEffect mutations
+  const handleAddEffect = useCallback((newEffect: VisualEffect) => {
+    setLevel((prev) => {
+      const currentEffects = prev.visual?.effects || [];
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          effects: [...currentEffects, newEffect],
+        },
+      };
+    });
+    selectEffect(newEffect);
+  }, [setLevel, selectEffect]);
+
+  const handleUpdateEffect = useCallback((updatedEffect: VisualEffect) => {
+    setLevel((prev) => {
+      const currentEffects = prev.visual?.effects || [];
+      const newEffects = currentEffects.map((e) => (e.id === updatedEffect.id ? updatedEffect : e));
+      return {
+        ...prev,
+        visual: {
+          ...prev.visual,
+          effects: newEffects,
+        },
+      };
+    });
+  }, [setLevel]);
+
+  const handleRemoveEffect = useCallback((id: string) => {
+    setLevel((prev) => ({
+      ...prev,
+      visual: {
+        ...prev.visual,
+        effects: (prev.visual?.effects || []).filter((e) => e.id !== id),
+      },
+    }));
+    setSelectedEffectIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, [setLevel]);
+
+  const handleRemoveBatch = useCallback((eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>, effectIds?: Set<string>) => {
     const eIds = eventIds ?? selectedEventIds;
     const tIds = triggerIds ?? selectedTriggerIds;
     const nIds = nodeIds ?? selectedNodeIds;
+    const efIds = effectIds ?? selectedEffectIds;
 
-    if (eIds.size > 0 || tIds.size > 0 || nIds.size > 0) {
+    if (eIds.size > 0 || tIds.size > 0 || nIds.size > 0 || efIds.size > 0) {
       setLevel((prev) => ({
         ...prev,
         events: eIds.size > 0 ? prev.events.filter((e) => !eIds.has(e.id)) : prev.events,
@@ -498,15 +615,21 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                   (!n.name || !nIds.has(n.name))
               )
             : (prev.visual?.nodes || []),
+          effects: efIds.size > 0
+            ? (prev.visual?.effects || []).filter((ef) => !efIds.has(ef.id))
+            : (prev.visual?.effects || []),
         },
       }));
       setSelectedEventIds(new Set());
       setSelectedTriggerIds(new Set());
       setSelectedNodeIds(new Set());
+      setSelectedEffectIds(new Set());
     } else if (selectedNodeId) {
       handleRemoveNode(selectedNodeId);
+    } else if (selectedEffectId) {
+      handleRemoveEffect(selectedEffectId);
     }
-  }, [selectedEventIds, selectedTriggerIds, selectedNodeIds, selectedNodeId, setLevel, handleRemoveNode]);
+  }, [selectedEventIds, selectedTriggerIds, selectedNodeIds, selectedNodeId, selectedEffectIds, selectedEffectId, setLevel, handleRemoveNode, handleRemoveEffect]);
 
   // Mutable ref to keep current audio timeline time accessible in callbacks
   const currentTimeRef = useRef(0);
@@ -619,9 +742,10 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
 
   // Clipboard Engine
   interface ClipboardData {
-    type: 'events' | 'triggers';
+    type: 'events' | 'triggers' | 'nodes';
     events?: PadEvent[];
     triggers?: TriggerData[];
+    nodes?: SceneNodeData[];
     baseTime: number;
   }
   const clipboardRef = useRef<ClipboardData | null>(null);
@@ -645,8 +769,23 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         triggers: selected.map((t) => ({ ...t })),
         baseTime,
       };
+    } else if (selectedNodeIds.size > 0) {
+      const selected = (level.visual?.nodes || []).filter((n) =>
+        selectedNodeIds.has(n.uid) ||
+        (Boolean(n.id) && selectedNodeIds.has(String(n.id))) ||
+        (Boolean(n.name) && selectedNodeIds.has(n.name!))
+      );
+      if (selected.length === 0) return;
+      const baseTime = Math.min(
+        ...selected.map((n) => (n.lifespan ? n.lifespan.startTime : currentTimeRef.current))
+      );
+      clipboardRef.current = {
+        type: 'nodes',
+        nodes: selected.map((n) => JSON.parse(JSON.stringify(n))),
+        baseTime,
+      };
     }
-  }, [selectedEventIds, selectedTriggerIds, level.events, level.visual?.triggers]);
+  }, [selectedEventIds, selectedTriggerIds, selectedNodeIds, level.events, level.visual?.triggers, level.visual?.nodes]);
 
   const handleCut = useCallback(() => {
     handleCopy();
@@ -679,6 +818,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       setSelectedEventIds(newIds);
       setSelectedTriggerIds(new Set());
       setSelectedNodeIds(new Set());
+      setSelectedEffectIds(new Set());
     } else if (clipboardRef.current.type === 'triggers' && clipboardRef.current.triggers) {
       const baseTime = clipboardRef.current.baseTime;
       const newIds = new Set<string>();
@@ -708,6 +848,40 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       setSelectedTriggerIds(newIds);
       setSelectedEventIds(new Set());
       setSelectedNodeIds(new Set());
+      setSelectedEffectIds(new Set());
+    } else if (clipboardRef.current.type === 'nodes' && clipboardRef.current.nodes) {
+      const baseTime = clipboardRef.current.baseTime;
+      const newIds = new Set<string>();
+      const pastedNodes: SceneNodeData[] = clipboardRef.current.nodes.map((node, i) => {
+        const newUid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}_${i}`;
+        newIds.add(newUid);
+        const cloned: SceneNodeData = JSON.parse(JSON.stringify(node));
+        cloned.uid = newUid;
+        cloned.id = newUid;
+        if (cloned.name) {
+          cloned.name = `${cloned.name}-copy`;
+        }
+        if (cloned.lifespan) {
+          const delta = cloned.lifespan.startTime - baseTime;
+          cloned.lifespan.startTime = Number((snappedPlayhead + delta).toFixed(4));
+        } else {
+          cloned.transform.x = (cloned.transform.x || 960) + 20;
+          cloned.transform.y = (cloned.transform.y || 540) + 20;
+        }
+        return cloned;
+      });
+
+      setLevel((prev) => ({
+        ...prev,
+        visual: {
+          ...prev.visual,
+          nodes: [...(prev.visual?.nodes || []), ...pastedNodes],
+        },
+      }));
+      setSelectedNodeIds(newIds);
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
+      setSelectedEffectIds(new Set());
     }
   }, [currentTime, gridSubdivision, level.timing.bpm, setLevel]);
 
@@ -773,8 +947,57 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         };
       });
       setSelectedTriggerIds(newIds);
+    } else if (selectedNodeIds.size > 0) {
+      const selected = (level.visual?.nodes || []).filter((n) =>
+        selectedNodeIds.has(n.uid) ||
+        (Boolean(n.id) && selectedNodeIds.has(String(n.id))) ||
+        (Boolean(n.name) && selectedNodeIds.has(n.name!))
+      );
+      if (selected.length === 0) return;
+      const beatDuration = 60 / level.timing.bpm;
+      const snapInterval = getSnapInterval(level.timing.bpm, gridSubdivision);
+      const minShift = snapInterval > 0 ? snapInterval : beatDuration;
+
+      const hasLifespans = selected.some((n) => n.lifespan);
+      let shift = minShift;
+      if (hasLifespans) {
+        const timesWithLifespan = selected.filter((n) => n.lifespan).map((n) => n.lifespan!);
+        const minTime = Math.min(...timesWithLifespan.map((l) => l.startTime));
+        const maxTime = Math.max(...timesWithLifespan.map((l) => l.startTime + (l.duration || 0)));
+        const blockSpan = maxTime - minTime;
+        shift = Math.max(minShift, snapTimeToGrid(blockSpan || minShift, level.timing.bpm, gridSubdivision));
+      }
+
+      const newIds = new Set<string>();
+      const duplicatedNodes: SceneNodeData[] = selected.map((n, i) => {
+        const newUid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}_${i}`;
+        newIds.add(newUid);
+        const cloned: SceneNodeData = JSON.parse(JSON.stringify(n));
+        cloned.uid = newUid;
+        cloned.id = newUid;
+        if (cloned.name) cloned.name = `${cloned.name}-copy`;
+        if (cloned.lifespan) {
+          cloned.lifespan.startTime = Number((cloned.lifespan.startTime + shift).toFixed(4));
+        } else {
+          cloned.transform.x = (cloned.transform.x || 960) + 20;
+          cloned.transform.y = (cloned.transform.y || 540) + 20;
+        }
+        return cloned;
+      });
+
+      setLevel((prev) => ({
+        ...prev,
+        visual: {
+          ...prev.visual,
+          nodes: [...(prev.visual?.nodes || []), ...duplicatedNodes],
+        },
+      }));
+      setSelectedNodeIds(newIds);
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
+      setSelectedEffectIds(new Set());
     }
-  }, [selectedEventIds, selectedTriggerIds, level.events, level.visual?.triggers, level.timing.bpm, gridSubdivision, setLevel]);
+  }, [selectedEventIds, selectedTriggerIds, selectedNodeIds, level.events, level.visual?.triggers, level.visual?.nodes, level.timing.bpm, gridSubdivision, setLevel]);
 
   const handleZoomIn = useCallback(() => {
     setPixelsPerSecond((prev) => Math.min(350, prev + 20));
@@ -788,7 +1011,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   useEditorShortcuts({
     activeTab,
     isRecording,
-    canDelete: Boolean(selectedEventIds.size > 0 || selectedTriggerIds.size > 0 || selectedNodeIds.size > 0 || selectedNodeId),
+    canDelete: Boolean(selectedEventIds.size > 0 || selectedTriggerIds.size > 0 || selectedNodeIds.size > 0 || selectedNodeId || selectedEffectIds.size > 0 || selectedEffectId),
     onSelectTool: setActiveTool,
     onDeleteSelected: () => handleRemoveBatch(),
     onTogglePlay: togglePlay,
@@ -973,6 +1196,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         onToggleWaveform={() => setShowWaveform((prev) => !prev)}
         selectedPrimitiveType={selectedPrimitiveType}
         onSelectPrimitiveType={handleSelectPrimitiveType}
+        selectedShaderType={selectedShaderType}
+        onSelectShaderType={handleSelectShaderType}
       />
 
       {/* Main Workspace Layout */}
@@ -1021,6 +1246,19 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               <Layers className="w-3.5 h-3.5" /> Visuals
             </button>
             <button
+              onClick={() => {
+                setActiveTab('timeline');
+                setTimelineMode('shaders');
+              }}
+              className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
+                activeTab === 'timeline' && timelineMode === 'shaders'
+                  ? 'border-fuchsia-400 text-fuchsia-300 bg-fuchsia-500/10'
+                  : 'border-transparent text-white/40 hover:text-white/70'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Shaders
+            </button>
+            <button
               onClick={() => setActiveTab('preview')}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'preview'
@@ -1042,6 +1280,10 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               <span className="text-emerald-400/80 flex items-center gap-1 font-medium">
                 <Layers className="w-3 h-3" /> {(level.visual?.nodes || []).length} visuals
               </span>
+              <span className="text-white/20">|</span>
+              <span className="text-fuchsia-400/80 flex items-center gap-1 font-medium">
+                <Sparkles className="w-3 h-3" /> {(level.visual?.effects || []).length} shaders
+              </span>
             </div>
           </div>
 
@@ -1062,21 +1304,26 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 activeLayer={activeLayer}
                 onChangeActiveLayer={setActiveLayer}
                 selectedPrimitiveType={selectedPrimitiveType}
+                selectedShaderType={selectedShaderType}
                 selectedEventId={selectedEventId}
                 selectedEventIds={selectedEventIds}
                 selectedTriggerId={selectedTriggerId}
                 selectedTriggerIds={selectedTriggerIds}
                 selectedNodeId={selectedNodeId}
                 selectedNodeIds={selectedNodeIds}
+                selectedEffectId={selectedEffectId}
+                selectedEffectIds={selectedEffectIds}
                 onSelectEvent={(evt) => selectEvent(evt?.id || null)}
                 onSelectEvents={selectEventsBatch}
                 onSelectTrigger={(trig) => selectTrigger(trig?.id || null)}
                 onSelectTriggers={selectTriggersBatch}
                 onSelectNode={(node) => selectNode(node?.uid || null)}
                 onSelectNodes={selectNodesBatch}
+                onSelectEffect={selectEffect}
                 onToggleEventSelection={toggleEventSelection}
                 onToggleTriggerSelection={toggleTriggerSelection}
                 onToggleNodeSelection={toggleNodeSelection}
+                onToggleEffectSelection={toggleEffectSelection}
                 onSelectEventRange={selectEventRange}
                 onSeek={handleSeek}
                 onAddEvent={handleAddEvent}
@@ -1091,6 +1338,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 onUpdateNode={handleUpdateNodeById}
                 onUpdateNodesBatch={handleUpdateNodesBatch}
                 onRemoveNode={handleRemoveNode}
+                onAddEffect={handleAddEffect}
+                onUpdateEffect={handleUpdateEffect}
+                onRemoveEffect={handleRemoveEffect}
                 onChangePixelsPerSecond={setPixelsPerSecond}
               />
             </div>
@@ -1103,7 +1353,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           </div>
         </main>
 
-        {/* Right Sidebar: Contextual Properties Panel (Events, Triggers, Nodes) */}
+        {/* Right Sidebar: Contextual Properties Panel (Events, Triggers, Nodes, Shaders) */}
         <EditorPropertiesPanel
           selectedEvent={selectedEvent}
           selectedEvents={selectedEvents}
@@ -1111,9 +1361,13 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           selectedTriggers={selectedTriggers}
           selectedNode={selectedNode}
           selectedNodes={selectedNodes}
+          selectedEffect={selectedEffect}
+          selectedEffects={selectedEffects}
+          effects={level.visual?.effects || []}
           nodes={level.visual?.nodes || []}
           pads={level.pads}
           activeTab={activeTab}
+          timelineMode={timelineMode}
           onUpdateEvent={handleUpdateEvent}
           onUpdateEventsBatch={handleUpdateEventsBatch}
           onRemoveEvent={handleRemoveEvent}
@@ -1122,6 +1376,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           onRemoveTrigger={handleRemoveTrigger}
           onUpdateNode={handleUpdateNode}
           onRemoveNode={handleRemoveNode}
+          onUpdateEffect={handleUpdateEffect}
+          onRemoveEffect={handleRemoveEffect}
         />
       </div>
 

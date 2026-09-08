@@ -178,31 +178,11 @@ export const EditorSetupWizard: React.FC<EditorSetupWizardProps> = ({
       }
 
       let decodedBuffer: AudioBuffer | null = null;
-      let dynamicGain = 1.0;
 
       if (arrayBuffer.byteLength > 0) {
         setCurrentStatusText('Decoding native PCM samples with AudioContext...');
         setProgressPercent(50);
         decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-
-        // 2. Dynamic analysis: True Peak & RMS for Spectrum Auto-Gain baseline
-        setCurrentStatusText('Calculating True Peak and RMS energy signature...');
-        setProgressPercent(70);
-        const channelData = decodedBuffer.getChannelData(0);
-        let peak = 0;
-        let sumSquares = 0;
-        const step = Math.max(1, Math.floor(channelData.length / 50000));
-        let samplesCount = 0;
-        for (let i = 0; i < channelData.length; i += step) {
-          const val = Math.abs(channelData[i]);
-          if (val > peak) peak = val;
-          sumSquares += val * val;
-          samplesCount++;
-        }
-        const rms = Math.sqrt(sumSquares / Math.max(1, samplesCount));
-        if (peak > 0.05) {
-          dynamicGain = Math.max(0.6, Math.min(2.5, 0.45 / (peak * 0.65 + rms * 0.35)));
-        }
       }
 
       // 3. Register audio in SongRegistry
@@ -245,53 +225,7 @@ export const EditorSetupWizard: React.FC<EditorSetupWizardProps> = ({
           windows: { perfect: 0.045, good: 0.090, miss: 0.150 },
         },
         visual: {
-          nodes: [
-            {
-              uid: 'spectrum_main',
-              name: 'spectrum-eq',
-              type: 'audioSpectrum',
-              targetId: null,
-              id: null,
-              transform: {
-                x: 960,
-                y: 650,
-                scaleX: 1,
-                scaleY: 1,
-                rotation: 0,
-                opacity: 0.9,
-              },
-              properties: {
-                width: 480,
-                height: 130,
-                bands: 32,
-                mode: 'bars',
-                color: '#00e5ff',
-                gap: 3,
-                gain: Number(dynamicGain.toFixed(2)),
-                decay: 0.88,
-                attack: 0.75,
-              },
-            },
-            {
-              uid: 'bg_glow',
-              name: 'center-glow',
-              type: 'circle',
-              targetId: null,
-              id: null,
-              transform: {
-                x: 960,
-                y: 540,
-                scaleX: 1,
-                scaleY: 1,
-                rotation: 0,
-                opacity: 0.25,
-              },
-              properties: {
-                radius: 260,
-                color: '#8a2be2',
-              },
-            },
-          ],
+          nodes: [],
           animations: [],
           triggers: [],
           audioMappings: [],

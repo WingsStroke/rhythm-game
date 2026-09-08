@@ -231,3 +231,108 @@ EffectRegistry.register({
     return filter;
   },
 });
+
+// 6. Pixel-Art (Pixelate)
+EffectRegistry.register({
+  type: 'pixelate',
+  label: 'Pixel-Art (Pixelate)',
+  description: 'Retro pixel grid mosaic rasterization',
+  defaultParameters: { pixelSize: 8.0 },
+  createFilter: (params, intensity = 1.0) => {
+    const rawSize = Math.max(1.0, Number(params.pixelSize ?? 8.0) * intensity);
+    const frag = `
+      precision mediump float;
+      varying vec2 vTextureCoord;
+      uniform sampler2D uTexture;
+      uniform float uPixelSize;
+      uniform vec2 uResolution;
+      void main() {
+        vec2 coord = vTextureCoord;
+        if (uPixelSize > 1.0 && uResolution.x > 0.0 && uResolution.y > 0.0) {
+          vec2 d = vec2(uPixelSize) / uResolution;
+          coord = floor(coord / d) * d + d * 0.5;
+        }
+        gl_FragColor = texture2D(uTexture, coord);
+      }
+    `;
+    const filter = new Filter({
+      gl: { fragment: frag },
+      resources: {
+        filterUniforms: {
+          uPixelSize: { value: rawSize, type: 'f32' },
+          uResolution: { value: [1920, 1080], type: 'vec2<f32>' },
+        },
+      },
+    } as unknown as ConstructorParameters<typeof Filter>[0]);
+    return filter;
+  },
+  updateFilter: (filter, params, intensity = 1.0) => {
+    const rawSize = Math.max(1.0, Number(params.pixelSize ?? 8.0) * intensity);
+    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
+      resources?: { filterUniforms?: { uniforms?: Record<string, unknown> } };
+    };
+    if (f.resources?.filterUniforms?.uniforms) {
+      f.resources.filterUniforms.uniforms.uPixelSize = rawSize;
+    }
+  },
+});
+
+// 7. Motion Blur
+EffectRegistry.register({
+  type: 'motionBlur',
+  label: 'Motion Blur',
+  description: 'Directional velocity streak sample blur',
+  defaultParameters: { velocityX: 16.0, velocityY: 0.0 },
+  createFilter: (params, intensity = 1.0) => {
+    const vx = (Number(params.velocityX ?? 16.0) * intensity) / 1920.0;
+    const vy = (Number(params.velocityY ?? 0.0) * intensity) / 1080.0;
+    const frag = `
+      precision mediump float;
+      varying vec2 vTextureCoord;
+      uniform sampler2D uTexture;
+      uniform vec2 uVelocity;
+      void main() {
+        vec2 uv = vTextureCoord;
+        vec4 color = vec4(0.0);
+        color += texture2D(uTexture, uv - uVelocity * 0.50) * 0.05;
+        color += texture2D(uTexture, uv - uVelocity * 0.33) * 0.12;
+        color += texture2D(uTexture, uv - uVelocity * 0.16) * 0.20;
+        color += texture2D(uTexture, uv) * 0.26;
+        color += texture2D(uTexture, uv + uVelocity * 0.16) * 0.20;
+        color += texture2D(uTexture, uv + uVelocity * 0.33) * 0.12;
+        color += texture2D(uTexture, uv + uVelocity * 0.50) * 0.05;
+        gl_FragColor = color;
+      }
+    `;
+    const filter = new Filter({
+      gl: { fragment: frag },
+      resources: {
+        filterUniforms: {
+          uVelocity: { value: [vx, vy], type: 'vec2<f32>' },
+        },
+      },
+    } as unknown as ConstructorParameters<typeof Filter>[0]);
+    return filter;
+  },
+  updateFilter: (filter, params, intensity = 1.0) => {
+    const vx = (Number(params.velocityX ?? 16.0) * intensity) / 1920.0;
+    const vy = (Number(params.velocityY ?? 0.0) * intensity) / 1080.0;
+    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
+      resources?: { filterUniforms?: { uniforms?: Record<string, unknown> } };
+    };
+    if (f.resources?.filterUniforms?.uniforms) {
+      f.resources.filterUniforms.uniforms.uVelocity = [vx, vy];
+    }
+  },
+});
+
+// 8. RGB Shift (Alias for Chromatic Aberration)
+EffectRegistry.register({
+  type: 'rgbShift',
+  label: 'RGB Shift (Chromatic)',
+  description: 'Color channel RGB offset splitting',
+  defaultParameters: { shift: 0.008 },
+  createFilter: (params, intensity = 1.0) => {
+    return EffectRegistry.createFilter('chromatic', params, intensity);
+  },
+});

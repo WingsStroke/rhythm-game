@@ -221,7 +221,12 @@ export function useEditorEngine({
         inputRef.current.setHandler((event) => gameplayRef.current?.handleInput(event));
       }
 
-      const ve = new VisualEngine(canvasContainerRef.current, level, transportRef.current?.audioEngine ?? null);
+      const ve = new VisualEngine(
+        canvasContainerRef.current,
+        level,
+        transportRef.current?.audioEngine ?? null,
+        { isEditorPreview: true }
+      );
       ve.onNodeSelect = (id, isShift) => {
         onSelectNode?.(id, isShift);
       };

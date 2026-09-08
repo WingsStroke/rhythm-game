@@ -107,6 +107,7 @@ export class SceneNode {
     if (transform.pivotX !== undefined) this.container.pivot.x = transform.pivotX;
     if (transform.pivotY !== undefined) this.container.pivot.y = transform.pivotY;
     if (data.visible !== undefined) this.container.visible = data.visible;
+    if (data.zIndex !== undefined) this.container.zIndex = data.zIndex;
     if (data.blendMode) {
       // PixiJS v8 Container supports blendMode at runtime but the generic
       // Container type does not declare it; cast through unknown to avoid 'any'.

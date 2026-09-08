@@ -143,6 +143,8 @@ export function useEditorShortcuts({
         onSelectTool('eraser');
       } else if (e.code === 'KeyO') {
         onSelectTool('object');
+      } else if (e.code === 'KeyS') {
+        onSelectTool('shader');
       }
     };
 

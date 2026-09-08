@@ -8,14 +8,31 @@ import type { LevelData, SceneNodeData } from '../types';
  */
 export class SceneGraph {
   public root: Container;
-  public foregroundRoot?: Container;
+  public aboveLanesRoot?: Container;
+  public abovePadsRoot?: Container;
   public onNodeSelect?: (nodeId: string | null, isShift?: boolean) => void;
   private nodes: Map<string, SceneNode> = new Map();
   private spectrumNodes: Set<SceneNode> = new Set();
 
-  constructor(container: Container, foregroundContainer?: Container) {
+  constructor(container: Container, aboveLanesContainer?: Container, abovePadsContainer?: Container) {
     this.root = container;
-    this.foregroundRoot = foregroundContainer;
+    if (abovePadsContainer) {
+      this.aboveLanesRoot = aboveLanesContainer;
+      this.abovePadsRoot = abovePadsContainer;
+    } else {
+      // Backward compatibility if only 2 containers passed (sceneLayer, foregroundLayer)
+      this.abovePadsRoot = aboveLanesContainer;
+    }
+  }
+
+  public getTargetRoot(nodeData: SceneNodeData): Container {
+    if (this.abovePadsRoot && (nodeData.abovePads || nodeData.layerId === 'sceneFront')) {
+      return this.abovePadsRoot;
+    }
+    if (this.aboveLanesRoot && nodeData.aboveLanes) {
+      return this.aboveLanesRoot;
+    }
+    return this.root;
   }
 
   /**
@@ -30,6 +47,7 @@ export class SceneGraph {
     // 1. Create all nodes first, indexed strictly by immutable uid
     for (const nodeData of nodesData) {
       const node = new SceneNode(nodeData);
+      node.container.zIndex = nodeData.zIndex ?? 0;
       node.container.on('pointerdown', (e) => {
         e.stopPropagation();
         this.onNodeSelect?.(node.uid, Boolean((e as unknown as { shiftKey?: boolean }).shiftKey));
@@ -44,10 +62,8 @@ export class SceneGraph {
     for (const nodeData of nodesData) {
       const node = this.getNode(nodeData.uid);
       if (node) {
-        const targetRoot =
-          this.foregroundRoot && nodeData.layerId === 'sceneFront'
-            ? this.foregroundRoot
-            : this.root;
+        node.container.zIndex = nodeData.zIndex ?? 0;
+        const targetRoot = this.getTargetRoot(nodeData);
 
         if (nodeData.parentId) {
           const parent = this.getNode(nodeData.parentId);
@@ -106,6 +122,7 @@ export class SceneGraph {
 
   public addNode(nodeData: SceneNodeData) {
     const node = new SceneNode(nodeData);
+    node.container.zIndex = nodeData.zIndex ?? 0;
     node.container.on('pointerdown', (e) => {
       e.stopPropagation();
       this.onNodeSelect?.(node.uid, Boolean((e as unknown as { shiftKey?: boolean }).shiftKey));
@@ -115,10 +132,7 @@ export class SceneGraph {
       this.spectrumNodes.add(node);
     }
     
-    const targetRoot =
-      this.foregroundRoot && nodeData.layerId === 'sceneFront'
-        ? this.foregroundRoot
-        : this.root;
+    const targetRoot = this.getTargetRoot(nodeData);
 
     if (nodeData.parentId) {
       const parent = this.getNode(nodeData.parentId);
@@ -137,6 +151,16 @@ export class SceneGraph {
     const node = this.getNode(key);
     if (node) {
       node.updateData(nodeData);
+      node.container.zIndex = nodeData.zIndex ?? 0;
+
+      const targetRoot = this.getTargetRoot(nodeData);
+      if (!nodeData.parentId && node.container.parent !== targetRoot) {
+        if (node.container.parent) {
+          node.container.parent.removeChild(node.container);
+        }
+        targetRoot.addChild(node.container);
+      }
+
       if (node.displayObject instanceof AudioSpectrumVisualizer) {
         this.spectrumNodes.add(node);
       } else {
