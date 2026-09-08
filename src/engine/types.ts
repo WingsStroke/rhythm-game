@@ -283,7 +283,8 @@ export type ShaderEffectType =
   | 'scanlines'
   | 'glitch'
   | 'colorGrade'
-  | 'rgbShift';
+  | 'rgbShift'
+  | 'shockwave';
 export type EffectType = TriggerEffectType | ShaderEffectType | string;
 
 export interface TriggerData {

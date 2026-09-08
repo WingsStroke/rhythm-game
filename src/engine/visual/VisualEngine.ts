@@ -21,7 +21,7 @@ import { Animator } from './Animator';
 import { TriggerDispatcher } from './TriggerDispatcher';
 import { ParticlePool } from './ParticlePool';
 import { NotePool } from './NotePool';
-import { EffectRegistry } from './effects/EffectRegistry';
+import { EffectRegistry, createShaderFilter, updateShaderUniforms } from './effects/EffectRegistry';
 import { AudioSpectrumVisualizer } from './objects/AudioSpectrumVisualizer';
 import { TransformGizmo } from './editor/TransformGizmo';
 import type { SceneNode } from './objects/SceneNode';
@@ -402,6 +402,8 @@ export class VisualEngine {
     this.app.stage.sortableChildren = true;
     this.mainStage = new Container();
     this.mainStage.sortableChildren = true;
+    this.mainStage.filterArea = this.app.screen;
+    this.mainStage.zIndex = 1;
     this.mainStage.addChild(
       this.bgLayer,
       this.sceneLayer,
@@ -410,15 +412,16 @@ export class VisualEngine {
       this.sceneAboveLanesLayer,
       this.padLayer,
       this.sceneAbovePadsLayer,
-      this.fxLayer,
-      this.hudLayer
+      this.fxLayer
     );
     this.mainStage.sortChildren();
 
     this.app.stage.addChild(
       this.mainStage,
+      this.hudLayer,
       this.editorOverlayContainer
     );
+    this.app.stage.sortChildren();
 
     // Scale and center scene layers to virtual 1920x1080 stage
     const sceneScale = Math.min(w / 1920, h / 1080);
@@ -646,6 +649,26 @@ export class VisualEngine {
           this.lastAudioTime
         );
       }
+    } else if (effectType === 'shockwave') {
+      const effect: VisualEffect = {
+        id: `trig_shockwave_${Date.now()}`,
+        type: 'shockwave',
+        scope: 'global',
+        enabled: true,
+        startTime: this.lastAudioTime,
+        duration: typeof properties.duration === 'number' ? properties.duration : 0.8,
+        parameters: {
+          speed: typeof properties.speed === 'number' ? properties.speed : 2.0,
+          waveSize: typeof properties.waveSize === 'number' ? properties.waveSize : 0.1,
+          amplitude: typeof properties.amplitude === 'number' ? properties.amplitude : 0.04,
+          centerX: typeof properties.centerX === 'number' ? properties.centerX : 0.5,
+          centerY: typeof properties.centerY === 'number' ? properties.centerY : 0.5,
+        },
+      };
+      const filters = EffectRegistry.createFilter(effect.type, effect.parameters, 1.0);
+      if (filters.length > 0) {
+        this.activeVisualEffects.push({ effect, filters });
+      }
     }
   }
 
@@ -732,7 +755,10 @@ export class VisualEngine {
     }
 
     this.drawLanes();
-    this.mainStage.sortChildren();
+    if (this.mainStage) {
+      this.mainStage.filterArea = this.app.screen;
+      this.mainStage.sortChildren();
+    }
   }
 
   private setupFilters(): void {
@@ -750,25 +776,34 @@ export class VisualEngine {
       const rgbEnabled = settings?.rgbShiftEnabled !== false;
       if (rgbEnabled) {
         const fragShader = `
-          precision mediump float;
-          varying vec2 vTextureCoord;
+          precision highp float;
+          in vec2 vTextureCoord;
+          out vec4 finalColor;
+
           uniform sampler2D uTexture;
           uniform float uTime;
           uniform float uBass;
           uniform float uAmp;
+
           void main() {
             vec2 uv = vTextureCoord;
             float shift = 0.002 + uBass * 0.006 + uAmp * 0.003;
-            float r = texture2D(uTexture, uv + vec2(shift, 0.0)).r;
-            float g = texture2D(uTexture, uv).g;
-            float b = texture2D(uTexture, uv - vec2(shift, 0.0)).b;
-            float a = texture2D(uTexture, uv).a;
-            gl_FragColor = vec4(r, g, b, a);
+            float r = texture(uTexture, uv + vec2(shift, 0.0)).r;
+            vec4 center = texture(uTexture, uv);
+            float b = texture(uTexture, uv - vec2(shift, 0.0)).b;
+            finalColor = vec4(r, center.g, b, center.a);
           }
         `;
-        this.rgbFilter = new Filter({
-          gl: { fragment: fragShader },
-        } as ConstructorParameters<typeof Filter>[0]);
+        this.rgbFilter = createShaderFilter(
+          'reactive-rgb-filter',
+          fragShader,
+          {
+            uTime: { value: 0.0, type: 'f32' },
+            uBass: { value: 0.0, type: 'f32' },
+            uAmp: { value: 0.0, type: 'f32' },
+          },
+          16
+        );
         this.noteLayer.filters = [this.rgbFilter];
       } else {
         this.rgbFilter = null;
@@ -1073,19 +1108,11 @@ export class VisualEngine {
     const rgbIntensity = rgbEnabled ? (settings?.rgbShiftIntensity ?? 1.0) : 0;
     if (this.rgbFilter) {
       try {
-        const u = this.rgbFilter as unknown as {
-          resources?: { filterUniforms?: { uniforms?: Record<string, number> } };
-          uniforms?: Record<string, number>;
-        };
-        if (u.resources?.filterUniforms?.uniforms) {
-          u.resources.filterUniforms.uniforms.uTime = audioTime;
-          u.resources.filterUniforms.uniforms.uBass = channels.bassIntensity * rgbIntensity;
-          u.resources.filterUniforms.uniforms.uAmp = channels.ambientBrightness * rgbIntensity;
-        } else if (u.uniforms) {
-          u.uniforms.uTime = audioTime;
-          u.uniforms.uBass = channels.bassIntensity * rgbIntensity;
-          u.uniforms.uAmp = channels.ambientBrightness * rgbIntensity;
-        }
+        updateShaderUniforms(this.rgbFilter, {
+          uTime: audioTime,
+          uBass: channels.bassIntensity * rgbIntensity,
+          uAmp: channels.ambientBrightness * rgbIntensity,
+        });
       } catch {
         // Ignored
       }

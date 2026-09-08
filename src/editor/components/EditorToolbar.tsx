@@ -189,6 +189,7 @@ export function EditorToolbar({
     { type: 'scanlines', label: 'CRT Scanlines', description: 'Retro arcade monitor raster' },
     { type: 'glitch', label: 'Digital Glitch', description: 'Horizontal slice displacement' },
     { type: 'colorGrade', label: 'Color Grading', description: 'Cinematic color matrix adjustment' },
+    { type: 'shockwave', label: 'Shockwave (Ripple)', description: 'Radial explosive wave distortion' },
   ];
 
   return (

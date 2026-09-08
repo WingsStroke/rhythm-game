@@ -1,4 +1,4 @@
-import { Filter, ColorMatrixFilter } from 'pixi.js';
+import { Filter, ColorMatrixFilter, GlProgram, UniformGroup } from 'pixi.js';
 
 export interface EffectDefinition {
   type: string;
@@ -15,8 +15,81 @@ export interface EffectDefinition {
 }
 
 /**
+ * Standard PixiJS v8 Vertex Shader for 2D Post-Processing Quad Filters (GLSL 300 es).
+ */
+export const DEFAULT_FILTER_VERT = `
+in vec2 aPosition;
+out vec2 vTextureCoord;
+
+uniform vec4 uInputSize;
+uniform vec4 uOutputFrame;
+uniform vec4 uOutputTexture;
+
+vec4 filterVertexPosition(void)
+{
+    vec2 position = aPosition * uOutputFrame.zw + uOutputFrame.xy;
+    position.x = position.x * (2.0 / uOutputTexture.x) - 1.0;
+    position.y = position.y * (2.0 * uOutputTexture.z / uOutputTexture.y) - uOutputTexture.z;
+    return vec4(position, 0.0, 1.0);
+}
+
+vec2 filterTextureCoord(void)
+{
+    return aPosition * (uOutputFrame.zw * uInputSize.zw);
+}
+
+void main(void)
+{
+    gl_Position = filterVertexPosition();
+    vTextureCoord = filterTextureCoord();
+}
+`;
+
+/**
+ * Helper to construct modern PixiJS v8 Filters with GlProgram and UniformGroup.
+ */
+export function createShaderFilter(
+  name: string,
+  fragmentSrc: string,
+  uniforms: Record<string, { value: unknown; type: string }>,
+  padding = 0
+): Filter {
+  const glProgram = GlProgram.from({
+    vertex: DEFAULT_FILTER_VERT,
+    fragment: fragmentSrc,
+    name,
+  });
+  const uniformGroup = new UniformGroup(uniforms);
+  return new Filter({
+    glProgram,
+    resources: {
+      filterUniforms: uniformGroup,
+    },
+    padding,
+  });
+}
+
+/**
+ * Helper to update custom uniform values in a PixiJS v8 Filter.
+ */
+export function updateShaderUniforms(
+  filter: Filter | Filter[],
+  updates: Record<string, unknown>
+): void {
+  const targetFilter = Array.isArray(filter) ? filter[0] : filter;
+  if (!targetFilter) return;
+  const res = targetFilter.resources as Record<string, unknown> | undefined;
+  const ug = res?.filterUniforms as { uniforms?: Record<string, unknown> } | undefined;
+  if (ug?.uniforms) {
+    for (const [k, v] of Object.entries(updates)) {
+      ug.uniforms[k] = v;
+    }
+  }
+}
+
+/**
  * EffectRegistry maintains a catalog of verified, safe post-processing filters/shaders.
- * In accordance with the security and architectural requirements of the DevTeam Report,
+ * In accordance with the security and architectural requirements of the project,
  * levels never contain raw arbitrary GLSL, but instead reference registered, parameterizable effects.
  */
 export class EffectRegistry {
@@ -48,7 +121,8 @@ export class EffectRegistry {
     try {
       const res = def.createFilter(params, intensity);
       return Array.isArray(res) ? res : [res];
-    } catch {
+    } catch (err) {
+      console.error(`[EffectRegistry] Failed to create filter for type '${type}':`, err);
       return [];
     }
   }
@@ -67,94 +141,146 @@ export class EffectRegistry {
       return;
     }
     for (const filter of filters) {
-      const u = filter as unknown as {
-        resources?: { filterUniforms?: { uniforms?: Record<string, number> } };
-        uniforms?: Record<string, number>;
-      };
-      if (u.resources?.filterUniforms?.uniforms && 'uTime' in u.resources.filterUniforms.uniforms) {
-        u.resources.filterUniforms.uniforms.uTime = time;
-      } else if (u.uniforms && 'uTime' in u.uniforms) {
-        u.uniforms.uTime = time;
-      }
+      updateShaderUniforms(filter, { uTime: time });
     }
   }
 }
 
 // ----------------------------------------------------------------------------
-// Registered Visual Effects
+// Registered Visual Effects (Modern PixiJS v8 GLSL 300 es Architecture)
 // ----------------------------------------------------------------------------
 
-// 1. Bloom Filter
+// 1. Bloom Filter (High-Luminance Threshold + Multi-Tap Radial Neon Halo)
 EffectRegistry.register({
   type: 'bloom',
-  label: 'Bloom (Glow)',
-  description: 'Bright glow amplification and saturation boost',
-  defaultParameters: { brightness: 1.35, contrast: 1.1 },
+  label: 'Bloom (Neon Glow)',
+  description: 'High-luminance extraction with 13-tap multi-radial neon glow',
+  defaultParameters: { threshold: 0.50, intensity: 1.5, radius: 2.5 },
   createFilter: (params, intensity = 1.0) => {
-    const filter = new ColorMatrixFilter();
-    const rawB = Number(params.brightness ?? 1.35);
-    const b = 1.0 + (rawB - 1.0) * intensity;
-    filter.brightness(b, false);
-    filter.saturate(1.0 + 0.35 * intensity, false);
-    return filter;
+    const rawThreshold = Number(params.threshold ?? 0.50);
+    const rawIntensity = Number(params.intensity ?? 1.5) * intensity;
+    const rawRadius = Number(params.radius ?? 2.5);
+
+    const frag = `
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
+      uniform sampler2D uTexture;
+      uniform float uThreshold;
+      uniform float uIntensity;
+      uniform float uRadius;
+
+      vec3 extractHighlights(vec3 c, float threshold) {
+        float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        float soft = clamp(luma - threshold, 0.0, 1.0);
+        return c * (soft / max(luma, 0.0001));
+      }
+
+      void main() {
+        vec4 base = texture(uTexture, vTextureCoord);
+        vec2 texel = vec2(1.0 / 1920.0, 1.0 / 1080.0) * uRadius;
+        vec3 bloom = vec3(0.0);
+
+        // Ring 1: Inner tight glow (4 samples)
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(-texel.x, -texel.y) * 1.5).rgb, uThreshold) * 0.15;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(texel.x, -texel.y) * 1.5).rgb, uThreshold) * 0.15;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(-texel.x, texel.y) * 1.5).rgb, uThreshold) * 0.15;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(texel.x, texel.y) * 1.5).rgb, uThreshold) * 0.15;
+
+        // Ring 2: Mid-range glow (4 samples)
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(0.0, -texel.y) * 3.5).rgb, uThreshold) * 0.12;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(0.0, texel.y) * 3.5).rgb, uThreshold) * 0.12;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(-texel.x, 0.0) * 3.5).rgb, uThreshold) * 0.12;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(texel.x, 0.0) * 3.5).rgb, uThreshold) * 0.12;
+
+        // Ring 3: Wide atmosphere halo (4 samples)
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(-texel.x, -texel.y) * 6.0).rgb, uThreshold) * 0.08;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(texel.x, -texel.y) * 6.0).rgb, uThreshold) * 0.08;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(-texel.x, texel.y) * 6.0).rgb, uThreshold) * 0.08;
+        bloom += extractHighlights(texture(uTexture, vTextureCoord + vec2(texel.x, texel.y) * 6.0).rgb, uThreshold) * 0.08;
+
+        // Center highlight contribution
+        bloom += extractHighlights(base.rgb, uThreshold) * 0.20;
+
+        // Additive blend preserves deep black background while illuminating bright neon objects
+        vec3 finalRgb = base.rgb + bloom * uIntensity;
+        finalColor = vec4(finalRgb, base.a);
+      }
+    `;
+
+    return createShaderFilter(
+      'bloom-filter',
+      frag,
+      {
+        uThreshold: { value: rawThreshold, type: 'f32' },
+        uIntensity: { value: rawIntensity, type: 'f32' },
+        uRadius: { value: rawRadius, type: 'f32' },
+      },
+      32
+    );
   },
   updateFilter: (filter, params, intensity = 1.0) => {
-    const f = (Array.isArray(filter) ? filter[0] : filter) as ColorMatrixFilter;
-    if (f && typeof f.brightness === 'function') {
-      f.reset();
-      const rawB = Number(params.brightness ?? 1.35);
-      const b = 1.0 + (rawB - 1.0) * intensity;
-      f.brightness(b, false);
-      f.saturate(1.0 + 0.35 * intensity, false);
-    }
+    const rawThreshold = Number(params.threshold ?? 0.50);
+    const rawIntensity = Number(params.intensity ?? 1.5) * intensity;
+    const rawRadius = Number(params.radius ?? 2.5);
+    updateShaderUniforms(filter, {
+      uThreshold: rawThreshold,
+      uIntensity: rawIntensity,
+      uRadius: rawRadius,
+    });
   },
 });
 
-// 2. Chromatic Aberration
+// 2. Chromatic Aberration (RGB Shift with angular control)
 EffectRegistry.register({
   type: 'chromatic',
   label: 'Chromatic Aberration',
-  description: 'Color channel RGB offset splitting',
-  defaultParameters: { shift: 0.008 },
+  description: 'Directional RGB channel split displacement',
+  defaultParameters: { shift: 0.008, angle: 0.0 },
   createFilter: (params, intensity = 1.0) => {
     const baseShift = Number(params.shift ?? 0.008) * intensity;
+    const baseAngle = Number(params.angle ?? 0.0);
+
     const frag = `
-      precision mediump float;
-      varying vec2 vTextureCoord;
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
       uniform sampler2D uTexture;
       uniform float uShift;
+      uniform float uAngle;
+
       void main() {
-        vec2 uv = vTextureCoord;
-        float shift = uShift;
-        float r = texture2D(uTexture, uv + vec2(shift, 0.0)).r;
-        float g = texture2D(uTexture, uv).g;
-        float b = texture2D(uTexture, uv - vec2(shift, 0.0)).b;
-        float a = texture2D(uTexture, uv).a;
-        gl_FragColor = vec4(r, g, b, a);
+        vec2 dir = vec2(cos(uAngle), sin(uAngle)) * uShift;
+        float r = texture(uTexture, vTextureCoord + dir).r;
+        vec4 center = texture(uTexture, vTextureCoord);
+        float b = texture(uTexture, vTextureCoord - dir).b;
+        finalColor = vec4(r, center.g, b, center.a);
       }
     `;
-    const filter = new Filter({
-      gl: { fragment: frag },
-      resources: {
-        filterUniforms: {
-          uShift: { value: baseShift, type: 'f32' },
-        },
+
+    return createShaderFilter(
+      'chromatic-filter',
+      frag,
+      {
+        uShift: { value: baseShift, type: 'f32' },
+        uAngle: { value: baseAngle, type: 'f32' },
       },
-    } as unknown as ConstructorParameters<typeof Filter>[0]);
-    return filter;
+      24
+    );
   },
   updateFilter: (filter, params, intensity = 1.0) => {
     const baseShift = Number(params.shift ?? 0.008) * intensity;
-    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
-      resources?: { filterUniforms?: { uniforms?: Record<string, unknown> } };
-    };
-    if (f.resources?.filterUniforms?.uniforms) {
-      f.resources.filterUniforms.uniforms.uShift = baseShift;
-    }
+    const baseAngle = Number(params.angle ?? 0.0);
+    updateShaderUniforms(filter, {
+      uShift: baseShift,
+      uAngle: baseAngle,
+    });
   },
 });
 
-// 3. Scanlines (CRT Overlay)
+// 3. Scanlines (CRT Arcade Raster Overlay)
 EffectRegistry.register({
   type: 'scanlines',
   label: 'CRT Scanlines',
@@ -163,61 +289,60 @@ EffectRegistry.register({
   createFilter: (params, intensity = 1.0) => {
     const count = Number(params.count ?? 180.0);
     const opacity = Number(params.opacity ?? 0.3) * intensity;
+
     const frag = `
-      precision mediump float;
-      varying vec2 vTextureCoord;
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
       uniform sampler2D uTexture;
       uniform float uCount;
       uniform float uOpacity;
+
       void main() {
-        vec2 uv = vTextureCoord;
-        vec4 col = texture2D(uTexture, uv);
-        float line = sin(uv.y * uCount * 3.14159);
+        vec4 col = texture(uTexture, vTextureCoord);
+        float line = sin(vTextureCoord.y * uCount * 3.14159265);
         float dark = clamp(line * 0.5 + 0.5, 0.0, 1.0);
         col.rgb *= (1.0 - uOpacity) + dark * uOpacity;
-        gl_FragColor = col;
+        finalColor = col;
       }
     `;
-    const filter = new Filter({
-      gl: { fragment: frag },
-      resources: {
-        filterUniforms: {
-          uCount: { value: count, type: 'f32' },
-          uOpacity: { value: opacity, type: 'f32' },
-        },
-      },
-    } as unknown as ConstructorParameters<typeof Filter>[0]);
-    return filter;
+
+    return createShaderFilter('scanlines-filter', frag, {
+      uCount: { value: count, type: 'f32' },
+      uOpacity: { value: opacity, type: 'f32' },
+    });
   },
   updateFilter: (filter, params, intensity = 1.0) => {
     const count = Number(params.count ?? 180.0);
     const opacity = Number(params.opacity ?? 0.3) * intensity;
-    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
-      resources?: { filterUniforms?: { uniforms?: Record<string, unknown> } };
-    };
-    if (f.resources?.filterUniforms?.uniforms) {
-      f.resources.filterUniforms.uniforms.uCount = count;
-      f.resources.filterUniforms.uniforms.uOpacity = opacity;
-    }
+    updateShaderUniforms(filter, {
+      uCount: count,
+      uOpacity: opacity,
+    });
   },
 });
 
-// 4. Glitch / Slice Jitter
+// 4. Glitch / Digital Slice Displacement
 EffectRegistry.register({
   type: 'glitch',
   label: 'Digital Glitch',
-  description: 'Horizontal pixel slice displacement',
+  description: 'Horizontal pixel slice displacement jitter',
   defaultParameters: { slices: 12.0, offset: 0.02 },
   createFilter: (params, intensity = 1.0) => {
     const slices = Number(params.slices ?? 12.0);
     const offset = Number(params.offset ?? 0.02) * intensity;
+
     const frag = `
-      precision mediump float;
-      varying vec2 vTextureCoord;
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
       uniform sampler2D uTexture;
       uniform float uSlices;
       uniform float uOffset;
       uniform float uTime;
+
       void main() {
         vec2 uv = vTextureCoord;
         float slice = floor(uv.y * uSlices);
@@ -225,43 +350,39 @@ EffectRegistry.register({
         if (jitter > 0.5) {
           uv.x += uOffset * (jitter - 0.5) * 2.0;
         }
-        gl_FragColor = texture2D(uTexture, uv);
+        finalColor = texture(uTexture, uv);
       }
     `;
-    const filter = new Filter({
-      gl: { fragment: frag },
-      resources: {
-        filterUniforms: {
-          uSlices: { value: slices, type: 'f32' },
-          uOffset: { value: offset, type: 'f32' },
-          uTime: { value: 0.0, type: 'f32' },
-        },
-      },
-    } as unknown as ConstructorParameters<typeof Filter>[0]);
-    return filter;
+
+    return createShaderFilter('glitch-filter', frag, {
+      uSlices: { value: slices, type: 'f32' },
+      uOffset: { value: offset, type: 'f32' },
+      uTime: { value: 0.0, type: 'f32' },
+    });
   },
   updateFilter: (filter, params, intensity = 1.0, time = 0) => {
-    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
-      resources?: { filterUniforms?: { uniforms?: Record<string, number> } };
-    };
-    if (f.resources?.filterUniforms?.uniforms) {
-      const offset = Number(params.offset ?? 0.02) * intensity;
-      f.resources.filterUniforms.uniforms.uOffset = offset;
-      f.resources.filterUniforms.uniforms.uTime = time;
-    }
+    const offset = Number(params.offset ?? 0.02) * intensity;
+    updateShaderUniforms(filter, {
+      uOffset: offset,
+      uTime: time,
+    });
   },
 });
 
-// 5. Color Grading / Hue & Saturation
+// 5. Color Grading (Cinematic Contrast & Saturation Matrix)
 EffectRegistry.register({
   type: 'colorGrade',
   label: 'Color Grading',
   description: 'Cinematic color matrix adjustment',
-  defaultParameters: { brightness: 1.0, contrast: 1.0, saturation: 1.3 },
+  defaultParameters: { brightness: 1.0, contrast: 1.1, saturation: 1.3 },
   createFilter: (params, intensity = 1.0) => {
     const filter = new ColorMatrixFilter();
     const sat = 1.0 + (Number(params.saturation ?? 1.3) - 1.0) * intensity;
+    const con = 1.0 + (Number(params.contrast ?? 1.1) - 1.0) * intensity;
+    const bri = 1.0 + (Number(params.brightness ?? 1.0) - 1.0) * intensity;
     filter.saturate(sat, false);
+    filter.contrast(con, false);
+    filter.brightness(bri, false);
     return filter;
   },
   updateFilter: (filter, params, intensity = 1.0) => {
@@ -269,12 +390,16 @@ EffectRegistry.register({
     if (f && typeof f.saturate === 'function') {
       f.reset();
       const sat = 1.0 + (Number(params.saturation ?? 1.3) - 1.0) * intensity;
+      const con = 1.0 + (Number(params.contrast ?? 1.1) - 1.0) * intensity;
+      const bri = 1.0 + (Number(params.brightness ?? 1.0) - 1.0) * intensity;
       f.saturate(sat, false);
+      f.contrast(con, false);
+      f.brightness(bri, false);
     }
   },
 });
 
-// 6. Pixel-Art (Pixelate)
+// 6. Pixel-Art (Retro Pixel Grid Mosaic)
 EffectRegistry.register({
   type: 'pixelate',
   label: 'Pixel-Art (Pixelate)',
@@ -282,44 +407,40 @@ EffectRegistry.register({
   defaultParameters: { pixelSize: 8.0 },
   createFilter: (params, intensity = 1.0) => {
     const rawSize = Math.max(1.0, Number(params.pixelSize ?? 8.0) * intensity);
+
     const frag = `
-      precision mediump float;
-      varying vec2 vTextureCoord;
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
       uniform sampler2D uTexture;
       uniform float uPixelSize;
       uniform vec2 uResolution;
+
       void main() {
         vec2 coord = vTextureCoord;
         if (uPixelSize > 1.0 && uResolution.x > 0.0 && uResolution.y > 0.0) {
           vec2 d = vec2(uPixelSize) / uResolution;
           coord = floor(coord / d) * d + d * 0.5;
         }
-        gl_FragColor = texture2D(uTexture, coord);
+        finalColor = texture(uTexture, coord);
       }
     `;
-    const filter = new Filter({
-      gl: { fragment: frag },
-      resources: {
-        filterUniforms: {
-          uPixelSize: { value: rawSize, type: 'f32' },
-          uResolution: { value: [1920, 1080], type: 'vec2<f32>' },
-        },
-      },
-    } as unknown as ConstructorParameters<typeof Filter>[0]);
-    return filter;
+
+    return createShaderFilter('pixelate-filter', frag, {
+      uPixelSize: { value: rawSize, type: 'f32' },
+      uResolution: { value: [1920, 1080], type: 'vec2<f32>' },
+    });
   },
   updateFilter: (filter, params, intensity = 1.0) => {
     const rawSize = Math.max(1.0, Number(params.pixelSize ?? 8.0) * intensity);
-    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
-      resources?: { filterUniforms?: { uniforms?: Record<string, unknown> } };
-    };
-    if (f.resources?.filterUniforms?.uniforms) {
-      f.resources.filterUniforms.uniforms.uPixelSize = rawSize;
-    }
+    updateShaderUniforms(filter, {
+      uPixelSize: rawSize,
+    });
   },
 });
 
-// 7. Motion Blur
+// 7. Motion Blur (Velocity Sample Streak Blur)
 EffectRegistry.register({
   type: 'motionBlur',
   label: 'Motion Blur',
@@ -328,43 +449,44 @@ EffectRegistry.register({
   createFilter: (params, intensity = 1.0) => {
     const vx = (Number(params.velocityX ?? 16.0) * intensity) / 1920.0;
     const vy = (Number(params.velocityY ?? 0.0) * intensity) / 1080.0;
+
     const frag = `
-      precision mediump float;
-      varying vec2 vTextureCoord;
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
       uniform sampler2D uTexture;
       uniform vec2 uVelocity;
+
       void main() {
         vec2 uv = vTextureCoord;
         vec4 color = vec4(0.0);
-        color += texture2D(uTexture, uv - uVelocity * 0.50) * 0.05;
-        color += texture2D(uTexture, uv - uVelocity * 0.33) * 0.12;
-        color += texture2D(uTexture, uv - uVelocity * 0.16) * 0.20;
-        color += texture2D(uTexture, uv) * 0.26;
-        color += texture2D(uTexture, uv + uVelocity * 0.16) * 0.20;
-        color += texture2D(uTexture, uv + uVelocity * 0.33) * 0.12;
-        color += texture2D(uTexture, uv + uVelocity * 0.50) * 0.05;
-        gl_FragColor = color;
+        color += texture(uTexture, uv - uVelocity * 0.50) * 0.05;
+        color += texture(uTexture, uv - uVelocity * 0.33) * 0.12;
+        color += texture(uTexture, uv - uVelocity * 0.16) * 0.20;
+        color += texture(uTexture, uv) * 0.26;
+        color += texture(uTexture, uv + uVelocity * 0.16) * 0.20;
+        color += texture(uTexture, uv + uVelocity * 0.33) * 0.12;
+        color += texture(uTexture, uv + uVelocity * 0.50) * 0.05;
+        finalColor = color;
       }
     `;
-    const filter = new Filter({
-      gl: { fragment: frag },
-      resources: {
-        filterUniforms: {
-          uVelocity: { value: [vx, vy], type: 'vec2<f32>' },
-        },
+
+    return createShaderFilter(
+      'motion-blur-filter',
+      frag,
+      {
+        uVelocity: { value: [vx, vy], type: 'vec2<f32>' },
       },
-    } as unknown as ConstructorParameters<typeof Filter>[0]);
-    return filter;
+      24
+    );
   },
   updateFilter: (filter, params, intensity = 1.0) => {
     const vx = (Number(params.velocityX ?? 16.0) * intensity) / 1920.0;
     const vy = (Number(params.velocityY ?? 0.0) * intensity) / 1080.0;
-    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
-      resources?: { filterUniforms?: { uniforms?: Record<string, unknown> } };
-    };
-    if (f.resources?.filterUniforms?.uniforms) {
-      f.resources.filterUniforms.uniforms.uVelocity = [vx, vy];
-    }
+    updateShaderUniforms(filter, {
+      uVelocity: [vx, vy],
+    });
   },
 });
 
@@ -373,8 +495,83 @@ EffectRegistry.register({
   type: 'rgbShift',
   label: 'RGB Shift (Chromatic)',
   description: 'Color channel RGB offset splitting',
-  defaultParameters: { shift: 0.008 },
+  defaultParameters: { shift: 0.008, angle: 0.0 },
   createFilter: (params, intensity = 1.0) => {
     return EffectRegistry.createFilter('chromatic', params, intensity);
+  },
+  updateFilter: (filter, params, intensity = 1.0, time = 0) => {
+    EffectRegistry.update(Array.isArray(filter) ? filter : [filter], 'chromatic', params, intensity, time);
+  },
+});
+
+// 9. Shockwave (Radial Ripple Blast Wave)
+EffectRegistry.register({
+  type: 'shockwave',
+  label: 'Shockwave (Ripple)',
+  description: 'Radial explosive wave distortion on key beats and drops',
+  defaultParameters: { speed: 1.5, waveSize: 0.08, amplitude: 0.03, centerX: 0.5, centerY: 0.5 },
+  createFilter: (params, intensity = 1.0) => {
+    const speed = Number(params.speed ?? 1.5);
+    const waveSize = Number(params.waveSize ?? 0.08);
+    const amplitude = Number(params.amplitude ?? 0.03) * intensity;
+    const cx = Number(params.centerX ?? 0.5);
+    const cy = Number(params.centerY ?? 0.5);
+
+    const frag = `
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
+      uniform sampler2D uTexture;
+      uniform vec2 uCenter;
+      uniform float uTime;
+      uniform float uSpeed;
+      uniform float uWaveSize;
+      uniform float uAmplitude;
+
+      void main() {
+        vec2 uv = vTextureCoord;
+        vec2 dir = uv - uCenter;
+        float dist = length(dir);
+        float radius = fract(uTime * uSpeed * 0.5);
+        float diff = abs(dist - radius);
+
+        if (diff < uWaveSize && dist > 0.0) {
+          float decay = max(0.0, 1.0 - (radius / 1.2));
+          float factor = sin(diff / uWaveSize * 3.14159265);
+          vec2 offset = normalize(dir) * factor * uAmplitude * decay;
+          uv += offset;
+        }
+
+        finalColor = texture(uTexture, uv);
+      }
+    `;
+
+    return createShaderFilter(
+      'shockwave-filter',
+      frag,
+      {
+        uCenter: { value: [cx, cy], type: 'vec2<f32>' },
+        uTime: { value: 0.0, type: 'f32' },
+        uSpeed: { value: speed, type: 'f32' },
+        uWaveSize: { value: waveSize, type: 'f32' },
+        uAmplitude: { value: amplitude, type: 'f32' },
+      },
+      32
+    );
+  },
+  updateFilter: (filter, params, intensity = 1.0, time = 0) => {
+    const speed = Number(params.speed ?? 1.5);
+    const waveSize = Number(params.waveSize ?? 0.08);
+    const amplitude = Number(params.amplitude ?? 0.03) * intensity;
+    const cx = Number(params.centerX ?? 0.5);
+    const cy = Number(params.centerY ?? 0.5);
+    updateShaderUniforms(filter, {
+      uCenter: [cx, cy],
+      uTime: time,
+      uSpeed: speed,
+      uWaveSize: waveSize,
+      uAmplitude: amplitude,
+    });
   },
 });

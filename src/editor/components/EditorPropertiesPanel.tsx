@@ -970,26 +970,114 @@ export function EditorPropertiesPanel({
             )}
 
             {selectedEffect.type === 'bloom' && (
-              <label className="flex flex-col gap-1 text-white/60">
-                <span>Glow Brightness ({Number(selectedEffect.parameters.brightness ?? 1.12).toFixed(2)})</span>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="2.5"
-                  step="0.05"
-                  value={Number(selectedEffect.parameters.brightness ?? 1.12)}
-                  onChange={(e) =>
-                    onUpdateEffect?.({
-                      ...selectedEffect,
-                      parameters: {
-                        ...selectedEffect.parameters,
-                        brightness: Number(e.target.value),
-                      },
-                    })
-                  }
-                  className="accent-fuchsia-400"
-                />
-              </label>
+              <div className="flex flex-col gap-2">
+                <label className="flex flex-col gap-1 text-white/60">
+                  <span>Luminance Threshold ({Number(selectedEffect.parameters.threshold ?? 0.50).toFixed(2)})</span>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="0.95"
+                    step="0.05"
+                    value={Number(selectedEffect.parameters.threshold ?? 0.50)}
+                    onChange={(e) =>
+                      onUpdateEffect?.({
+                        ...selectedEffect,
+                        parameters: {
+                          ...selectedEffect.parameters,
+                          threshold: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="accent-fuchsia-400"
+                  />
+                  <span className="text-[10px] text-white/40">Only pixels brighter than this value emit neon glow.</span>
+                </label>
+                <label className="flex flex-col gap-1 text-white/60">
+                  <span>Glow Radius ({Number(selectedEffect.parameters.radius ?? 2.5).toFixed(1)}px)</span>
+                  <input
+                    type="range"
+                    min="1.0"
+                    max="6.0"
+                    step="0.2"
+                    value={Number(selectedEffect.parameters.radius ?? 2.5)}
+                    onChange={(e) =>
+                      onUpdateEffect?.({
+                        ...selectedEffect,
+                        parameters: {
+                          ...selectedEffect.parameters,
+                          radius: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="accent-fuchsia-400"
+                  />
+                </label>
+              </div>
+            )}
+
+            {selectedEffect.type === 'shockwave' && (
+              <div className="flex flex-col gap-2">
+                <label className="flex flex-col gap-1 text-white/60">
+                  <span>Wave Speed ({Number(selectedEffect.parameters.speed ?? 1.5).toFixed(2)})</span>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="4.0"
+                    step="0.1"
+                    value={Number(selectedEffect.parameters.speed ?? 1.5)}
+                    onChange={(e) =>
+                      onUpdateEffect?.({
+                        ...selectedEffect,
+                        parameters: {
+                          ...selectedEffect.parameters,
+                          speed: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="accent-fuchsia-400"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-white/60">
+                  <span>Wave Size ({Number(selectedEffect.parameters.waveSize ?? 0.08).toFixed(3)})</span>
+                  <input
+                    type="range"
+                    min="0.02"
+                    max="0.25"
+                    step="0.01"
+                    value={Number(selectedEffect.parameters.waveSize ?? 0.08)}
+                    onChange={(e) =>
+                      onUpdateEffect?.({
+                        ...selectedEffect,
+                        parameters: {
+                          ...selectedEffect.parameters,
+                          waveSize: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="accent-fuchsia-400"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-white/60">
+                  <span>Wave Amplitude ({Number(selectedEffect.parameters.amplitude ?? 0.03).toFixed(3)})</span>
+                  <input
+                    type="range"
+                    min="0.005"
+                    max="0.08"
+                    step="0.005"
+                    value={Number(selectedEffect.parameters.amplitude ?? 0.03)}
+                    onChange={(e) =>
+                      onUpdateEffect?.({
+                        ...selectedEffect,
+                        parameters: {
+                          ...selectedEffect.parameters,
+                          amplitude: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="accent-fuchsia-400"
+                  />
+                </label>
+              </div>
             )}
           </div>
 
