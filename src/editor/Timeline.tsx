@@ -790,6 +790,7 @@ export function Timeline({
   onUpdateNodesBatch,
   onRemoveNode,
   onAddEffect,
+  onUpdateEffect,
   onRemoveEffect,
   onChangePixelsPerSecond,
 }: TimelineProps) {
