@@ -89,12 +89,24 @@ EffectRegistry.register({
   type: 'bloom',
   label: 'Bloom (Glow)',
   description: 'Bright glow amplification and saturation boost',
-  defaultParameters: { brightness: 1.12, contrast: 1.1 },
+  defaultParameters: { brightness: 1.35, contrast: 1.1 },
   createFilter: (params, intensity = 1.0) => {
     const filter = new ColorMatrixFilter();
-    const b = Number(params.brightness ?? 1.12) * intensity;
+    const rawB = Number(params.brightness ?? 1.35);
+    const b = 1.0 + (rawB - 1.0) * intensity;
     filter.brightness(b, false);
+    filter.saturate(1.0 + 0.35 * intensity, false);
     return filter;
+  },
+  updateFilter: (filter, params, intensity = 1.0) => {
+    const f = (Array.isArray(filter) ? filter[0] : filter) as ColorMatrixFilter;
+    if (f && typeof f.brightness === 'function') {
+      f.reset();
+      const rawB = Number(params.brightness ?? 1.35);
+      const b = 1.0 + (rawB - 1.0) * intensity;
+      f.brightness(b, false);
+      f.saturate(1.0 + 0.35 * intensity, false);
+    }
   },
 });
 
@@ -103,9 +115,9 @@ EffectRegistry.register({
   type: 'chromatic',
   label: 'Chromatic Aberration',
   description: 'Color channel RGB offset splitting',
-  defaultParameters: { shift: 0.005 },
+  defaultParameters: { shift: 0.008 },
   createFilter: (params, intensity = 1.0) => {
-    const baseShift = Number(params.shift ?? 0.005) * intensity;
+    const baseShift = Number(params.shift ?? 0.008) * intensity;
     const frag = `
       precision mediump float;
       varying vec2 vTextureCoord;
@@ -131,6 +143,15 @@ EffectRegistry.register({
     } as unknown as ConstructorParameters<typeof Filter>[0]);
     return filter;
   },
+  updateFilter: (filter, params, intensity = 1.0) => {
+    const baseShift = Number(params.shift ?? 0.008) * intensity;
+    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
+      resources?: { filterUniforms?: { uniforms?: Record<string, unknown> } };
+    };
+    if (f.resources?.filterUniforms?.uniforms) {
+      f.resources.filterUniforms.uniforms.uShift = baseShift;
+    }
+  },
 });
 
 // 3. Scanlines (CRT Overlay)
@@ -138,10 +159,10 @@ EffectRegistry.register({
   type: 'scanlines',
   label: 'CRT Scanlines',
   description: 'Retro arcade scanline raster effect',
-  defaultParameters: { count: 180.0, opacity: 0.2 },
+  defaultParameters: { count: 180.0, opacity: 0.3 },
   createFilter: (params, intensity = 1.0) => {
     const count = Number(params.count ?? 180.0);
-    const opacity = Number(params.opacity ?? 0.2) * intensity;
+    const opacity = Number(params.opacity ?? 0.3) * intensity;
     const frag = `
       precision mediump float;
       varying vec2 vTextureCoord;
@@ -168,6 +189,17 @@ EffectRegistry.register({
     } as unknown as ConstructorParameters<typeof Filter>[0]);
     return filter;
   },
+  updateFilter: (filter, params, intensity = 1.0) => {
+    const count = Number(params.count ?? 180.0);
+    const opacity = Number(params.opacity ?? 0.3) * intensity;
+    const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
+      resources?: { filterUniforms?: { uniforms?: Record<string, unknown> } };
+    };
+    if (f.resources?.filterUniforms?.uniforms) {
+      f.resources.filterUniforms.uniforms.uCount = count;
+      f.resources.filterUniforms.uniforms.uOpacity = opacity;
+    }
+  },
 });
 
 // 4. Glitch / Slice Jitter
@@ -175,10 +207,10 @@ EffectRegistry.register({
   type: 'glitch',
   label: 'Digital Glitch',
   description: 'Horizontal pixel slice displacement',
-  defaultParameters: { slices: 12.0, offset: 0.015 },
+  defaultParameters: { slices: 12.0, offset: 0.02 },
   createFilter: (params, intensity = 1.0) => {
     const slices = Number(params.slices ?? 12.0);
-    const offset = Number(params.offset ?? 0.015) * intensity;
+    const offset = Number(params.offset ?? 0.02) * intensity;
     const frag = `
       precision mediump float;
       varying vec2 vTextureCoord;
@@ -208,11 +240,13 @@ EffectRegistry.register({
     } as unknown as ConstructorParameters<typeof Filter>[0]);
     return filter;
   },
-  updateFilter: (filter, _params, _intensity, time = 0) => {
+  updateFilter: (filter, params, intensity = 1.0, time = 0) => {
     const f = (Array.isArray(filter) ? filter[0] : filter) as unknown as {
       resources?: { filterUniforms?: { uniforms?: Record<string, number> } };
     };
     if (f.resources?.filterUniforms?.uniforms) {
+      const offset = Number(params.offset ?? 0.02) * intensity;
+      f.resources.filterUniforms.uniforms.uOffset = offset;
       f.resources.filterUniforms.uniforms.uTime = time;
     }
   },
@@ -223,12 +257,20 @@ EffectRegistry.register({
   type: 'colorGrade',
   label: 'Color Grading',
   description: 'Cinematic color matrix adjustment',
-  defaultParameters: { brightness: 1.0, contrast: 1.0, saturation: 1.1 },
+  defaultParameters: { brightness: 1.0, contrast: 1.0, saturation: 1.3 },
   createFilter: (params, intensity = 1.0) => {
     const filter = new ColorMatrixFilter();
-    const sat = 1.0 + (Number(params.saturation ?? 1.1) - 1.0) * intensity;
+    const sat = 1.0 + (Number(params.saturation ?? 1.3) - 1.0) * intensity;
     filter.saturate(sat, false);
     return filter;
+  },
+  updateFilter: (filter, params, intensity = 1.0) => {
+    const f = (Array.isArray(filter) ? filter[0] : filter) as ColorMatrixFilter;
+    if (f && typeof f.saturate === 'function') {
+      f.reset();
+      const sat = 1.0 + (Number(params.saturation ?? 1.3) - 1.0) * intensity;
+      f.saturate(sat, false);
+    }
   },
 });
 

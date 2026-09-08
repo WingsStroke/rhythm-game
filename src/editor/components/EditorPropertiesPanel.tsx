@@ -777,9 +777,9 @@ export function EditorPropertiesPanel({
             </select>
           </label>
 
-          {/* Scope Selection */}
+          {/* Target Selection */}
           <label className="flex flex-col gap-1 text-white/70">
-            <span className="font-semibold">Target Scope</span>
+            <span className="font-semibold">Target</span>
             <select
               value={selectedEffect.scope}
               onChange={(e) =>
@@ -792,14 +792,14 @@ export function EditorPropertiesPanel({
             >
               <option value="global">Full Stage (Global)</option>
               <option value="range">Z-Index Range</option>
-              <option value="object">Single Visual Object</option>
+              <option value="object">Target ID</option>
             </select>
           </label>
 
-          {/* Target: Single Object dropdown */}
+          {/* Target: Target ID dropdown */}
           {selectedEffect.scope === 'object' && (
             <label className="flex flex-col gap-1 text-white/70">
-              <span className="font-semibold">Target Object</span>
+              <span className="font-semibold">Target ID</span>
               <select
                 value={selectedEffect.targetNodeId || ''}
                 onChange={(e) =>
@@ -810,10 +810,10 @@ export function EditorPropertiesPanel({
                 }
                 className="bg-black/50 border border-white/10 rounded px-2 py-1.5 text-white font-mono focus:border-fuchsia-400 outline-none cursor-pointer"
               >
-                <option value="">-- Select Object --</option>
+                <option value="">-- Select Target ID --</option>
                 {nodes.map((n) => (
                   <option key={n.uid} value={n.uid}>
-                    {n.name || n.uid} ({n.type}, z:{n.zIndex ?? 0})
+                    Target ID: #{n.targetId !== null && n.targetId !== undefined ? n.targetId : n.uid} — {n.name || n.uid} ({n.type})
                   </option>
                 ))}
               </select>

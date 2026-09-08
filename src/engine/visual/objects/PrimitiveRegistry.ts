@@ -198,8 +198,6 @@ PrimitiveRegistry.register({
     sprite.width = radius * 2;
     sprite.height = radius * 2;
     sprite.tint = safeParseColor(props.color, 0x00e5ff);
-    // Cast through unknown to avoid generic blendMode type mismatch in PixiJS v8
-    (sprite as unknown as { blendMode: string }).blendMode = 'add';
     const intensity = Math.max(0, Math.min(1, (props.intensity as number) ?? 1.0));
     sprite.alpha = intensity;
     return sprite;
@@ -221,7 +219,6 @@ PrimitiveRegistry.register({
     sprite.width = length;
     sprite.height = width;
     sprite.tint = safeParseColor(props.color, 0xff007f);
-    (sprite as unknown as { blendMode: string }).blendMode = 'add';
     const intensity = Math.max(0, Math.min(1, (props.intensity as number) ?? 1.0));
     sprite.alpha = intensity;
     return sprite;

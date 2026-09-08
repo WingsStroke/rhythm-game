@@ -13,6 +13,7 @@ export class SceneGraph {
   public onNodeSelect?: (nodeId: string | null, isShift?: boolean) => void;
   private nodes: Map<string, SceneNode> = new Map();
   private spectrumNodes: Set<SceneNode> = new Set();
+  private nodesInteractive: boolean = true;
 
   constructor(container: Container, aboveLanesContainer?: Container, abovePadsContainer?: Container) {
     this.root = container;
@@ -23,6 +24,20 @@ export class SceneGraph {
       // Backward compatibility if only 2 containers passed (sceneLayer, foregroundLayer)
       this.abovePadsRoot = aboveLanesContainer;
     }
+  }
+
+  public setNodesInteractive(interactive: boolean): void {
+    this.nodesInteractive = interactive;
+    const mode = interactive ? 'static' : 'none';
+    for (const node of this.nodes.values()) {
+      node.container.eventMode = mode;
+    }
+  }
+
+  public sortAllRoots(): void {
+    this.root.sortChildren();
+    this.aboveLanesRoot?.sortChildren();
+    this.abovePadsRoot?.sortChildren();
   }
 
   public getTargetRoot(nodeData: SceneNodeData): Container {
@@ -48,7 +63,9 @@ export class SceneGraph {
     for (const nodeData of nodesData) {
       const node = new SceneNode(nodeData);
       node.container.zIndex = nodeData.zIndex ?? 0;
+      node.container.eventMode = this.nodesInteractive ? 'static' : 'none';
       node.container.on('pointerdown', (e) => {
+        if (!this.nodesInteractive) return;
         e.stopPropagation();
         this.onNodeSelect?.(node.uid, Boolean((e as unknown as { shiftKey?: boolean }).shiftKey));
       });
@@ -78,6 +95,9 @@ export class SceneGraph {
         }
       }
     }
+
+    // 3. Strictly sort all roots by zIndex
+    this.sortAllRoots();
   }
 
   public getNode(key: string): SceneNode | undefined {
@@ -123,7 +143,9 @@ export class SceneGraph {
   public addNode(nodeData: SceneNodeData) {
     const node = new SceneNode(nodeData);
     node.container.zIndex = nodeData.zIndex ?? 0;
+    node.container.eventMode = this.nodesInteractive ? 'static' : 'none';
     node.container.on('pointerdown', (e) => {
+      if (!this.nodesInteractive) return;
       e.stopPropagation();
       this.onNodeSelect?.(node.uid, Boolean((e as unknown as { shiftKey?: boolean }).shiftKey));
     });
@@ -138,11 +160,14 @@ export class SceneGraph {
       const parent = this.getNode(nodeData.parentId);
       if (parent) {
         parent.container.addChild(node.container);
+        parent.container.sortChildren();
       } else {
         targetRoot.addChild(node.container);
+        targetRoot.sortChildren();
       }
     } else {
       targetRoot.addChild(node.container);
+      targetRoot.sortChildren();
     }
   }
 
@@ -152,6 +177,7 @@ export class SceneGraph {
     if (node) {
       node.updateData(nodeData);
       node.container.zIndex = nodeData.zIndex ?? 0;
+      node.container.eventMode = this.nodesInteractive ? 'static' : 'none';
 
       const targetRoot = this.getTargetRoot(nodeData);
       if (!nodeData.parentId && node.container.parent !== targetRoot) {
@@ -160,6 +186,11 @@ export class SceneGraph {
         }
         targetRoot.addChild(node.container);
       }
+
+      if (node.container.parent) {
+        node.container.parent.sortChildren();
+      }
+      targetRoot.sortChildren();
 
       if (node.displayObject instanceof AudioSpectrumVisualizer) {
         this.spectrumNodes.add(node);
@@ -197,13 +228,16 @@ export class SceneGraph {
       const parent = this.getNode(parentKey);
       if (parent) {
         parent.container.addChild(node.container);
+        parent.container.sortChildren();
         node.data.parentId = parent.uid;
       } else {
         this.root.addChild(node.container);
+        this.root.sortChildren();
         node.data.parentId = undefined;
       }
     } else {
       this.root.addChild(node.container);
+      this.root.sortChildren();
       node.data.parentId = undefined;
     }
   }

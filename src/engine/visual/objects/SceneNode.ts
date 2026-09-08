@@ -108,10 +108,16 @@ export class SceneNode {
     if (transform.pivotY !== undefined) this.container.pivot.y = transform.pivotY;
     if (data.visible !== undefined) this.container.visible = data.visible;
     if (data.zIndex !== undefined) this.container.zIndex = data.zIndex;
-    if (data.blendMode) {
-      // PixiJS v8 Container supports blendMode at runtime but the generic
-      // Container type does not declare it; cast through unknown to avoid 'any'.
-      (this.container as unknown as { blendMode: string }).blendMode = data.blendMode;
+    const effectiveBlendMode =
+      data.blendMode || (data.type === 'pointLight' || data.type === 'beamLight' ? 'add' : 'normal');
+    (this.container as unknown as { blendMode: string }).blendMode = effectiveBlendMode;
+    if (this.displayObject) {
+      (this.displayObject as unknown as { blendMode: string }).blendMode = effectiveBlendMode;
+      if ('children' in this.displayObject && Array.isArray((this.displayObject as Container).children)) {
+        for (const child of (this.displayObject as Container).children) {
+          (child as unknown as { blendMode: string }).blendMode = effectiveBlendMode;
+        }
+      }
     }
   }
 

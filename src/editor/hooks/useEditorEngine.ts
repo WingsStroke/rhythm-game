@@ -334,7 +334,7 @@ export function useEditorEngine({
     }
   }, [level.events]);
 
-  // Sync visual nodes and triggers in real-time when level.visual changes
+  // Sync visual nodes, triggers, and effects in real-time when level.visual changes
   useEffect(() => {
     if (visualRef.current && level.visual) {
       try {
@@ -343,6 +343,9 @@ export function useEditorEngine({
         }
         if (level.visual.triggers) {
           visualRef.current.syncVisualTriggers(level.visual.triggers);
+        }
+        if (level.visual.effects) {
+          visualRef.current.syncVisualEffects(level.visual.effects);
         }
       } catch (err) {
         console.warn('[useEditorEngine] Non-fatal error syncing visual components:', err);

@@ -250,6 +250,14 @@ export class VisualEngine {
     this.triggerDispatcher.setTriggers(triggers);
   }
 
+  public syncVisualEffects(effects: VisualEffect[]): void {
+    if (!this.level.visual) {
+      this.level.visual = { nodes: [], triggers: [], animations: [], audioMappings: [], effects: [] };
+    }
+    this.level.visual.effects = effects;
+    this.setupVisualEffects();
+  }
+
   public syncTiming(offset: number): void {
     if (!this.level.timing) {
       this.level.timing = { bpm: 120, offset, windows: { perfect: 0.05, good: 0.1, miss: 0.15 } };
@@ -807,7 +815,7 @@ export class VisualEngine {
         globalFilters.push(...filters);
         this.activeVisualEffects.push({ effect, filters });
       } else if (effect.scope === 'object' && effect.targetNodeId) {
-        const node = this.sceneGraph?.getNode(effect.targetNodeId);
+        const node = this.sceneGraph?.getNode(effect.targetNodeId) || this.sceneGraph?.getNodesByTargetId(effect.targetNodeId)[0];
         if (node) {
           node.container.filters = filters;
           this.activeVisualEffects.push({ effect, filters, targetNodeId: effect.targetNodeId });
@@ -833,7 +841,7 @@ export class VisualEngine {
         regionContainer.filters = filters;
 
         if (effect.targetNodeId) {
-          const node = this.sceneGraph?.getNode(effect.targetNodeId);
+          const node = this.sceneGraph?.getNode(effect.targetNodeId) || this.sceneGraph?.getNodesByTargetId(effect.targetNodeId)[0];
           if (node) {
             regionContainer.addChild(node.container);
           }
@@ -1086,33 +1094,42 @@ export class VisualEngine {
     this.applyAudioMappings(channels);
 
     // 5c. Update dynamic uniforms for registered visual effects and handle time-window activation
+    const activeGlobalFilters: Filter[] = [];
     for (const item of this.activeVisualEffects) {
       const { effect, filters } = item;
       const hasTimeWindow = typeof effect.startTime === 'number' && typeof effect.duration === 'number';
-      const inWindow = !hasTimeWindow || (audioTime >= effect.startTime! && audioTime <= (effect.startTime! + effect.duration!));
+      const inWindow = effect.enabled !== false && (!hasTimeWindow || (audioTime >= effect.startTime! && audioTime <= (effect.startTime! + effect.duration!)));
 
-      if (hasTimeWindow) {
-        if (item.targetNodeId) {
-          const node = this.sceneGraph?.getNode(item.targetNodeId);
-          if (node) {
-            node.container.filters = inWindow ? filters : [];
-          }
-        } else if (item.matchedNodes) {
-          for (const node of item.matchedNodes) {
-            node.container.filters = inWindow ? filters : [];
-          }
+      if (effect.scope === 'global') {
+        if (inWindow) {
+          activeGlobalFilters.push(...filters);
         }
+      } else if (effect.scope === 'object' && item.targetNodeId) {
+        const node = this.sceneGraph?.getNode(item.targetNodeId) || this.sceneGraph?.getNodesByTargetId(item.targetNodeId)[0];
+        if (node) {
+          node.container.filters = inWindow ? filters : [];
+        }
+      } else if (effect.scope === 'range' && item.matchedNodes) {
+        for (const node of item.matchedNodes) {
+          node.container.filters = inWindow ? filters : [];
+        }
+      } else if (effect.scope === 'region' && item.container) {
+        item.container.filters = inWindow ? filters : [];
       }
 
       if (inWindow) {
         EffectRegistry.update(
-          item.filters,
-          item.effect.type,
-          item.effect.parameters ?? {},
-          item.effect.intensity ?? 1.0,
+          filters,
+          effect.type,
+          effect.parameters ?? {},
+          effect.intensity ?? 1.0,
           audioTime
         );
       }
+    }
+
+    if (this.mainStage) {
+      this.mainStage.filters = activeGlobalFilters.length > 0 ? activeGlobalFilters : [];
     }
 
     // 5d. Real-time audio spectrum generator update
@@ -1465,6 +1482,9 @@ export class VisualEngine {
     this.currentTool = tool;
     if (this.bgRect) {
       this.bgRect.cursor = tool === 'object' ? 'crosshair' : 'default';
+    }
+    if (this.sceneGraph) {
+      this.sceneGraph.setNodesInteractive(tool !== 'object');
     }
   }
 

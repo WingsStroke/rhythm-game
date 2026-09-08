@@ -685,6 +685,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
             rotation: 0,
             opacity: type === 'pointLight' || type === 'beamLight' ? 1.0 : 0.9,
           },
+          blendMode: type === 'pointLight' || type === 'beamLight' ? 'add' : 'normal',
+          zIndex: 0,
           properties: { ...defaultProps },
         };
 
