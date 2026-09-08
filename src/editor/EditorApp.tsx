@@ -64,7 +64,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   // Authoring tools state
   const [activeTool, setActiveTool] = useState<EditorTool>('select');
   const [timelineMode, setTimelineMode] = useState<'notes' | 'triggers' | 'visuals' | 'shaders'>('notes');
-  const [selectedShaderType, setSelectedShaderType] = useState<EffectType>('bloom');
+  const [selectedShaderType, setSelectedShaderType] = useState<string>('bloom');
   const [activeLayer, setActiveLayer] = useState<number>(1);
   const [selectedPrimitiveType, setSelectedPrimitiveType] = useState<ScenePrimitiveType>('rectangle');
   const [creationBehavior, setCreationBehavior] = useState<PadBehavior>('tap');
@@ -545,9 +545,30 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     });
   }, [setLevel]);
 
-  const handleSelectShaderType = useCallback((type: EffectType) => {
+  const handleSelectTool = useCallback(
+    (tool: EditorTool) => {
+      setActiveTool(tool);
+      if (tool === 'shader') {
+        setActiveTab('timeline');
+        setTimelineMode('shaders');
+      } else if (tool === 'object') {
+        if (activeTab === 'timeline' && timelineMode !== 'visuals') {
+          setTimelineMode('visuals');
+        }
+      } else if (tool === 'pen') {
+        if (activeTab === 'timeline' && timelineMode !== 'notes' && timelineMode !== 'triggers') {
+          setTimelineMode('notes');
+        }
+      }
+    },
+    [activeTab, timelineMode]
+  );
+
+  const handleSelectShaderType = useCallback((type: string) => {
     setSelectedShaderType(type);
     setActiveTool('shader');
+    setTimelineMode('shaders');
+    setActiveTab('timeline');
   }, []);
 
   // 4. VisualEffect mutations
@@ -1014,7 +1035,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     activeTab,
     isRecording,
     canDelete: Boolean(selectedEventIds.size > 0 || selectedTriggerIds.size > 0 || selectedNodeIds.size > 0 || selectedNodeId || selectedEffectIds.size > 0 || selectedEffectId),
-    onSelectTool: setActiveTool,
+    onSelectTool: handleSelectTool,
     onDeleteSelected: () => handleRemoveBatch(),
     onTogglePlay: togglePlay,
     onToggleRecord: toggleRecord,
@@ -1187,7 +1208,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       {/* Authoring Toolbar */}
       <EditorToolbar
         activeTool={activeTool}
-        onSelectTool={setActiveTool}
+        onSelectTool={handleSelectTool}
         creationBehavior={creationBehavior}
         onChangeCreationBehavior={setCreationBehavior}
         gridSubdivision={gridSubdivision}
@@ -1212,6 +1233,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('notes');
+                if (activeTool === 'shader' || activeTool === 'object') {
+                  setActiveTool('select');
+                }
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'notes'
@@ -1225,6 +1249,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('triggers');
+                if (activeTool === 'shader' || activeTool === 'object') {
+                  setActiveTool('select');
+                }
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'triggers'
@@ -1238,6 +1265,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('visuals');
+                if (activeTool === 'shader' || activeTool === 'pen') {
+                  setActiveTool('object');
+                }
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'visuals'
@@ -1251,6 +1281,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('shaders');
+                setActiveTool('shader');
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'shaders'

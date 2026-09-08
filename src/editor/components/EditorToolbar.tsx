@@ -192,6 +192,7 @@ export function EditorToolbar({
     { type: 'motionBlur', label: 'Motion Blur', description: 'Velocity sample streak blur' },
     { type: 'scanlines', label: 'CRT Scanlines', description: 'Retro arcade monitor raster' },
     { type: 'glitch', label: 'Digital Glitch', description: 'Horizontal slice displacement' },
+    { type: 'colorGrade', label: 'Color Grading', description: 'Cinematic color matrix adjustment' },
   ];
 
   return (
@@ -313,16 +314,13 @@ export function EditorToolbar({
         {/* Shader Tool */}
         <div ref={shaderContainerRef} className="relative">
           <button
+            type="button"
             onClick={() => {
-              if (activeTool === 'shader') {
-                setIsShaderMenuOpen((prev) => !prev);
-              } else {
-                onSelectTool('shader');
-                setIsShaderMenuOpen(true);
-              }
+              onSelectTool('shader');
+              setIsShaderMenuOpen((prev) => !prev);
               setIsObjectMenuOpen(false);
             }}
-            title="Shader Effect Tool (S)"
+            title="Herramienta de Shaders (S) — Clic para abrir lista de efectos"
             className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTool === 'shader'
                 ? 'bg-fuchsia-500/25 text-fuchsia-300 border border-fuchsia-500/60 shadow-[0_0_8px_rgba(217,70,239,0.3)]'
@@ -347,6 +345,7 @@ export function EditorToolbar({
               {shaderOptions.map((item, index) => (
                 <button
                   key={item.type}
+                  type="button"
                   onClick={() => {
                     onSelectShaderType?.(item.type);
                     onSelectTool('shader');

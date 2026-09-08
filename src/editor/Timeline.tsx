@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType, SceneNodeData, ScenePrimitiveType, VisualEffect, EffectType } from '../engine/types';
 import { PrimitiveRegistry } from '../engine/visual/objects/PrimitiveRegistry';
+import { EffectRegistry } from '../engine/visual/effects/EffectRegistry';
 import { SongRegistry } from '../engine/content/SongRegistry';
 import { WaveformCanvas } from './components/WaveformCanvas';
 import { Zap, Repeat, Volume2, VolumeX, Clock, Layers, Sparkles } from 'lucide-react';
@@ -702,7 +703,7 @@ interface TimelineProps {
   activeLayer?: number;
   onChangeActiveLayer?: (layer: number) => void;
   selectedPrimitiveType?: ScenePrimitiveType;
-  selectedShaderType?: EffectType;
+  selectedShaderType?: string;
   selectedEventId?: string | null;
   selectedEventIds?: Set<string>;
   selectedTriggerId?: string | null;
@@ -1237,7 +1238,7 @@ export function Timeline({
       const bpm = level.timing.bpm || 120;
       const snappedTime = snapTimeToGrid(Math.max(0, rawSongTime), bpm, gridSubdivision);
 
-      const type: EffectType = selectedShaderType || 'bloom';
+      const type = selectedShaderType || 'bloom';
       const beatSec = 60 / bpm;
       const defaultDuration = Math.max(1, Number((beatSec * 4).toFixed(3)));
 
@@ -1245,10 +1246,11 @@ export function Timeline({
         id: `fx_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`,
         type,
         scope: 'global',
+        enabled: true,
         intensity: 1.0,
         startTime: snappedTime,
         duration: defaultDuration,
-        parameters: {},
+        parameters: { ...(EffectRegistry.get(type)?.defaultParameters ?? {}) },
       };
 
       onAddEffect?.(newEffect);
@@ -1978,10 +1980,15 @@ export function Timeline({
         <div className="min-h-full flex flex-col">
           {/* Sticky Header: TIME in notes mode, Layer [input] in triggers/visuals mode */}
           <div className="sticky top-0 z-30 h-9 border-b border-white/10 bg-black/95 flex items-center justify-between px-3 gap-2 shadow-md flex-shrink-0">
-            {timelineMode === 'notes' ? (
+            {timelineMode === 'notes' && activeTool !== 'shader' ? (
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#00e5ff]" />
                 <span className="font-mono text-xs font-bold text-white/80 tracking-wider">TIME</span>
+              </div>
+            ) : (timelineMode === 'shaders' || activeTool === 'shader') ? (
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-fuchsia-400" />
+                <span className="font-mono text-xs font-bold text-fuchsia-300 tracking-wider">SHADERS</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
@@ -2016,7 +2023,7 @@ export function Timeline({
           </div>
 
           {/* Mode-Specific Left Track Labels */}
-          {timelineMode === 'notes' && (
+          {timelineMode === 'notes' && activeTool !== 'shader' && (
             <div className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[360px]">
               {level.pads.map((pad) => (
                 <div
@@ -2047,7 +2054,7 @@ export function Timeline({
             </div>
           )}
 
-          {timelineMode === 'triggers' && (
+          {timelineMode === 'triggers' && activeTool !== 'shader' && (
             <div className="flex flex-col" style={{ minHeight: `${SUB_LANE_COUNT * subLaneHeight}px` }}>
               {Array.from({ length: SUB_LANE_COUNT }, (_, lane) => (
                 <div
@@ -2067,7 +2074,7 @@ export function Timeline({
             </div>
           )}
 
-          {timelineMode === 'visuals' && (
+          {timelineMode === 'visuals' && activeTool !== 'shader' && (
             <div className="flex flex-col" style={{ minHeight: `${SUB_LANE_COUNT * subLaneHeight}px` }}>
               {Array.from({ length: SUB_LANE_COUNT }, (_, lane) => (
                 <div
@@ -2087,7 +2094,7 @@ export function Timeline({
             </div>
           )}
 
-          {timelineMode === 'shaders' && (
+          {(timelineMode === 'shaders' || activeTool === 'shader') && (
             <div className="flex flex-col" style={{ minHeight: `${4 * subLaneHeight}px` }}>
               {Array.from({ length: 4 }, (_, lane) => (
                 <div
@@ -2151,7 +2158,7 @@ export function Timeline({
           </div>
 
           {/* 1. Note Track Lanes (Only rendered in 'notes' mode) */}
-          {timelineMode === 'notes' && (
+          {timelineMode === 'notes' && activeTool !== 'shader' && (
             <div
               ref={padTracksRef}
               className="flex-1 flex flex-col py-1.5 gap-1.5 min-h-[360px] relative z-10"
@@ -2347,7 +2354,7 @@ export function Timeline({
           )}
 
           {/* 2. Triggers & FX Automation Lane (Only rendered in 'triggers' mode) */}
-          {timelineMode === 'triggers' && (
+          {timelineMode === 'triggers' && activeTool !== 'shader' && (
             <TriggersLane
               triggers={visibleTriggers}
               activeLayer={activeLayer}
@@ -2364,7 +2371,7 @@ export function Timeline({
           )}
 
           {/* 3. Visual Objects Lane (Only rendered in 'visuals' mode) */}
-          {timelineMode === 'visuals' && (
+          {timelineMode === 'visuals' && activeTool !== 'shader' && (
             <VisualObjectsLane
               nodes={visibleNodes}
               activeLayer={activeLayer}
@@ -2384,8 +2391,8 @@ export function Timeline({
             />
           )}
 
-          {/* 4. Shaders Post-FX Lane (Only rendered in 'shaders' mode) */}
-          {timelineMode === 'shaders' && (
+          {/* 4. Shaders Post-FX Lane (Rendered in 'shaders' mode OR when activeTool is 'shader') */}
+          {(timelineMode === 'shaders' || activeTool === 'shader') && (
             <ShadersLane
               effects={level.visual?.effects || []}
               widthPx={widthPx}
