@@ -952,8 +952,8 @@ export function Timeline({
   const widthPx = Math.max(1200, totalTimelineDuration * pixelsPerSecond);
 
   const audioBuffer = useMemo(
-    () => SongRegistry.getInstance().getAudioBuffer(level.songId || level.song.id),
-    [level.songId, level.song.id]
+    () => SongRegistry.getInstance().getActiveAudioBuffer(level.songId || level.song.id),
+    [level.songId, level.song.id, level.song.duration]
   );
 
   const triggers = useMemo(() => level.visual?.triggers || [], [level.visual?.triggers]);

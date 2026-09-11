@@ -388,6 +388,15 @@ export function useEditorEngine({
     }
   }, [level.timing?.offset]);
 
+  // Sync audio buffer with transport when level song identity or duration changes
+  useEffect(() => {
+    const songId = level.songId || level.song.id;
+    const cached = SongRegistry.getInstance().getActiveAudioBuffer(songId);
+    if (cached && transportRef.current) {
+      transportRef.current.loadAudioBuffer(cached);
+    }
+  }, [level.songId, level.song.id, level.song.duration]);
+
   // Main animation loop
   useEffect(() => {
     const loop = () => {
@@ -451,7 +460,7 @@ export function useEditorEngine({
       // Always synchronize transport audio buffer with active level song identity
       // (crucial for instant undo/redo track alignment and audio file replacement)
       const songId = level.songId || level.song.id;
-      const cached = SongRegistry.getInstance().getAudioBuffer(songId);
+      const cached = SongRegistry.getInstance().getActiveAudioBuffer(songId);
       if (cached) {
         transportRef.current.loadAudioBuffer(cached);
       } else if (level.song.url) {

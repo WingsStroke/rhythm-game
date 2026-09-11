@@ -12,6 +12,7 @@ import { useAutoSave } from './hooks/useAutoSave';
 import { INITIAL_LEVEL } from './constants';
 import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData, ScenePrimitiveType, VisualEffect } from '../engine/types';
 import { LevelValidator } from '../engine/content/LevelValidator';
+import { SongRegistry } from '../engine/content/SongRegistry';
 import { timelineTimeToSongTime } from '../engine/time/timeUtils';
 import { PrimitiveRegistry } from '../engine/visual/objects/PrimitiveRegistry';
 import { ListVideo, Gamepad2, Zap, Layers, Sparkles } from 'lucide-react';
@@ -1150,7 +1151,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     [loadAudioFile, setLevel]
   );
 
-  // Import existing level JSON with safety parsing and deep validation
+  // Import existing level JSON with safety parsing and deep validation,
+  // preserving any audio buffers and audio processing metadata currently loaded.
   const handleJsonImport = useCallback(
     (file: File) => {
       const reader = new FileReader();
@@ -1159,7 +1161,47 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           const parsed = JSON.parse(e.target?.result as string);
           const validation = LevelValidator.validate(parsed);
           if (validation.valid && validation.sanitizedLevel) {
-            resetHistory(validation.sanitizedLevel);
+            const currentSongId = level.songId || level.song.id;
+            const existingAudioBuffer =
+              SongRegistry.getInstance().getActiveAudioBuffer(currentSongId);
+
+            let mergedLevel = validation.sanitizedLevel;
+
+            if (existingAudioBuffer) {
+              const targetSongId = currentSongId || mergedLevel.songId || mergedLevel.song.id;
+
+              // Ensure the existing audio buffer is mapped across all relevant IDs in SongRegistry
+              SongRegistry.getInstance().setAudioBuffer(targetSongId, existingAudioBuffer);
+              if (mergedLevel.songId) {
+                SongRegistry.getInstance().setAudioBuffer(mergedLevel.songId, existingAudioBuffer);
+              }
+              if (mergedLevel.song?.id) {
+                SongRegistry.getInstance().setAudioBuffer(mergedLevel.song.id, existingAudioBuffer);
+              }
+
+              // Preserve decoded audio metrics: song identity, duration, and audio URLs
+              mergedLevel = {
+                ...mergedLevel,
+                songId: targetSongId,
+                song: {
+                  ...mergedLevel.song,
+                  id: targetSongId,
+                  duration: existingAudioBuffer.duration || level.song.duration || mergedLevel.song.duration,
+                  url: level.song.url || mergedLevel.song.url,
+                  audioUrl: level.song.audioUrl || mergedLevel.song.audioUrl,
+                  title:
+                    mergedLevel.song.title && mergedLevel.song.title !== 'Untitled Track'
+                      ? mergedLevel.song.title
+                      : (level.song.title || 'Untitled Track'),
+                  artist:
+                    mergedLevel.song.artist && mergedLevel.song.artist !== 'Unknown Artist'
+                      ? mergedLevel.song.artist
+                      : (level.song.artist || 'Unknown Artist'),
+                },
+              };
+            }
+
+            resetHistory(mergedLevel);
             handleStop();
           } else {
             alert('Level validation failed:\n\n• ' + validation.errors.join('\n• '));
@@ -1170,7 +1212,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       };
       reader.readAsText(file);
     },
-    [handleStop, resetHistory]
+    [level, handleStop, resetHistory]
   );
 
   // Export level data to downloadable JSON

@@ -57,6 +57,25 @@ export class SongRegistry {
     return this.audioBuffers.get(songId);
   }
 
+  /**
+   * Returns the most recently decoded and registered AudioBuffer in memory, if any.
+   */
+  public getLatestAudioBuffer(): AudioBuffer | undefined {
+    const buffers = Array.from(this.audioBuffers.values());
+    return buffers.length > 0 ? buffers[buffers.length - 1] : undefined;
+  }
+
+  /**
+   * Retrieves an active AudioBuffer, prioritizing the specified songId and falling back to the latest buffer in memory.
+   */
+  public getActiveAudioBuffer(songId?: string): AudioBuffer | undefined {
+    if (songId) {
+      const buffer = this.audioBuffers.get(songId);
+      if (buffer) return buffer;
+    }
+    return this.getLatestAudioBuffer();
+  }
+
   public hasAudioBuffer(songId: string): boolean {
     return this.audioBuffers.has(songId);
   }
