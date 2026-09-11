@@ -549,14 +549,19 @@ const VisualObjectsLane = React.memo(function VisualObjectsLane({
               </span>
             </div>
 
-            {/* Resize Handle */}
-            {hasLifespan && activeTool === 'select' && onNodeResize && (
+            {/* Resize Handle — shown for all nodes in select mode; dashed for infinite nodes */}
+            {activeTool === 'select' && onNodeResize && (
               <div
                 data-node-item="true"
-                className="absolute right-0 top-0 bottom-0 w-3 hover:bg-white/40 cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                className={`absolute right-0 top-0 bottom-0 w-3 flex items-center justify-center flex-shrink-0 ${
+                  hasLifespan
+                    ? 'hover:bg-white/40 cursor-ew-resize'
+                    : 'hover:bg-white/20 cursor-ew-resize opacity-50'
+                }`}
                 onPointerDown={(e) => onNodeResize(e, node)}
+                title={hasLifespan ? 'Ajustar duración' : 'Asignar duración (nodo infinito)'}
               >
-                <div className="w-1 h-5 bg-white/70 rounded-full pointer-events-none" />
+                <div className={`w-1 h-5 rounded-full pointer-events-none ${hasLifespan ? 'bg-white/70' : 'bg-white/40'}`} />
               </div>
             )}
           </div>
@@ -1076,7 +1081,7 @@ export function Timeline({
         container.scrollLeft = Math.max(0, container.scrollLeft + scrollDelta);
         if (container.scrollLeft !== prevScroll && onSeek && rulerTrackRef.current) {
           const trackRect = rulerTrackRef.current.getBoundingClientRect();
-          const clickX = x - trackRect.left;
+          const clickX = x - trackRect.left + container.scrollLeft;
           onSeek(getAudioTimeFromClickX(clickX));
         }
       }
@@ -1102,7 +1107,10 @@ export function Timeline({
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
     const trackRect = rulerTrackRef.current.getBoundingClientRect();
-    const clickX = e.clientX - trackRect.left;
+    // scrollLeft must be added because the ruler is inside a sticky element:
+    // getBoundingClientRect().left stays fixed on screen and does NOT account for scroll.
+    const scrollLeft = containerRef.current?.scrollLeft ?? 0;
+    const clickX = e.clientX - trackRect.left + scrollLeft;
     onSeek(getAudioTimeFromClickX(clickX));
     startAutoScroller();
   };
@@ -1111,7 +1119,8 @@ export function Timeline({
     if (!isDraggingPlayhead.current || !rulerTrackRef.current || !onSeek) return;
     scrubPointerX.current = e.clientX;
     const trackRect = rulerTrackRef.current.getBoundingClientRect();
-    const clickX = e.clientX - trackRect.left;
+    const scrollLeft = containerRef.current?.scrollLeft ?? 0;
+    const clickX = e.clientX - trackRect.left + scrollLeft;
     onSeek(getAudioTimeFromClickX(clickX));
   };
 
@@ -1578,10 +1587,16 @@ export function Timeline({
 
   const startNodeResize = useCallback((e: React.PointerEvent, node: SceneNodeData) => {
     e.stopPropagation();
-    if (activeTool !== 'select' || !node.lifespan) return;
+    if (activeTool !== 'select') return;
     onSelectNode?.(node);
     onSelectEvent(null);
     onSelectTrigger?.(null);
+
+    // For nodes without lifespan, synthesize a starting lifespan at time=0 so
+    // the drag immediately converts them into a timed node. The origDuration is
+    // set to the full song duration so the resize feel starts from the right edge.
+    const existingStart = node.lifespan?.startTime ?? 0;
+    const existingDuration = node.lifespan?.duration ?? (level.song.duration || 120);
 
     setDragState({
       targetType: 'node',
@@ -1590,8 +1605,8 @@ export function Timeline({
       startX: e.clientX,
       startY: e.clientY,
       startScrollLeft: containerRef.current?.scrollLeft ?? 0,
-      origTargetTime: node.lifespan.startTime,
-      origDuration: node.lifespan.duration,
+      origTargetTime: existingStart,
+      origDuration: existingDuration,
     });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }, [activeTool, onSelectNode, onSelectEvent, onSelectTrigger]);
@@ -1750,16 +1765,20 @@ export function Timeline({
             });
           }
         }
-      } else if (currentDrag.mode === 'resize' && currentDrag.node.lifespan) {
+      } else if (currentDrag.mode === 'resize' && currentDrag.node) {
         const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
         const snapped = interval > 0
           ? Math.max(interval, Math.round(Math.max(0.1, currentDrag.origDuration! + deltaTime) / interval) * interval)
           : Math.max(0.1, currentDrag.origDuration! + deltaTime);
-        if (snapped !== currentDrag.node.lifespan.duration) {
+        const existingLifespan = currentDrag.node.lifespan;
+        const currentDuration = existingLifespan?.duration ?? (level.song.duration || 120);
+        if (snapped !== currentDuration) {
           onUpdateNode?.(currentDrag.node.uid, {
             lifespan: {
-              ...currentDrag.node.lifespan,
+              startTime: existingLifespan?.startTime ?? 0,
               duration: snapped,
+              fadeInMs: existingLifespan?.fadeInMs,
+              fadeOutMs: existingLifespan?.fadeOutMs,
             },
           });
         }
