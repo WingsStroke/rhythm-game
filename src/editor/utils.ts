@@ -87,16 +87,18 @@ export function areEventsColliding(
   }
 
   // Case 2: Loop vs child note on the same pad
+  // Non-loop instant notes (tap, trigger) can freely be inside or overlap with a loop span.
+  // Hold notes on the same pad cannot overlap loop boundaries.
   if (aIsLoop && !bIsLoop) {
-    if (Math.abs(bStart - aStart) < tolerance) return true;
-    if (Math.abs(bStart - aEnd) < tolerance) return true;
-    if (bIsHold && bEnd > aEnd + tolerance) return true;
+    if (bIsHold) {
+      return Math.max(aStart, bStart) < Math.min(aEnd, bEnd) - tolerance;
+    }
     return false;
   }
   if (!aIsLoop && bIsLoop) {
-    if (Math.abs(aStart - bStart) < tolerance) return true;
-    if (Math.abs(aStart - bEnd) < tolerance) return true;
-    if (aIsHold && aEnd > bEnd + tolerance) return true;
+    if (aIsHold) {
+      return Math.max(aStart, bStart) < Math.min(aEnd, bEnd) - tolerance;
+    }
     return false;
   }
 

@@ -119,8 +119,8 @@ export class GameplayEngine {
           candidate.id !== loop.id &&
           candidate.padId === loop.padId &&
           candidate.behavior !== 'loop' &&
-          candidate.targetTime > loop.targetTime &&
-          candidate.targetTime < loopEnd
+          candidate.targetTime >= loop.targetTime - 0.001 &&
+          candidate.targetTime <= loopEnd + 0.001
         ) {
           children.add(candidate.id);
           this.loopChildIds.add(candidate.id);
@@ -211,7 +211,7 @@ export class GameplayEngine {
           if (
             pendingEvt.padId === loop.event.padId &&
             pendingEvt.id !== loop.event.id &&
-            pendingEvt.targetTime > loop.startTime &&
+            pendingEvt.targetTime >= loop.startTime &&
             pendingEvt.targetTime <= time
           ) {
             this.pending.splice(i, 1);
@@ -237,10 +237,10 @@ export class GameplayEngine {
         loop.deactivationEvaluated = true;
         this.judge(loop.event, 'miss', time - loop.endTime);
         this.activeLoops.delete(id);
-        this.emitPadStateChange(loop.event.padId, 'playing', 'ready');
+        this.emitPadStateChange(loop.event.padId, 'playing', 'ready', loop.event);
       } else if (!loop.activated && time > loop.endTime) {
         this.activeLoops.delete(id);
-        this.emitPadStateChange(loop.event.padId, this.padStates.get(loop.event.padId) ?? 'ready', 'ready');
+        this.emitPadStateChange(loop.event.padId, this.padStates.get(loop.event.padId) ?? 'ready', 'ready', loop.event);
       }
     }
   }
@@ -373,9 +373,8 @@ export class GameplayEngine {
 
   private evaluateLoopStart(evt: PadEvent, absOffset: number, signedOffset: number): void {
     const judgement = this.offsetToJudgement(absOffset);
-    this.judge(evt, judgement, signedOffset);
-
     const duration = evt.duration ?? 1.0;
+
     if (judgement === 'perfect' || judgement === 'good') {
       this.activeLoops.set(evt.id, {
         event: evt,
@@ -384,7 +383,22 @@ export class GameplayEngine {
         endTime: evt.targetTime + duration,
         deactivationEvaluated: false,
       });
+
+      this.applyHitScore(judgement);
+      const s = this.playerState;
+      const eventTime = this.getSongTime();
+      this.eventBus?.emit({
+        type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
+        padId: evt.padId,
+        time: eventTime,
+        event: evt,
+        score: s.score,
+        combo: s.combo,
+      });
+
       this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'playing', evt);
+      this.onJudgement?.(evt, judgement, signedOffset);
+      this.onScoreChange?.(this.state);
     } else {
       this.activeLoops.set(evt.id, {
         event: evt,
@@ -393,6 +407,28 @@ export class GameplayEngine {
         endTime: evt.targetTime + duration,
         deactivationEvaluated: true,
       });
+
+      if (this.playerState.combo > 0) {
+        this.onComboBreak?.();
+        this.eventBus?.emit({
+          type: 'COMBO_BREAK',
+          padId: evt.padId,
+          time: this.getSongTime(),
+          event: evt,
+          score: this.playerState.score,
+          combo: 0,
+        });
+      }
+      this.applyMiss();
+      this.eventBus?.emit({
+        type: 'HIT_MISS',
+        padId: evt.padId,
+        time: this.getSongTime(),
+        event: evt,
+        score: this.playerState.score,
+        combo: 0,
+      });
+
       this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'miss', evt);
       this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 300);
 
@@ -401,6 +437,9 @@ export class GameplayEngine {
       if (childrenIds && childrenIds.size > 0) {
         this.pending = this.pending.filter((p) => !childrenIds.has(p.id));
       }
+
+      this.onJudgement?.(evt, 'miss', signedOffset);
+      this.onScoreChange?.(this.state);
     }
   }
 

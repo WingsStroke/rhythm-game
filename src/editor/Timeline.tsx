@@ -95,8 +95,8 @@ const PadTracksLane = React.memo(function PadTracksLane({
                   e.id !== event.id &&
                   e.padId === event.padId &&
                   e.behavior === 'loop' &&
-                  event.targetTime > e.targetTime &&
-                  event.targetTime < e.targetTime + (e.duration || 0)
+                  event.targetTime >= e.targetTime - 0.001 &&
+                  event.targetTime <= e.targetTime + (e.duration || 0) + 0.001
               );
 
               if (event.behavior === 'tap') {
@@ -167,7 +167,11 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     key={event.id}
                     data-event-item="true"
                     data-event-id={event.id}
-                    className={`absolute top-1 bottom-1 rounded-lg flex items-center border transition-all z-10 cursor-grab active:cursor-grabbing overflow-hidden ${
+                    className={`absolute top-1 bottom-1 rounded-lg flex items-center border transition-all z-10 ${
+                      activeTool === 'pen'
+                        ? 'pointer-events-none'
+                        : 'cursor-grab active:cursor-grabbing'
+                    } overflow-hidden ${
                       isSelected
                         ? 'ring-2 ring-[#00ff9d] border-[#00ff9d] shadow-[0_0_22px_rgba(0,255,157,0.4)]'
                         : 'border-[#00ff9d]/50 hover:border-[#00ff9d]/80'
@@ -1133,7 +1137,14 @@ export function Timeline({
 
   const handleTrackClick = useCallback((e: React.MouseEvent, padId: PadId) => {
     if (dragState) return;
-    if ((e.target as HTMLElement).closest('[data-event-item]')) return;
+    const eventItem = (e.target as HTMLElement).closest('[data-event-item]');
+    if (eventItem) {
+      const eventId = eventItem.getAttribute('data-event-id');
+      const clickedEvent = level.events.find((ev) => ev.id === eventId);
+      if (!(clickedEvent?.behavior === 'loop' && creationBehavior !== 'loop')) {
+        return;
+      }
+    }
 
     if (activeTool === 'pen') {
       const rect = e.currentTarget.getBoundingClientRect();

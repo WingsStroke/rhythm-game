@@ -125,6 +125,7 @@ export class VisualEngine {
   private leadTime = 1.5;
   private beatPulse = 0;
   private lastAudioTime = 0;
+  private currentSongTime = 0;
   private bloomFilter: ColorMatrixFilter | null = null;
   private rgbFilter: Filter | null = null;
   private tickerCb: ((ticker: Ticker) => void) | null = null;
@@ -348,7 +349,7 @@ export class VisualEngine {
               this.activeLoopEventIds.delete(gameEvent.event.id);
               this.notePool?.release(gameEvent.event);
             } else {
-              // Clear any active holds or loops associated with this pad
+              // Clear active holds associated with this pad
               for (const id of Array.from(this.activeHoldEventIds)) {
                 const pooled = this.notePool?.get(id);
                 if (pooled && pooled.event?.padId === gameEvent.padId) {
@@ -356,11 +357,16 @@ export class VisualEngine {
                   this.notePool?.release(id);
                 }
               }
+              // Only clear active loops if the loop duration has actually expired
+              const songTime = this.currentSongTime;
               for (const id of Array.from(this.activeLoopEventIds)) {
                 const pooled = this.notePool?.get(id);
                 if (pooled && pooled.event?.padId === gameEvent.padId) {
-                  this.activeLoopEventIds.delete(id);
-                  this.notePool?.release(id);
+                  const loopEnd = (pooled.event.targetTime ?? 0) + (pooled.event.duration ?? 0);
+                  if (songTime >= loopEnd - 0.05) {
+                    this.activeLoopEventIds.delete(id);
+                    this.notePool?.release(id);
+                  }
                 }
               }
             }
@@ -1112,7 +1118,9 @@ export class VisualEngine {
 
   showJudgement(event: PadEvent, judgement: Judgement): void {
     // 1. Immediately return note sprite to pool, unless it's actively being sustained in a hold or active loop
-    if (this.notePool && !this.activeHoldEventIds.has(event.id) && !this.activeLoopEventIds.has(event.id)) {
+    if (event.behavior === 'loop') {
+      this.activeLoopEventIds.add(event.id);
+    } else if (this.notePool && !this.activeHoldEventIds.has(event.id) && !this.activeLoopEventIds.has(event.id)) {
       this.notePool.release(event);
     }
 
@@ -1364,6 +1372,7 @@ export class VisualEngine {
     // 6. Compute song timing with calibration offset
     const songOffset = this.level.timing?.offset ?? 0;
     const songTime = audioTimeToSongTime(audioTime, songOffset);
+    this.currentSongTime = songTime;
 
     // 6b. Evaluate temporal lifespan for all scene nodes
     if (this.sceneGraph) {
@@ -1457,7 +1466,6 @@ export class VisualEngine {
           event.behavior === 'loop' &&
           Boolean(event.duration) &&
           this.activeLoopEventIds.has(event.id) &&
-          songTime >= event.targetTime &&
           songTime <= event.targetTime + (event.duration || 0);
 
         if ((isBeingHeld && event.duration) || isLooping) {
