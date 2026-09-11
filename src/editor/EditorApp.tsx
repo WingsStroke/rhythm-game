@@ -18,6 +18,45 @@ import { ListVideo, Gamepad2, Zap, Layers, Sparkles } from 'lucide-react';
 
 type EditorTab = 'timeline' | 'preview';
 
+/**
+ * Safely duplicates a SceneNodeData, guaranteeing valid transform positioning and lifespan adjustment.
+ */
+function duplicateSceneNode(
+  source: SceneNodeData,
+  newUid: string,
+  lifespanAdjust?: {
+    mode: 'rebase';
+    baseTime: number;
+    playheadTime: number;
+  } | {
+    mode: 'shift';
+    shift: number;
+  }
+): SceneNodeData {
+  const cloned: SceneNodeData = JSON.parse(JSON.stringify(source));
+  cloned.uid = newUid;
+  cloned.id = newUid;
+  if (cloned.name) {
+    cloned.name = `${cloned.name}-copy`;
+  }
+  if (cloned.lifespan && lifespanAdjust) {
+    if (lifespanAdjust.mode === 'rebase') {
+      const delta = cloned.lifespan.startTime - lifespanAdjust.baseTime;
+      cloned.lifespan.startTime = Number((lifespanAdjust.playheadTime + delta).toFixed(4));
+    } else {
+      cloned.lifespan.startTime = Number((cloned.lifespan.startTime + lifespanAdjust.shift).toFixed(4));
+    }
+  } else {
+    if (!cloned.transform) {
+      cloned.transform = { x: 980, y: 560 };
+    } else {
+      cloned.transform.x = (cloned.transform.x ?? 960) + 20;
+      cloned.transform.y = (cloned.transform.y ?? 540) + 20;
+    }
+  }
+  return cloned;
+}
+
 export interface EditorAppProps {
   onExit: () => void;
   onPlaytest?: (level: LevelData) => void;
@@ -894,20 +933,11 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       const pastedNodes: SceneNodeData[] = clipboardRef.current.nodes.map((node, i) => {
         const newUid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}_${i}`;
         newIds.add(newUid);
-        const cloned: SceneNodeData = JSON.parse(JSON.stringify(node));
-        cloned.uid = newUid;
-        cloned.id = newUid;
-        if (cloned.name) {
-          cloned.name = `${cloned.name}-copy`;
-        }
-        if (cloned.lifespan) {
-          const delta = cloned.lifespan.startTime - baseTime;
-          cloned.lifespan.startTime = Number((snappedPlayhead + delta).toFixed(4));
-        } else {
-          cloned.transform.x = (cloned.transform.x || 960) + 20;
-          cloned.transform.y = (cloned.transform.y || 540) + 20;
-        }
-        return cloned;
+        return duplicateSceneNode(node, newUid, {
+          mode: 'rebase',
+          baseTime,
+          playheadTime: snappedPlayhead,
+        });
       });
 
       setLevel((prev) => ({
@@ -1011,17 +1041,10 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       const duplicatedNodes: SceneNodeData[] = selected.map((n, i) => {
         const newUid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}_${i}`;
         newIds.add(newUid);
-        const cloned: SceneNodeData = JSON.parse(JSON.stringify(n));
-        cloned.uid = newUid;
-        cloned.id = newUid;
-        if (cloned.name) cloned.name = `${cloned.name}-copy`;
-        if (cloned.lifespan) {
-          cloned.lifespan.startTime = Number((cloned.lifespan.startTime + shift).toFixed(4));
-        } else {
-          cloned.transform.x = (cloned.transform.x || 960) + 20;
-          cloned.transform.y = (cloned.transform.y || 540) + 20;
-        }
-        return cloned;
+        return duplicateSceneNode(n, newUid, {
+          mode: 'shift',
+          shift,
+        });
       });
 
       setLevel((prev) => ({

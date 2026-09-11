@@ -773,6 +773,13 @@ export class VisualEngine {
     }
   }
 
+  /**
+   * Invoked whenever a trigger is dispatched by TriggerDispatcher.
+   */
+  private handleTriggerFired(trigger: TriggerData): void {
+    // Hook for audio-visual synchronization or external trigger listeners
+  }
+
   private drawLanes(): void {
     this.laneGfx.clear();
 

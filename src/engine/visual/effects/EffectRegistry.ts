@@ -1,4 +1,4 @@
-import { Filter, ColorMatrixFilter, GlProgram, UniformGroup } from 'pixi.js';
+import { Filter, ColorMatrixFilter, GlProgram, UniformGroup, type UniformData } from 'pixi.js';
 
 export interface EffectDefinition {
   type: string;
@@ -51,7 +51,7 @@ void main(void)
 export function createShaderFilter(
   name: string,
   fragmentSrc: string,
-  uniforms: Record<string, { value: unknown; type: string }>,
+  uniforms: Record<string, UniformData>,
   padding = 0
 ): Filter {
   const glProgram = GlProgram.from({
