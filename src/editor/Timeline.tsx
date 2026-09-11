@@ -90,6 +90,15 @@ const PadTracksLane = React.memo(function PadTracksLane({
               const x = (event.targetTime + songOrigin) * pixelsPerSecond;
               const width = Math.max(16, (event.duration ?? beatDuration) * pixelsPerSecond);
 
+              const isInsideLoop = trackEvents.some(
+                (e) =>
+                  e.id !== event.id &&
+                  e.padId === event.padId &&
+                  e.behavior === 'loop' &&
+                  event.targetTime > e.targetTime &&
+                  event.targetTime < e.targetTime + (e.duration || 0)
+              );
+
               if (event.behavior === 'tap') {
                 return (
                   <div
@@ -107,8 +116,12 @@ const PadTracksLane = React.memo(function PadTracksLane({
                       boxShadow: `0 0 14px ${pad.color}90`,
                     }}
                     onPointerDown={(e) => onEventMove(e, event)}
+                    title={isInsideLoop ? 'Nota de bucle automático (decorativa / sin puntos)' : undefined}
                   >
-                    <div className="w-full h-full border border-white/30 rounded-lg flex items-center justify-center">
+                    <div className="w-full h-full border border-white/30 rounded-lg flex items-center justify-center relative">
+                      {isInsideLoop && (
+                        <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#00ff9d] border border-black shadow-[0_0_6px_#00ff9d]" />
+                      )}
                       <div className="w-1.5 h-6 rounded-full bg-white/70" />
                     </div>
                   </div>
@@ -154,32 +167,46 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     key={event.id}
                     data-event-item="true"
                     data-event-id={event.id}
-                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center border border-dashed z-20 cursor-grab active:cursor-grabbing transition-all ${
+                    className={`absolute top-1 bottom-1 rounded-lg flex items-center border transition-all z-10 cursor-grab active:cursor-grabbing overflow-hidden ${
                       isSelected
-                        ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffffff]'
-                        : 'border-white/40 hover:brightness-110'
+                        ? 'ring-2 ring-[#00ff9d] border-[#00ff9d] shadow-[0_0_22px_rgba(0,255,157,0.4)]'
+                        : 'border-[#00ff9d]/50 hover:border-[#00ff9d]/80'
                     }`}
                     style={{
                       left: x,
-                      width,
-                      backgroundColor: `${pad.color}30`,
-                      borderLeft: `5px solid ${pad.color}`,
+                      width: Math.max(36, width),
+                      backgroundColor: `${pad.color}15`,
                     }}
                     onPointerDown={(e) => onEventMove(e, event)}
                   >
-                    <div className="pl-1.5 flex items-center pointer-events-none">
-                      <Repeat className="w-3 h-3 text-white" />
+                    {/* Start handle (Punto de Activación) */}
+                    <div
+                      className="h-full w-4 bg-[#00ff9d]/25 border-r border-[#00ff9d]/60 flex items-center justify-center flex-shrink-0"
+                      title="Inicio de Bucle (Presionar para activar en gameplay)"
+                    >
+                      <div className="w-1.5 h-6 bg-[#00ff9d] rounded-full shadow-[0_0_8px_#00ff9d]" />
                     </div>
-                    <span className="text-[11px] font-mono font-bold text-white/90 px-2 truncate flex-1 pointer-events-none">
-                      LOOP ({(event.duration || 0).toFixed(2)}s)
-                    </span>
+
+                    {/* Header badge */}
+                    <div className="flex items-center gap-1.5 px-2 pointer-events-none select-none">
+                      <Repeat className="w-3.5 h-3.5 text-[#00ff9d]" />
+                      <span className="text-[10px] font-mono font-bold text-[#00ff9d] tracking-wider uppercase">
+                        LOOP ({(event.duration || 0).toFixed(2)}s)
+                      </span>
+                    </div>
+
+                    {/* Flexible space for inner notes */}
+                    <div className="flex-1 h-full pointer-events-none" />
+
+                    {/* End handle (Punto de Desactivación & Resize) */}
                     {activeTool === 'select' && (
                       <div
                         data-event-item="true"
-                        className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                        className="w-5 h-full bg-[#ff0055]/20 hover:bg-[#ff0055]/40 border-l border-[#ff0055]/60 cursor-ew-resize flex items-center justify-center flex-shrink-0 transition-colors"
                         onPointerDown={(e) => onEventResize(e, event)}
+                        title="Fin de Bucle (Presionar para desactivar en gameplay / Arrastrar para duración)"
                       >
-                        <div className="w-1.5 h-6 bg-white/70 rounded-full pointer-events-none" />
+                        <div className="w-2 h-2 bg-[#ff0055] rounded-xs shadow-[0_0_8px_#ff0055] pointer-events-none" />
                       </div>
                     )}
                   </div>
@@ -1113,6 +1140,19 @@ export function Timeline({
         duration: creationBehavior === 'hold' ? beatDuration * 2 : creationBehavior === 'loop' ? beatDuration * 4 : undefined,
         triggerId: creationBehavior === 'trigger' ? (selectedTriggerId || undefined) : undefined,
       };
+
+      if (creationBehavior === 'loop') {
+        const isInsideAnotherLoop = level.events.some(
+          (e) =>
+            e.padId === padId &&
+            e.behavior === 'loop' &&
+            snappedTime >= e.targetTime &&
+            snappedTime < e.targetTime + (e.duration || 0)
+        );
+        if (isInsideAnotherLoop) {
+          return;
+        }
+      }
 
       if (hasEventCollision(newEvent, level.events)) {
         return;

@@ -1523,6 +1523,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         <EditorPropertiesPanel
           selectedEvent={selectedEvent}
           selectedEvents={selectedEvents}
+          allEvents={level.events}
           selectedTrigger={selectedTrigger}
           selectedTriggers={selectedTriggers}
           selectedNode={selectedNode}

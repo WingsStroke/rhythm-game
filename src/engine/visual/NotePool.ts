@@ -39,6 +39,7 @@ export class NotePool {
 
   constructor(container: Container, capacity = 150) {
     this.container = container;
+    this.container.sortableChildren = true;
     this.initPool(capacity);
   }
 
@@ -97,18 +98,21 @@ export class NotePool {
 
       this.renderHoldTail(item, color, tailHeight);
     } else if (behavior === 'loop') {
-      // Loop Note: Capsule head
+      // Loop Activation Note: Capsule head with neon Play/Loop glyph
       item.headGfx
-        .roundRect(-28, -16, 56, 32, 16)
-        .fill({ color, alpha: 0.95 })
-        .stroke({ color: 0x00ff9d, width: 2.5, alpha: 0.95 });
+        .roundRect(-42, -16, 84, 32, 8)
+        .fill({ color: 0x070716, alpha: 0.95 })
+        .stroke({ color: 0x00ff9d, width: 3, alpha: 1.0 });
 
-      // Concentric loop glyph
+      // Core glow
       item.accentGfx
-        .circle(0, 0, 7)
-        .stroke({ color: 0xffffff, width: 2, alpha: 0.9 })
-        .circle(0, 0, 3)
-        .fill({ color: 0xffffff, alpha: 0.9 });
+        .roundRect(-38, -12, 76, 24, 6)
+        .fill({ color, alpha: 0.35 });
+
+      // Play / Loop start glyph
+      item.accentGfx
+        .poly([-7, -8, -7, 8, 9, 0])
+        .fill({ color: 0x00ff9d, alpha: 1.0 });
 
       if (tailHeight > 0) {
         this.renderLoopTail(item, color, tailHeight);
@@ -190,7 +194,7 @@ export class NotePool {
   }
 
   /**
-   * Renders the sustain ribbon for a loop note.
+   * Renders the transparent corridor and stop cap for a loop note.
    */
   public renderLoopTail(item: PooledNote, color: number, tailHeight: number): void {
     item.tailGfx.clear();
@@ -202,12 +206,43 @@ export class NotePool {
     }
 
     item.tailGfx.visible = true;
-    const halfW = 15;
+    const halfW = 42; // Width of the pad track column (84px total, nicely fits pad width)
+
+    // 1. Transparent corridor body fill
+    item.tailGfx
+      .roundRect(-halfW, -tailHeight, halfW * 2, tailHeight, 6)
+      .fill({ color, alpha: 0.16 });
+
+    // 2. Lateral neon guide rails
+    item.tailGfx
+      .moveTo(-halfW, 0)
+      .lineTo(-halfW, -tailHeight)
+      .stroke({ color: 0x00ff9d, width: 2.5, alpha: 0.85 });
 
     item.tailGfx
-      .rect(-halfW, -tailHeight, halfW * 2, tailHeight)
-      .fill({ color, alpha: 0.35 })
-      .stroke({ color: 0x00ff9d, width: 1.5, alpha: 0.8 });
+      .moveTo(halfW, 0)
+      .lineTo(halfW, -tailHeight)
+      .stroke({ color: 0x00ff9d, width: 2.5, alpha: 0.85 });
+
+    // 3. Subtle periodic crossbars
+    const step = 45;
+    for (let y = -step; y > -tailHeight + 20; y -= step) {
+      item.tailGfx
+        .moveTo(-halfW + 6, y)
+        .lineTo(halfW - 6, y)
+        .stroke({ color: 0xffffff, width: 1, alpha: 0.15 });
+    }
+
+    // 4. End Cap / Deactivation Marker (Stop marker at -tailHeight)
+    item.tailGfx
+      .roundRect(-halfW, -tailHeight - 16, halfW * 2, 20, 6)
+      .fill({ color: 0x070716, alpha: 0.95 })
+      .stroke({ color: 0xff0055, width: 2.5, alpha: 1.0 });
+
+    // Stop icon square inside end cap
+    item.tailGfx
+      .roundRect(-6, -tailHeight - 10, 12, 12, 2)
+      .fill({ color: 0xff0055, alpha: 1.0 });
   }
 
   /**
@@ -233,6 +268,7 @@ export class NotePool {
     item.event = event;
     item.color = color;
     item.container.visible = true;
+    item.container.zIndex = event.behavior === 'loop' ? 1 : 5;
     this.renderNoteGeometry(item, event.behavior, color, tailHeight);
     this.eventMap.set(event.id, item);
     return item;

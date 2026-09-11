@@ -36,8 +36,14 @@ export class GameplayEngine {
 
   /** Tracks active hold events: eventId → PadEvent */
   private activeHolds: Map<string, PadEvent> = new Map();
-  /** Tracks active loop events: eventId → PadEvent */
-  private activeLoops: Map<string, PadEvent> = new Map();
+  /** Tracks active loop events: eventId → ActiveLoopState */
+  private activeLoops: Map<string, {
+    event: PadEvent;
+    activated: boolean;
+    startTime: number;
+    endTime: number;
+    deactivationEvaluated: boolean;
+  }> = new Map();
   /** Tracks which pads are currently physically pressed */
   private pressedPads: Set<PadId> = new Set();
   /** Tracks the current visual state of each pad */
@@ -152,11 +158,44 @@ export class GameplayEngine {
       }
     }
 
-    // Deactivate expired loops
-    for (const [id, evt] of this.activeLoops) {
-      if (evt.duration !== undefined && time >= evt.targetTime + evt.duration) {
+    // Auto-trigger inner notes inside active loops (no points, pure visual/audio feedback)
+    for (const [, loop] of this.activeLoops) {
+      if (loop.activated && time >= loop.startTime && time < loop.endTime) {
+        for (let i = 0; i < this.pending.length; ) {
+          const pendingEvt = this.pending[i];
+          if (
+            pendingEvt.padId === loop.event.padId &&
+            pendingEvt.id !== loop.event.id &&
+            pendingEvt.targetTime > loop.startTime &&
+            pendingEvt.targetTime <= time
+          ) {
+            this.pending.splice(i, 1);
+            this.emitPadStateChange(pendingEvt.padId, 'playing', 'playing', pendingEvt);
+            this.eventBus?.emit({
+              type: 'AUTO_LOOP_HIT',
+              padId: pendingEvt.padId,
+              time: this.getSongTime(),
+              event: pendingEvt,
+              score: this.playerState.score,
+              combo: this.playerState.combo,
+            });
+          } else {
+            i++;
+          }
+        }
+      }
+    }
+
+    // Deactivate loops and evaluate missed deactivations
+    for (const [id, loop] of this.activeLoops) {
+      if (loop.activated && !loop.deactivationEvaluated && time > loop.endTime + this.windows.miss) {
+        loop.deactivationEvaluated = true;
+        this.judge(loop.event, 'miss', time - loop.endTime);
         this.activeLoops.delete(id);
-        this.emitPadStateChange(evt.padId, 'playing', 'ready');
+        this.emitPadStateChange(loop.event.padId, 'playing', 'ready');
+      } else if (!loop.activated && time > loop.endTime) {
+        this.activeLoops.delete(id);
+        this.emitPadStateChange(loop.event.padId, this.padStates.get(loop.event.padId) ?? 'ready', 'ready');
       }
     }
   }
@@ -178,6 +217,30 @@ export class GameplayEngine {
   }
 
   private handlePress(pad: PadId, time: number): void {
+    // 1. Check for active loop deactivation press
+    for (const [id, loop] of this.activeLoops) {
+      if (loop.event.padId === pad && loop.activated && !loop.deactivationEvaluated) {
+        const deactOffset = Math.abs(time - loop.endTime);
+        if (deactOffset <= this.windows.miss) {
+          loop.deactivationEvaluated = true;
+          const judgement = this.offsetToJudgement(deactOffset);
+          const signedOffset = time - loop.endTime;
+          this.judge(loop.event, judgement, signedOffset);
+          this.activeLoops.delete(id);
+          this.emitPadStateChange(pad, 'playing', judgement === 'miss' ? 'miss' : 'success', loop.event);
+          this.schedulePadStateTransition(pad, judgement === 'miss' ? 'miss' : 'success', 'ready', 300);
+          return;
+        }
+      }
+    }
+
+    // 2. If pad is currently in an active loop interval, player presses don't interfere with auto-playing notes
+    for (const [, loop] of this.activeLoops) {
+      if (loop.event.padId === pad && loop.activated && time >= loop.startTime && time < loop.endTime - this.windows.miss) {
+        return;
+      }
+    }
+
     // Find the nearest pending event for this pad within the miss window
     let bestEvt: PadEvent | null = null;
     let bestIndex = -1;
@@ -209,7 +272,7 @@ export class GameplayEngine {
         this.evaluateHoldStart(bestEvt, bestOffset);
         break;
       case 'loop':
-        this.evaluateLoopStart(bestEvt, bestOffset);
+        this.evaluateLoopStart(bestEvt, bestOffset, signedOffset);
         break;
       case 'trigger':
         this.evaluateTrigger(bestEvt, bestOffset);
@@ -259,17 +322,31 @@ export class GameplayEngine {
     this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'holding', evt);
   }
 
-  private evaluateLoopStart(evt: PadEvent, absOffset: number): void {
+  private evaluateLoopStart(evt: PadEvent, absOffset: number, signedOffset: number): void {
     const judgement = this.offsetToJudgement(absOffset);
-    if (judgement === 'miss') {
+    this.judge(evt, judgement, signedOffset);
+
+    const duration = evt.duration ?? 1.0;
+    if (judgement === 'perfect' || judgement === 'good') {
+      this.activeLoops.set(evt.id, {
+        event: evt,
+        activated: true,
+        startTime: evt.targetTime,
+        endTime: evt.targetTime + duration,
+        deactivationEvaluated: false,
+      });
+      this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'playing', evt);
+    } else {
+      this.activeLoops.set(evt.id, {
+        event: evt,
+        activated: false,
+        startTime: evt.targetTime,
+        endTime: evt.targetTime + duration,
+        deactivationEvaluated: true,
+      });
       this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'miss', evt);
       this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 300);
-      return;
     }
-
-    // Loop active without combo/score modifications
-    this.activeLoops.set(evt.id, evt);
-    this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'playing', evt);
   }
 
   private evaluateTrigger(evt: PadEvent, absOffset: number): void {

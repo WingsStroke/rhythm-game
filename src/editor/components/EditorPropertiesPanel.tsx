@@ -19,6 +19,8 @@ import { NumericInput } from './NumericInput';
 interface EditorPropertiesPanelProps {
   selectedEvent: PadEvent | null;
   selectedEvents?: PadEvent[];
+  /** All PadEvents in the level, used for loop-nesting validation. */
+  allEvents?: PadEvent[];
   selectedNode: SceneNodeData | null;
   selectedNodes?: SceneNodeData[];
   selectedTrigger: TriggerData | null;
@@ -63,6 +65,7 @@ function toValidHexColor(val: unknown, fallback = '#00e5ff'): string {
 export function EditorPropertiesPanel({
   selectedEvent,
   selectedEvents,
+  allEvents,
   selectedNode,
   selectedNodes,
   selectedTrigger,
@@ -83,6 +86,7 @@ export function EditorPropertiesPanel({
   onUpdateEffect,
   onRemoveEffect,
 }: EditorPropertiesPanelProps) {
+  const levelEvents = allEvents ?? [];
   return (
     <aside className="w-72 border-l border-white/10 bg-black/20 p-4 shrink-0 flex flex-col h-full min-h-0 overflow-y-auto select-none custom-scrollbar">
       {/* 1. BATCH NOTES SELECTION */}
@@ -101,22 +105,43 @@ export function EditorPropertiesPanel({
           <div className="flex flex-col gap-1 text-white/70">
             <span>Change Behavior (All)</span>
             <div className="grid grid-cols-2 gap-1.5 mt-1">
-              {(['tap', 'hold', 'loop', 'trigger'] as const).map((b) => (
-                <button
-                  key={b}
-                  onClick={() => {
-                    const updated = selectedEvents.map((ev) => ({
-                      ...ev,
-                      behavior: b,
-                      duration: b === 'hold' || b === 'loop' ? (ev.duration || 0.5) : undefined,
-                    }));
-                    onUpdateEventsBatch?.(updated);
-                  }}
-                  className="px-2 py-1 rounded bg-white/5 hover:bg-white/15 text-white/80 font-mono uppercase text-[10px] font-semibold border border-white/10 text-center transition-colors cursor-pointer"
-                >
-                  {b}
-                </button>
-              ))}
+              {(['tap', 'hold', 'loop', 'trigger'] as const).map((b) => {
+                const isLoopDisabled =
+                  b === 'loop' &&
+                  selectedEvents.some((ev) =>
+                    levelEvents.some(
+                      (e: PadEvent) =>
+                        e.id !== ev.id &&
+                        e.padId === ev.padId &&
+                        e.behavior === 'loop' &&
+                        ev.targetTime >= e.targetTime &&
+                        ev.targetTime < e.targetTime + (e.duration || 0)
+                    )
+                  );
+
+                return (
+                  <button
+                    key={b}
+                    disabled={isLoopDisabled}
+                    onClick={() => {
+                      const updated = selectedEvents.map((ev) => ({
+                        ...ev,
+                        behavior: b,
+                        duration: b === 'hold' || b === 'loop' ? (ev.duration || 0.5) : undefined,
+                      }));
+                      onUpdateEventsBatch?.(updated);
+                    }}
+                    className={`px-2 py-1 rounded font-mono uppercase text-[10px] font-semibold border text-center transition-colors ${
+                      isLoopDisabled
+                        ? 'bg-white/5 text-white/25 border-white/5 cursor-not-allowed'
+                        : 'bg-white/5 hover:bg-white/15 text-white/80 border-white/10 cursor-pointer'
+                    }`}
+                    title={isLoopDisabled ? 'No permitido dentro de otro loop' : undefined}
+                  >
+                    {b}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -292,26 +317,41 @@ export function EditorPropertiesPanel({
           </div>
 
           {/* Behavior Selector */}
-          <label className="flex flex-col gap-1 text-white/70">
-            Behavior
-            <select
-              value={selectedEvent.behavior}
-              onChange={(e) => {
-                const newBeh = e.target.value as PadBehavior;
-                onUpdateEvent({
-                  ...selectedEvent,
-                  behavior: newBeh,
-                  duration: newBeh === 'hold' || newBeh === 'loop' ? selectedEvent.duration || 1.0 : undefined,
-                });
-              }}
-              className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#00e5ff] font-mono cursor-pointer capitalize"
-            >
-              <option value="tap">Tap (Single Hit)</option>
-              <option value="hold">Hold (Sustained)</option>
-              <option value="loop">Loop (Continuous)</option>
-              <option value="trigger">Trigger (Visual FX)</option>
-            </select>
-          </label>
+          {(() => {
+            const isInsideLoop = levelEvents.some(
+              (e: PadEvent) =>
+                e.id !== selectedEvent.id &&
+                e.padId === selectedEvent.padId &&
+                e.behavior === 'loop' &&
+                selectedEvent.targetTime >= e.targetTime &&
+                selectedEvent.targetTime < e.targetTime + (e.duration || 0)
+            );
+
+            return (
+              <label className="flex flex-col gap-1 text-white/70">
+                Behavior
+                <select
+                  value={selectedEvent.behavior}
+                  onChange={(e) => {
+                    const newBeh = e.target.value as PadBehavior;
+                    onUpdateEvent({
+                      ...selectedEvent,
+                      behavior: newBeh,
+                      duration: newBeh === 'hold' || newBeh === 'loop' ? selectedEvent.duration || 1.0 : undefined,
+                    });
+                  }}
+                  className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#00e5ff] font-mono cursor-pointer capitalize"
+                >
+                  <option value="tap">Tap (Single Hit)</option>
+                  <option value="hold">Hold (Sustained)</option>
+                  <option value="loop" disabled={isInsideLoop}>
+                    {isInsideLoop ? 'Loop (No permitido dentro de otro loop)' : 'Loop (Continuous)'}
+                  </option>
+                  <option value="trigger">Trigger (Visual FX)</option>
+                </select>
+              </label>
+            );
+          })()}
 
           {/* Duration for hold/loop */}
           {(selectedEvent.behavior === 'hold' || selectedEvent.behavior === 'loop') && (

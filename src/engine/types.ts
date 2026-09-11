@@ -386,7 +386,8 @@ export type GameplayEventType =
   | 'COMBO_BREAK'
   | 'PAD_STATE_CHANGE'
   | 'TRIGGER_TRIGGERED'
-  | 'PHRASE_COMPLETED';
+  | 'PHRASE_COMPLETED'
+  | 'AUTO_LOOP_HIT';
 
 /** Gameplay event emitted by GameplayEngine and dispatched via GameplayEventBus. */
 export interface GameplayEvent {

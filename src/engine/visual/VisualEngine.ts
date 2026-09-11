@@ -313,6 +313,18 @@ export class VisualEngine {
           this.comboText.text = '';
         }
       }),
+      bus.subscribe('AUTO_LOOP_HIT', (gameEvent) => {
+        const pv = this.padVisuals.get(gameEvent.padId);
+        if (pv) {
+          pv.pressAnim = 1.0;
+          const x = this.padXPositions.get(gameEvent.padId) ?? 0;
+          const targetY = this.padY + PAD_HEIGHT / 2;
+          this.particlePool?.spawn(x + 50, targetY, pv.baseColor, 5, 1.0);
+        }
+        if (gameEvent.event) {
+          this.notePool?.release(gameEvent.event);
+        }
+      }),
       bus.subscribe('PAD_STATE_CHANGE', (gameEvent) => {
         const pv = this.padVisuals.get(gameEvent.padId);
         if (pv && gameEvent.newState) {
@@ -1423,23 +1435,33 @@ export class VisualEngine {
         const isBeingHeld = this.activeHoldEventIds.has(event.id);
         const pooled = this.notePool.get(event.id);
 
-        if (isBeingHeld && event.duration) {
-          // Sustained hold: Clamped at pad receptor line
+        const isLooping =
+          event.behavior === 'loop' &&
+          Boolean(event.duration) &&
+          songTime >= event.targetTime &&
+          songTime <= event.targetTime + (event.duration || 0);
+
+        if ((isBeingHeld && event.duration) || isLooping) {
+          // Sustained hold or active loop: Anchored at pad receptor line
           gfx.x = x + 50;
           gfx.y = targetY;
-          gfx.scale.set(1.05);
+          gfx.scale.set(1.02);
           gfx.alpha = 1;
 
-          // Tail length shrinks dynamically as hold progresses
-          const remaining = (event.targetTime + event.duration) - songTime;
+          // Tail length shrinks dynamically as hold or loop progresses
+          const remaining = (event.targetTime + (event.duration || 0)) - songTime;
           const currentTailHeight = Math.max(0, (remaining / this.leadTime) * fallDistance);
           if (pooled) {
-            this.notePool.renderHoldTail(pooled, pooled.color, currentTailHeight);
+            if (event.behavior === 'hold') {
+              this.notePool.renderHoldTail(pooled, pooled.color, currentTailHeight);
+            } else if (event.behavior === 'loop') {
+              this.notePool.renderLoopTail(pooled, pooled.color, currentTailHeight);
+            }
           }
 
-          // Continuous hold sparks
+          // Sparks feedback at receptor line
           const pv = this.padVisuals.get(event.padId);
-          if (pv && Math.random() < 0.35) {
+          if (pv && Math.random() < 0.25) {
             this.particlePool.spawn(x + 50, targetY, pv.baseColor, 2, 0.7);
           }
         } else {
