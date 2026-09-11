@@ -17,6 +17,8 @@ import {
   Gauge,
   Settings,
   Sliders,
+  Save,
+  Check,
 } from 'lucide-react';
 import { formatTime } from '../utils';
 
@@ -39,6 +41,7 @@ interface EditorHeaderProps {
   onLoadAudioFile: (file: File) => void;
   onImportJson: (file: File) => void;
   onExport: () => void;
+  onSaveToLocalStorage?: () => boolean;
   onPlaytest?: () => void;
   onOpenSongPadsModal?: () => void;
   onExit: () => void;
@@ -63,12 +66,14 @@ export function EditorHeader({
   onLoadAudioFile,
   onImportJson,
   onExport,
+  onSaveToLocalStorage,
   onPlaytest,
   onOpenSongPadsModal,
   onExit,
 }: EditorHeaderProps) {
   const [localSpeed, setLocalSpeed] = useState<string>(playbackSpeed.toString());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -308,14 +313,57 @@ export function EditorHeader({
               <span>Song & Pads Setup</span>
             </button>
 
-            {/* Divider */}
-            <div className="my-1 border-t border-white/10" />
-
-            {/* 3. Load Audio File */}
-            <label
+            {/* 3. Manual Save to LocalStorage */}
+            <button
+              onClick={() => {
+                if (onSaveToLocalStorage) {
+                  const success = onSaveToLocalStorage();
+                  if (success) {
+                    setSaveStatus('saved');
+                    setTimeout(() => setSaveStatus('idle'), 2500);
+                  } else {
+                    setSaveStatus('error');
+                    setTimeout(() => setSaveStatus('idle'), 2500);
+                  }
+                }
+              }}
               style={{
                 animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
                 animationDelay: '70ms',
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                saveStatus === 'saved'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : saveStatus === 'error'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+              title="Guarda manualmente el estado y la configuración actual del nivel en el LocalStorage"
+            >
+              <div className="flex items-center gap-2.5">
+                {saveStatus === 'saved' ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Save className="w-3.5 h-3.5 text-[#00e5ff]" />
+                )}
+                <span>
+                  {saveStatus === 'saved'
+                    ? 'Guardado en LocalStorage'
+                    : saveStatus === 'error'
+                    ? 'Error al guardar'
+                    : 'Guardar en LocalStorage'}
+                </span>
+              </div>
+            </button>
+
+            {/* Divider */}
+            <div className="my-1 border-t border-white/10" />
+
+            {/* 4. Load Audio File */}
+            <label
+              style={{
+                animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                animationDelay: '105ms',
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors cursor-pointer"
             >
@@ -336,11 +384,11 @@ export function EditorHeader({
               />
             </label>
 
-            {/* 4. Import Beatmap JSON */}
+            {/* 5. Import Beatmap JSON */}
             <label
               style={{
                 animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
-                animationDelay: '105ms',
+                animationDelay: '140ms',
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors cursor-pointer"
             >
@@ -361,7 +409,7 @@ export function EditorHeader({
               />
             </label>
 
-            {/* 5. Export Beatmap JSON */}
+            {/* 6. Export Beatmap JSON */}
             <button
               onClick={() => {
                 setIsSettingsOpen(false);
@@ -369,7 +417,7 @@ export function EditorHeader({
               }}
               style={{
                 animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
-                animationDelay: '140ms',
+                animationDelay: '175ms',
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors cursor-pointer"
             >
@@ -380,7 +428,7 @@ export function EditorHeader({
             {/* Divider */}
             <div className="my-1 border-t border-white/10" />
 
-            {/* 6. Exit Editor */}
+            {/* 7. Exit Editor */}
             <button
               onClick={() => {
                 setIsSettingsOpen(false);
@@ -388,7 +436,7 @@ export function EditorHeader({
               }}
               style={{
                 animation: 'headerMenuStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
-                animationDelay: '175ms',
+                animationDelay: '210ms',
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/15 text-xs font-medium transition-colors cursor-pointer"
             >

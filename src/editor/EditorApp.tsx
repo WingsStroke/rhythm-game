@@ -1234,6 +1234,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         onLoadAudioFile={handleAudioLoad}
         onImportJson={handleJsonImport}
         onExport={handleExport}
+        onSaveToLocalStorage={saveDraftManually}
         onOpenSongPadsModal={() => setIsSongPadsModalOpen(true)}
         onPlaytest={
           onPlaytest
@@ -1484,7 +1485,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         level={level}
         onChangeLevel={setLevel}
         audioFileName={audioFileName}
-        onSaveToLocalStorage={saveDraftManually}
       />
     </div>
   );
