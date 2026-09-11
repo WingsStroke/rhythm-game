@@ -6,7 +6,7 @@ import { SongRegistry } from '../engine/content/SongRegistry';
 import { WaveformCanvas } from './components/WaveformCanvas';
 import { Zap, Repeat, Volume2, VolumeX, Clock, Layers, Sparkles } from 'lucide-react';
 
-import { getSnapInterval, snapTimeToGrid, type GridSubdivision } from './utils';
+import { getSnapInterval, snapTimeToGrid, hasEventCollision, type GridSubdivision } from './utils';
 import {
   getSongOrigin,
   timelineTimeToSongTime,
@@ -1113,11 +1113,16 @@ export function Timeline({
         duration: creationBehavior === 'hold' ? beatDuration * 2 : creationBehavior === 'loop' ? beatDuration * 4 : undefined,
         triggerId: creationBehavior === 'trigger' ? (selectedTriggerId || undefined) : undefined,
       };
+
+      if (hasEventCollision(newEvent, level.events)) {
+        return;
+      }
+
       onAddEvent(newEvent);
       onSelectEvent(newEvent);
       onSelectTrigger?.(null);
     }
-  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, creationBehavior, beatDuration, selectedTriggerId, onAddEvent, onSelectEvent, onSelectTrigger]);
+  }, [dragState, activeTool, pixelsPerSecond, leadIn, offset, level.timing.bpm, gridSubdivision, creationBehavior, beatDuration, selectedTriggerId, onAddEvent, onSelectEvent, onSelectTrigger, level.events]);
 
   const handleTriggerTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (dragState) return;
@@ -1623,24 +1628,36 @@ export function Timeline({
     const subLaneDelta = Math.round(deltaY / subLaneHeight);
 
     if (currentDrag.targetType === 'event' && currentDrag.event) {
+      const otherEvents = level.events.filter((ev) => ev.id !== currentDrag.event!.id);
       if (currentDrag.mode === 'move') {
         const snapped = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
-        if (snapped !== currentDrag.event.targetTime) onUpdateEvent({ ...currentDrag.event, targetTime: snapped });
+        const candidate = { ...currentDrag.event, targetTime: snapped };
+        if (!hasEventCollision(candidate, otherEvents)) {
+          if (snapped !== currentDrag.event.targetTime) onUpdateEvent(candidate);
+        }
       } else {
         const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
         const snapped = interval > 0 ? Math.max(interval, Math.round(Math.max(0.05, currentDrag.origDuration! + deltaTime) / interval) * interval) : Math.max(0.05, currentDrag.origDuration! + deltaTime);
-        if (snapped !== currentDrag.event.duration) onUpdateEvent({ ...currentDrag.event, duration: snapped });
+        const candidate = { ...currentDrag.event, duration: snapped };
+        if (!hasEventCollision(candidate, otherEvents)) {
+          if (snapped !== currentDrag.event.duration) onUpdateEvent(candidate);
+        }
       }
     } else if (currentDrag.targetType === 'batch_events' && currentDrag.origEvents && currentDrag.event) {
       const snappedPivot = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
       const deltaSnap = snappedPivot - currentDrag.origTargetTime!;
       const minTime = Math.min(...currentDrag.origEvents.map((ev) => ev.targetTime));
       const validDelta = (minTime + deltaSnap < 0) ? -minTime : deltaSnap;
+      const draggedIds = new Set(currentDrag.origEvents.map((ev) => ev.id));
+      const otherEvents = level.events.filter((ev) => !draggedIds.has(ev.id));
       const updated = currentDrag.origEvents.map((ev) => ({
         ...ev,
         targetTime: Math.max(0, Number((ev.targetTime + validDelta).toFixed(4))),
       }));
-      onUpdateEventsBatch?.(updated);
+      const hasAnyCollision = updated.some((ev) => hasEventCollision(ev, otherEvents));
+      if (!hasAnyCollision) {
+        onUpdateEventsBatch?.(updated);
+      }
     } else if (currentDrag.targetType === 'trigger' && currentDrag.trigger) {
       if (currentDrag.mode === 'move') {
         const snapped = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);

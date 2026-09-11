@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Timeline, type EditorTool } from './Timeline';
-import { snapTimeToGrid, getSnapInterval, type GridSubdivision } from './utils';
+import { snapTimeToGrid, getSnapInterval, hasEventCollision, type GridSubdivision } from './utils';
 import { EditorHeader } from './components/EditorHeader';
 import { EditorToolbar } from './components/EditorToolbar';
 import { EditorPropertiesPanel } from './components/EditorPropertiesPanel';
@@ -402,6 +402,9 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   // 1. PadEvent mutations
   const handleAddEvent = useCallback((newEvent: PadEvent) => {
     setLevel((prev) => {
+      if (hasEventCollision(newEvent, prev.events)) {
+        return prev;
+      }
       const newEvents = [...prev.events, newEvent].sort((a, b) => a.targetTime - b.targetTime);
       return { ...prev, events: newEvents };
     });
@@ -410,6 +413,10 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
 
   const handleUpdateEvent = useCallback((updatedEvent: PadEvent) => {
     setLevel((prev) => {
+      const otherEvents = prev.events.filter((e) => e.id !== updatedEvent.id);
+      if (hasEventCollision(updatedEvent, otherEvents)) {
+        return prev;
+      }
       const newEvents = prev.events
         .map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
         .sort((a, b) => a.targetTime - b.targetTime);
@@ -879,23 +886,28 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     if (clipboardRef.current.type === 'events' && clipboardRef.current.events) {
       const baseTime = clipboardRef.current.baseTime;
       const newIds = new Set<string>();
-      const pastedEvents: PadEvent[] = clipboardRef.current.events.map((e) => {
-        const newId = crypto.randomUUID();
-        newIds.add(newId);
+      const pastedEvents: PadEvent[] = [];
+      for (const e of clipboardRef.current.events) {
         const delta = e.targetTime - baseTime;
         const targetTime = Number((snappedPlayhead + delta).toFixed(4));
-        return {
+        const candidate: PadEvent = {
           ...e,
-          id: newId,
+          id: crypto.randomUUID(),
           targetTime,
         };
-      });
+        if (!hasEventCollision(candidate, level.events) && !hasEventCollision(candidate, pastedEvents)) {
+          pastedEvents.push(candidate);
+          newIds.add(candidate.id);
+        }
+      }
 
-      setLevel((prev) => {
-        const newEvents = [...prev.events, ...pastedEvents].sort((a, b) => a.targetTime - b.targetTime);
-        return { ...prev, events: newEvents };
-      });
-      setSelectedEventIds(newIds);
+      if (pastedEvents.length > 0) {
+        setLevel((prev) => {
+          const newEvents = [...prev.events, ...pastedEvents].sort((a, b) => a.targetTime - b.targetTime);
+          return { ...prev, events: newEvents };
+        });
+        setSelectedEventIds(newIds);
+      }
       setSelectedTriggerIds(new Set());
       setSelectedNodeIds(new Set());
       setSelectedEffectIds(new Set());
@@ -966,7 +978,22 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       const beatDuration = 60 / level.timing.bpm;
       const snapInterval = getSnapInterval(level.timing.bpm, gridSubdivision);
       const minShift = snapInterval > 0 ? snapInterval : beatDuration;
-      const shift = Math.max(minShift, snapTimeToGrid(blockSpan || minShift, level.timing.bpm, gridSubdivision));
+      let shift = Math.max(minShift, snapTimeToGrid(blockSpan || minShift, level.timing.bpm, gridSubdivision));
+
+      // Advance shift if duplicating would land directly on existing notes
+      let attempts = 0;
+      while (
+        attempts < 20 &&
+        selected.some((e) =>
+          hasEventCollision(
+            { ...e, targetTime: Number((e.targetTime + shift).toFixed(4)) },
+            level.events
+          )
+        )
+      ) {
+        shift += minShift;
+        attempts++;
+      }
 
       const newIds = new Set<string>();
       const duplicatedEvents: PadEvent[] = selected.map((e) => {
