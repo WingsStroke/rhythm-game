@@ -13,6 +13,8 @@ import {
   Keyboard,
   Timer,
   Volume2,
+  Save,
+  Check,
 } from 'lucide-react';
 import type { LevelData, PadConfig, PadId, ModulationChannel } from '../../engine/types';
 import { formatKeyCode, getBoundKeyForPad, loadUserKeybindings } from '../../engine/input/Keybindings';
@@ -23,6 +25,7 @@ interface SongPadsModalProps {
   level: LevelData;
   onChangeLevel: (newLevel: LevelData) => void;
   audioFileName?: string;
+  onSaveToLocalStorage?: () => boolean;
 }
 
 const MODULATION_CHANNELS: ModulationChannel[] = ['bass', 'mids', 'treble', 'ambient'];
@@ -45,8 +48,37 @@ export function SongPadsModal({
   level,
   onChangeLevel,
   audioFileName,
+  onSaveToLocalStorage,
 }: SongPadsModalProps) {
   const [activeTab, setActiveTab] = useState<'song' | 'pads'>('song');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+
+  const handleManualSave = () => {
+    try {
+      const ok = onSaveToLocalStorage
+        ? onSaveToLocalStorage()
+        : (() => {
+            const payload = {
+              level,
+              timestamp: Date.now(),
+              audioFileName: audioFileName || undefined,
+            };
+            localStorage.setItem('wings_stroke_editor_draft', JSON.stringify(payload));
+            return true;
+          })();
+
+      if (ok) {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2500);
+      } else {
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 2500);
+      }
+    } catch {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 2500);
+    }
+  };
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -615,7 +647,34 @@ export function SongPadsModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="h-14 px-6 border-t border-white/10 flex items-center justify-end bg-black/40 shrink-0">
+        <div className="h-14 px-6 border-t border-white/10 flex items-center justify-between bg-black/40 shrink-0">
+          <button
+            type="button"
+            onClick={handleManualSave}
+            className={`px-4 py-2 text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
+              saveStatus === 'saved'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                : saveStatus === 'error'
+                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                : 'bg-white/10 hover:bg-white/15 text-white/90 border border-white/15 hover:border-white/25 active:scale-98'
+            }`}
+            title="Guarda manualmente el estado y la configuración actual del nivel en el LocalStorage de tu navegador"
+          >
+            {saveStatus === 'saved' ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Guardado en LocalStorage</span>
+              </>
+            ) : saveStatus === 'error' ? (
+              <span>Error al guardar</span>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5 text-[#00e5ff]" />
+                <span>Guardar en LocalStorage</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={onClose}
             className="px-5 py-2 bg-[#00e5ff] text-black font-bold text-xs rounded-xl hover:bg-[#00e5ff]/90 transition-all shadow-md shadow-[#00e5ff]/20 cursor-pointer"

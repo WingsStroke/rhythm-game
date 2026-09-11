@@ -85,6 +85,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     draftAudioFileName,
     restoreDraft,
     discardDraft,
+    saveDraftManually,
   } = useAutoSave({
     level,
     audioFileName,
@@ -1304,7 +1305,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('notes');
-                setActiveTool('pen');
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'notes'
@@ -1318,7 +1318,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('triggers');
-                setActiveTool('pen');
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'triggers'
@@ -1332,7 +1331,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('visuals');
-                setActiveTool('object');
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'visuals'
@@ -1346,7 +1344,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('shaders');
-                setActiveTool('shader');
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'shaders'
@@ -1487,6 +1484,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         level={level}
         onChangeLevel={setLevel}
         audioFileName={audioFileName}
+        onSaveToLocalStorage={saveDraftManually}
       />
     </div>
   );

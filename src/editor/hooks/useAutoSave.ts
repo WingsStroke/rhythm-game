@@ -113,6 +113,21 @@ export function useAutoSave({
     setDraftData(null);
   }, []);
 
+  const saveDraftManually = useCallback((): boolean => {
+    try {
+      const payload: EditorDraft = {
+        level,
+        timestamp: Date.now(),
+        audioFileName: audioFileName || undefined,
+      };
+      localStorage.setItem(EDITOR_DRAFT_KEY, JSON.stringify(payload));
+      return true;
+    } catch (err) {
+      console.warn('Could not save draft manually to localStorage:', err);
+      return false;
+    }
+  }, [level, audioFileName]);
+
   return {
     isDraftAvailable: draftAvailable,
     draftTimestamp: draftData?.timestamp ?? null,
@@ -120,5 +135,6 @@ export function useAutoSave({
     restoreDraft,
     discardDraft,
     clearAutoSave,
+    saveDraftManually,
   };
 }
