@@ -10,7 +10,7 @@ import { useEditorShortcuts } from './hooks/useEditorShortcuts';
 import { useEditorHistory } from './hooks/useEditorHistory';
 import { useAutoSave } from './hooks/useAutoSave';
 import { INITIAL_LEVEL } from './constants';
-import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData, ScenePrimitiveType, VisualEffect, EffectType } from '../engine/types';
+import type { LevelData, PadEvent, PadBehavior, SceneNodeData, TriggerData, ScenePrimitiveType, VisualEffect } from '../engine/types';
 import { LevelValidator } from '../engine/content/LevelValidator';
 import { timelineTimeToSongTime } from '../engine/time/timeUtils';
 import { PrimitiveRegistry } from '../engine/visual/objects/PrimitiveRegistry';

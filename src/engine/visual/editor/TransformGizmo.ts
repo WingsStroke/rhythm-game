@@ -597,7 +597,7 @@ export class TransformGizmo extends Container {
         e.clientY - this.rotateCenterScreen.y,
         e.clientX - this.rotateCenterScreen.x
       );
-      let deltaAngle = currentAngle - this.startRotateAngle;
+      const deltaAngle = currentAngle - this.startRotateAngle;
 
       for (const state of this.initialStates.values()) {
         let newRot = state.rotation + deltaAngle;

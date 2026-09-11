@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType, SceneNodeData, ScenePrimitiveType, VisualEffect, EffectType } from '../engine/types';
+import type { LevelData, PadId, PadConfig, PadEvent, PadBehavior, TriggerData, TriggerActionType, SceneNodeData, ScenePrimitiveType, VisualEffect } from '../engine/types';
 import { PrimitiveRegistry } from '../engine/visual/objects/PrimitiveRegistry';
 import { EffectRegistry } from '../engine/visual/effects/EffectRegistry';
 import { SongRegistry } from '../engine/content/SongRegistry';

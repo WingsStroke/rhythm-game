@@ -26,7 +26,7 @@ interface EditorPropertiesPanelProps {
   selectedEffect?: VisualEffect | null;
   selectedEffects?: VisualEffect[];
   effects?: VisualEffect[];
-  nodes: SceneNodeData[];
+  nodes?: SceneNodeData[];
   pads: PadConfig[];
   activeTab: 'timeline' | 'preview';
   timelineMode?: 'notes' | 'triggers' | 'visuals' | 'shaders';
@@ -69,7 +69,6 @@ export function EditorPropertiesPanel({
   selectedTriggers,
   selectedEffect,
   selectedEffects,
-  nodes,
   pads,
   activeTab,
   timelineMode,
