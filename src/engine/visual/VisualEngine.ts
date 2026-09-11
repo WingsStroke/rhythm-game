@@ -112,6 +112,7 @@ export class VisualEngine {
   private laneGfx!: Graphics;
   private notePool!: NotePool;
   private activeHoldEventIds: Set<string> = new Set();
+  private activeLoopEventIds: Set<string> = new Set();
   private padVisuals: Map<PadId, PadVisual> = new Map();
   private judgementPopups: JudgementPopup[] = [];
   private scoreText!: Text;
@@ -333,6 +334,10 @@ export class VisualEngine {
             if (gameEvent.event) {
               this.activeHoldEventIds.add(gameEvent.event.id);
             }
+          } else if (gameEvent.newState === 'playing') {
+            if (gameEvent.event && gameEvent.event.behavior === 'loop') {
+              this.activeLoopEventIds.add(gameEvent.event.id);
+            }
           } else if (
             gameEvent.newState === 'success' ||
             gameEvent.newState === 'miss' ||
@@ -340,13 +345,21 @@ export class VisualEngine {
           ) {
             if (gameEvent.event) {
               this.activeHoldEventIds.delete(gameEvent.event.id);
+              this.activeLoopEventIds.delete(gameEvent.event.id);
               this.notePool?.release(gameEvent.event);
             } else {
-              // Clear any active holds associated with this pad
+              // Clear any active holds or loops associated with this pad
               for (const id of Array.from(this.activeHoldEventIds)) {
                 const pooled = this.notePool?.get(id);
                 if (pooled && pooled.event?.padId === gameEvent.padId) {
                   this.activeHoldEventIds.delete(id);
+                  this.notePool?.release(id);
+                }
+              }
+              for (const id of Array.from(this.activeLoopEventIds)) {
+                const pooled = this.notePool?.get(id);
+                if (pooled && pooled.event?.padId === gameEvent.padId) {
+                  this.activeLoopEventIds.delete(id);
                   this.notePool?.release(id);
                 }
               }
@@ -1098,8 +1111,8 @@ export class VisualEngine {
   }
 
   showJudgement(event: PadEvent, judgement: Judgement): void {
-    // 1. Immediately return note sprite to pool, unless it's actively being sustained in a hold
-    if (this.notePool && !this.activeHoldEventIds.has(event.id)) {
+    // 1. Immediately return note sprite to pool, unless it's actively being sustained in a hold or active loop
+    if (this.notePool && !this.activeHoldEventIds.has(event.id) && !this.activeLoopEventIds.has(event.id)) {
       this.notePool.release(event);
     }
 
@@ -1189,6 +1202,7 @@ export class VisualEngine {
       this.particlePool.reset();
     }
     this.activeHoldEventIds.clear();
+    this.activeLoopEventIds.clear();
     // Return all active notes to pool so they cleanly re-instantiate for the new timestamp
     if (this.notePool) {
       this.notePool.releaseAll();
@@ -1402,7 +1416,11 @@ export class VisualEngine {
     if (this.notePool) {
       for (const { event } of this.notePool.getActiveNotes()) {
         const duration = event.duration || 0;
-        if (event.targetTime + duration + 0.4 < songTime && !this.activeHoldEventIds.has(event.id)) {
+        if (
+          event.targetTime + duration + 0.4 < songTime &&
+          !this.activeHoldEventIds.has(event.id) &&
+          !this.activeLoopEventIds.has(event.id)
+        ) {
           this.notePool.release(event);
         }
       }
@@ -1438,6 +1456,7 @@ export class VisualEngine {
         const isLooping =
           event.behavior === 'loop' &&
           Boolean(event.duration) &&
+          this.activeLoopEventIds.has(event.id) &&
           songTime >= event.targetTime &&
           songTime <= event.targetTime + (event.duration || 0);
 

@@ -44,6 +44,10 @@ export class GameplayEngine {
     endTime: number;
     deactivationEvaluated: boolean;
   }> = new Map();
+  /** Set of event IDs that are contained inside any loop interval */
+  private loopChildIds: Set<string> = new Set();
+  /** Map from loop eventId to Set of child event IDs contained within it */
+  private loopToChildrenMap: Map<string, Set<string>> = new Map();
   /** Tracks which pads are currently physically pressed */
   private pressedPads: Set<PadId> = new Set();
   /** Tracks the current visual state of each pad */
@@ -67,6 +71,8 @@ export class GameplayEngine {
     for (const pad of level.pads) {
       this.padStates.set(pad.id, 'ready');
     }
+
+    this.rebuildLoopRelationships();
   }
 
   public setOffset(offset: number): void {
@@ -94,7 +100,35 @@ export class GameplayEngine {
 
   setEvents(events: PadEvent[]): void {
     this.events = [...events].sort((a, b) => a.targetTime - b.targetTime);
+    this.rebuildLoopRelationships();
     this.start();
+  }
+
+  private rebuildLoopRelationships(): void {
+    this.loopChildIds.clear();
+    this.loopToChildrenMap.clear();
+
+    for (const loop of this.events) {
+      if (loop.behavior !== 'loop') continue;
+      const duration = loop.duration ?? 1.0;
+      const loopEnd = loop.targetTime + duration;
+      const children = new Set<string>();
+
+      for (const candidate of this.events) {
+        if (
+          candidate.id !== loop.id &&
+          candidate.padId === loop.padId &&
+          candidate.behavior !== 'loop' &&
+          candidate.targetTime > loop.targetTime &&
+          candidate.targetTime < loopEnd
+        ) {
+          children.add(candidate.id);
+          this.loopChildIds.add(candidate.id);
+        }
+      }
+
+      this.loopToChildrenMap.set(loop.id, children);
+    }
   }
 
   start(startTime?: number): void {
@@ -133,6 +167,10 @@ export class GameplayEngine {
         break;
       }
       if (timeToEvent > 0) {
+        // Child notes inside loops are automated and do not pre-cue the pad
+        if (this.loopChildIds.has(evt.id)) {
+          continue;
+        }
         const current = this.padStates.get(evt.padId);
         if (current === 'ready') {
           this.emitPadStateChange(evt.padId, 'ready', 'queued');
@@ -146,7 +184,14 @@ export class GameplayEngine {
       this.pending[0].targetTime + missWindow < time
     ) {
       const evt = this.pending.shift()!;
+      // Child notes inside loops must NEVER trigger individual auto-misses
+      if (this.loopChildIds.has(evt.id)) {
+        continue;
+      }
       this.judge(evt, 'miss', time - evt.targetTime);
+      if (evt.behavior === 'loop') {
+        this.handleMissedLoopStart(evt);
+      }
     }
 
     // Deactivate expired holds
@@ -251,6 +296,10 @@ export class GameplayEngine {
       if (evt.padId !== pad) continue;
       // Events are sorted by targetTime; stop if we're too far ahead
       if (evt.targetTime - time > this.windows.miss) break;
+
+      // Inner notes inside loops are automated and can NEVER be hit directly by player input
+      if (this.loopChildIds.has(evt.id)) continue;
+
       const offset = Math.abs(time - evt.targetTime);
       if (offset < bestOffset && offset <= this.windows.miss) {
         bestEvt = evt;
@@ -346,6 +395,31 @@ export class GameplayEngine {
       });
       this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'miss', evt);
       this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 300);
+
+      // Discard any remaining child notes from this.pending so they can never be hit or score points
+      const childrenIds = this.loopToChildrenMap.get(evt.id);
+      if (childrenIds && childrenIds.size > 0) {
+        this.pending = this.pending.filter((p) => !childrenIds.has(p.id));
+      }
+    }
+  }
+
+  private handleMissedLoopStart(evt: PadEvent): void {
+    const duration = evt.duration ?? 1.0;
+    this.activeLoops.set(evt.id, {
+      event: evt,
+      activated: false,
+      startTime: evt.targetTime,
+      endTime: evt.targetTime + duration,
+      deactivationEvaluated: true,
+    });
+    this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'miss', evt);
+    this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 300);
+
+    // Discard any remaining child notes from this.pending so they can never be hit or score points
+    const childrenIds = this.loopToChildrenMap.get(evt.id);
+    if (childrenIds && childrenIds.size > 0) {
+      this.pending = this.pending.filter((p) => !childrenIds.has(p.id));
     }
   }
 
