@@ -408,7 +408,9 @@ export class AudioEngine implements TimeSource {
     this.scheduleFileBeats();
 
     // Stop when the song ends
-    this.bufferSource.onended = () => {
+    const currentSource = this.bufferSource;
+    currentSource.onended = () => {
+      if (this.bufferSource !== currentSource) return;
       this.playing = false;
       if (this.beatTimer !== null) {
         clearTimeout(this.beatTimer);
@@ -460,6 +462,7 @@ export class AudioEngine implements TimeSource {
       this.beatTimer = null;
     }
     if (this.bufferSource) {
+      this.bufferSource.onended = null;
       try { this.bufferSource.stop(); } catch { /* already stopped */ }
       this.bufferSource.disconnect();
       this.bufferSource = null;

@@ -376,6 +376,10 @@ export class LevelValidator {
         typeof eff.duration === 'number' && Number.isFinite(eff.duration)
           ? Math.max(0, eff.duration)
           : undefined;
+      const lane =
+        typeof eff.lane === 'number' && Number.isFinite(eff.lane)
+          ? Math.max(0, Math.min(3, Math.round(eff.lane)))
+          : undefined;
 
       return {
         id: String(eff.id || `effect_${idx}`),
@@ -388,6 +392,7 @@ export class LevelValidator {
         zIndexMax,
         startTime,
         duration,
+        lane,
         region:
           eff.region && typeof eff.region === 'object'
             ? (eff.region as { x: number; y: number; width: number; height: number })

@@ -182,6 +182,8 @@ export interface VisualEffect {
   fadeOutEasing?: EasingType;
   region?: { x: number; y: number; width: number; height: number };
   parameters: Record<string, number | string | boolean>;
+  /** Optional timeline sub-track lane index (0..3). */
+  lane?: number;
 }
 
 // ---- Performance Phrases ----

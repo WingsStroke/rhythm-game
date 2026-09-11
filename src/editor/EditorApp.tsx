@@ -1041,10 +1041,12 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       const duplicatedNodes: SceneNodeData[] = selected.map((n, i) => {
         const newUid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}_${i}`;
         newIds.add(newUid);
-        return duplicateSceneNode(n, newUid, {
-          mode: 'shift',
-          shift,
-        });
+        const cloned = duplicateSceneNode(n, newUid);
+        // Cada vez que se duplica un objeto en su Timeline, este baja un carril,
+        // pero si se duplica un objeto en el último carril (7), este se mueve al primero (0).
+        const currentLane = n.subLane ?? 0;
+        cloned.subLane = (currentLane + 1) % 8;
+        return cloned;
       });
 
       setLevel((prev) => ({
@@ -1058,8 +1060,40 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
       setSelectedEventIds(new Set());
       setSelectedTriggerIds(new Set());
       setSelectedEffectIds(new Set());
+    } else if (selectedEffectIds.size > 0) {
+      const selected = (level.visual?.effects || []).filter((e) => selectedEffectIds.has(e.id));
+      if (selected.length === 0) return;
+      const SHADER_LANE_COUNT = 4;
+      const newIds = new Set<string>();
+      const duplicatedEffects: VisualEffect[] = selected.map((eff, i) => {
+        const newId = `fx_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}_${i}`;
+        newIds.add(newId);
+        // Cada vez que se duplica un shader, este baja un carril,
+        // pero si se duplica en el último carril (3), este se mueve al primero (0).
+        const currentLane = eff.lane ?? 0;
+        const newLane = (currentLane + 1) % SHADER_LANE_COUNT;
+        return {
+          ...eff,
+          id: newId,
+          lane: newLane,
+          parameters: { ...eff.parameters },
+          region: eff.region ? { ...eff.region } : undefined,
+        };
+      });
+
+      setLevel((prev) => ({
+        ...prev,
+        visual: {
+          ...prev.visual,
+          effects: [...(prev.visual?.effects || []), ...duplicatedEffects],
+        },
+      }));
+      setSelectedEffectIds(newIds);
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
+      setSelectedNodeIds(new Set());
     }
-  }, [selectedEventIds, selectedTriggerIds, selectedNodeIds, level.events, level.visual?.triggers, level.visual?.nodes, level.timing.bpm, gridSubdivision, setLevel]);
+  }, [selectedEventIds, selectedTriggerIds, selectedNodeIds, selectedEffectIds, level.events, level.visual?.triggers, level.visual?.nodes, level.visual?.effects, level.timing.bpm, gridSubdivision, setLevel]);
 
   const handleZoomIn = useCallback(() => {
     setPixelsPerSecond((prev) => Math.min(350, prev + 20));
