@@ -77,11 +77,47 @@ export class TriggerDispatcher {
             }
           }
         }
+      } else if (trigger.action === 'pos') {
+        for (const node of targetNodes) {
+          if (trigger.properties.x !== undefined) {
+            const vx = Number(trigger.properties.x);
+            if (!Number.isNaN(vx)) this.animator.applyPropertyToNode(node, 'x', vx);
+          }
+          if (trigger.properties.y !== undefined) {
+            const vy = Number(trigger.properties.y);
+            if (!Number.isNaN(vy)) this.animator.applyPropertyToNode(node, 'y', vy);
+          }
+        }
+      } else if (trigger.action === 'rot') {
+        for (const node of targetNodes) {
+          if (trigger.properties.rotation !== undefined) {
+            const deg = Number(trigger.properties.rotation);
+            if (!Number.isNaN(deg)) {
+              const rad = (deg * Math.PI) / 180;
+              this.animator.applyPropertyToNode(node, 'rotation', rad);
+            }
+          }
+        }
+      } else if (trigger.action === 'scale') {
+        for (const node of targetNodes) {
+          const s = trigger.properties.scale !== undefined ? Number(trigger.properties.scale) : undefined;
+          const sx = trigger.properties.scaleX !== undefined ? Number(trigger.properties.scaleX) : s;
+          const sy = trigger.properties.scaleY !== undefined ? Number(trigger.properties.scaleY) : s;
+          if (sx !== undefined && !Number.isNaN(sx)) this.animator.applyPropertyToNode(node, 'scaleX', sx);
+          if (sy !== undefined && !Number.isNaN(sy)) this.animator.applyPropertyToNode(node, 'scaleY', sy);
+        }
       } else if (trigger.action === 'color' || trigger.action === 'appearance') {
         for (const node of targetNodes) {
           if (trigger.properties.opacity !== undefined) {
             const op = Number(trigger.properties.opacity);
             if (!Number.isNaN(op)) node.container.alpha = op;
+          }
+          if (trigger.properties.color !== undefined) {
+            const hex = String(trigger.properties.color);
+            const numColor = parseInt(hex.replace('#', ''), 16);
+            if (!Number.isNaN(numColor)) {
+              (node.container as unknown as { tint?: number }).tint = numColor;
+            }
           }
           if (trigger.properties.visible !== undefined) {
             node.container.visible = Boolean(trigger.properties.visible);
@@ -110,6 +146,89 @@ export class TriggerDispatcher {
     const targetNodes = this.resolveTargets(trigger.targetId);
 
     switch (trigger.action) {
+      case 'pos': {
+        for (const node of targetNodes) {
+          const propsToAnimate = ['x', 'y'] as const;
+          for (const prop of propsToAnimate) {
+            if (trigger.properties[prop] !== undefined) {
+              const targetVal = Number(trigger.properties[prop]);
+              if (Number.isNaN(targetVal)) continue;
+              if (trigger.duration > 0) {
+                const currentVal = this.animator.getNodeProperty(node.id, prop);
+                this.animator.addTransition(
+                  node.id,
+                  prop,
+                  currentVal,
+                  targetVal,
+                  trigger.duration,
+                  trigger.easing ?? 'linear',
+                  currentTime
+                );
+              } else {
+                this.animator.applyPropertyToNode(node, prop, targetVal);
+              }
+            }
+          }
+        }
+        break;
+      }
+
+      case 'rot': {
+        for (const node of targetNodes) {
+          if (trigger.properties.rotation !== undefined) {
+            const deg = Number(trigger.properties.rotation);
+            if (Number.isNaN(deg)) continue;
+            const targetRad = (deg * Math.PI) / 180;
+            if (trigger.duration > 0) {
+              const currentVal = this.animator.getNodeProperty(node.id, 'rotation');
+              this.animator.addTransition(
+                node.id,
+                'rotation',
+                currentVal,
+                targetRad,
+                trigger.duration,
+                trigger.easing ?? 'linear',
+                currentTime
+              );
+            } else {
+              this.animator.applyPropertyToNode(node, 'rotation', targetRad);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'scale': {
+        for (const node of targetNodes) {
+          const s = trigger.properties.scale !== undefined ? Number(trigger.properties.scale) : undefined;
+          const sx = trigger.properties.scaleX !== undefined ? Number(trigger.properties.scaleX) : s;
+          const sy = trigger.properties.scaleY !== undefined ? Number(trigger.properties.scaleY) : s;
+          const targets = [
+            { prop: 'scaleX', val: sx },
+            { prop: 'scaleY', val: sy },
+          ];
+          for (const { prop, val } of targets) {
+            if (val !== undefined && !Number.isNaN(val)) {
+              if (trigger.duration > 0) {
+                const currentVal = this.animator.getNodeProperty(node.id, prop);
+                this.animator.addTransition(
+                  node.id,
+                  prop,
+                  currentVal,
+                  val,
+                  trigger.duration,
+                  trigger.easing ?? 'linear',
+                  currentTime
+                );
+              } else {
+                this.animator.applyPropertyToNode(node, prop, val);
+              }
+            }
+          }
+        }
+        break;
+      }
+
       case 'transform': {
         for (const node of targetNodes) {
           for (const [prop, val] of Object.entries(trigger.properties)) {
@@ -155,6 +274,14 @@ export class TriggerDispatcher {
               } else {
                 node.container.alpha = targetOpacity;
               }
+            }
+          }
+
+          if (trigger.properties.color !== undefined) {
+            const hex = String(trigger.properties.color);
+            const numColor = parseInt(hex.replace('#', ''), 16);
+            if (!Number.isNaN(numColor)) {
+              (node.container as unknown as { tint?: number }).tint = numColor;
             }
           }
 

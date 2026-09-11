@@ -188,21 +188,25 @@ export class Animator {
   }
 
   public applyEasing(t: number, type: EasingType | string): number {
-    switch (type) {
-      case 'linear':
-        return t;
-      case 'easeIn':
-      case 'easeInQuad':
-        return t * t;
-      case 'easeOut':
-      case 'easeOutQuad':
-        return t * (2 - t);
-      case 'easeInOut':
-      case 'easeInOutQuad':
-        return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-      default:
-        return t;
-    }
+    return applyEasing(t, type);
+  }
+}
+
+export function applyEasing(t: number, type?: EasingType | string): number {
+  switch (type) {
+    case 'linear':
+      return t;
+    case 'easeIn':
+    case 'easeInQuad':
+      return t * t;
+    case 'easeOut':
+    case 'easeOutQuad':
+      return t * (2 - t);
+    case 'easeInOut':
+    case 'easeInOutQuad':
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    default:
+      return t;
   }
 }
 

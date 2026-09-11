@@ -226,6 +226,20 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     }
   }, []);
 
+  const selectEffectsBatch = useCallback((ids: Set<string>, additive: boolean = false) => {
+    setSelectedEffectIds((prev) => {
+      if (!additive) return new Set(ids);
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    if (ids.size > 0 && !additive) {
+      setSelectedEventIds(new Set());
+      setSelectedTriggerIds(new Set());
+      setSelectedNodeIds(new Set());
+    }
+  }, []);
+
   const toggleEventSelection = useCallback((id: string, multi: boolean = true) => {
     setSelectedEventIds((prev) => {
       const next = multi ? new Set(prev) : new Set<string>();
@@ -756,6 +770,8 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     selectedNodeId,
     selectedNodeIds,
     onSelectNode: (id, isShift) => selectNode(id, isShift),
+    onRemoveNode: handleRemoveNode,
+    onSelectNodesBatch: (ids, additive) => selectNodesBatch(new Set(ids), additive),
     onUpdateNodesBatch: handleUpdateNodesBatch,
     onRecordEvent: handleAddEvent,
     onCanvasClick: handleLivePreviewCanvasClick,
@@ -1231,9 +1247,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('notes');
-                if (activeTool === 'shader' || activeTool === 'object') {
-                  setActiveTool('select');
-                }
+                setActiveTool('pen');
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'notes'
@@ -1247,9 +1261,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('triggers');
-                if (activeTool === 'shader' || activeTool === 'object') {
-                  setActiveTool('select');
-                }
+                setActiveTool('pen');
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'triggers'
@@ -1263,9 +1275,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
               onClick={() => {
                 setActiveTab('timeline');
                 setTimelineMode('visuals');
-                if (activeTool === 'shader' || activeTool === 'pen') {
-                  setActiveTool('object');
-                }
+                setActiveTool('object');
               }}
               className={`px-5 py-2 text-xs font-semibold transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
                 activeTab === 'timeline' && timelineMode === 'visuals'
@@ -1351,6 +1361,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
                 onSelectNode={(node) => selectNode(node?.uid || null)}
                 onSelectNodes={selectNodesBatch}
                 onSelectEffect={selectEffect}
+                onSelectEffects={selectEffectsBatch}
                 onToggleEventSelection={toggleEventSelection}
                 onToggleTriggerSelection={toggleTriggerSelection}
                 onToggleNodeSelection={toggleNodeSelection}

@@ -648,7 +648,7 @@ const ShadersLane = React.memo(function ShadersLane({
                   onRemoveEffect?.(effect.id);
                   return;
                 }
-                if (e.ctrlKey || e.metaKey) {
+                if (e.ctrlKey || e.metaKey || e.shiftKey) {
                   e.stopPropagation();
                   onToggleEffectSelection?.(effect.id, true);
                   return;
@@ -719,6 +719,7 @@ interface TimelineProps {
   onSelectNode?: (node: SceneNodeData | null) => void;
   onSelectNodes?: (ids: Set<string>, additive?: boolean) => void;
   onSelectEffect?: (effect: VisualEffect | null) => void;
+  onSelectEffects?: (ids: Set<string>, additive?: boolean) => void;
   onToggleEventSelection?: (id: string, multi: boolean) => void;
   onToggleTriggerSelection?: (id: string, multi: boolean) => void;
   onToggleNodeSelection?: (id: string, multi: boolean) => void;
@@ -772,6 +773,7 @@ export function Timeline({
   onSelectNode,
   onSelectNodes,
   onSelectEffect,
+  onSelectEffects,
   onToggleEventSelection,
   onToggleTriggerSelection,
   onToggleNodeSelection,
@@ -1536,7 +1538,7 @@ export function Timeline({
       onRemoveEffect?.(effect.id);
       return;
     }
-    const isMulti = e.ctrlKey || e.metaKey;
+    const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
     if (isMulti) {
       onToggleEffectSelection?.(effect.id, true);
       return;
@@ -1636,9 +1638,24 @@ export function Timeline({
         }
       });
 
+      const shaderEls = innerCanvasRef.current.querySelectorAll<HTMLElement>('[data-shader-id]');
+      const hitShaderIds = new Set<string>();
+      shaderEls.forEach((el) => {
+        const elRect = el.getBoundingClientRect();
+        const elX1 = elRect.left - canvasRect.left;
+        const elX2 = elRect.right - canvasRect.left;
+        const elY1 = elRect.top - canvasRect.top;
+        const elY2 = elRect.bottom - canvasRect.top;
+        if (elX1 < maxX && elX2 > minX && elY1 < maxY && elY2 > minY) {
+          const id = el.getAttribute('data-shader-id');
+          if (id) hitShaderIds.add(id);
+        }
+      });
+
       onSelectEvents?.(hitEventIds, marquee.isAdditive);
       onSelectTriggers?.(hitTriggerIds, marquee.isAdditive);
       onSelectNodes?.(hitNodeIds, marquee.isAdditive);
+      onSelectEffects?.(hitShaderIds, marquee.isAdditive);
       return;
     }
 
@@ -1774,6 +1791,7 @@ export function Timeline({
     onSelectEvents,
     onSelectTriggers,
     onSelectNodes,
+    onSelectEffects,
     onUpdateEvent,
     onUpdateEventsBatch,
     onUpdateTrigger,

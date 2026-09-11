@@ -40,8 +40,13 @@ export class TransformGizmo extends Container {
 
   private selectedNodes: SceneNode[] = [];
   private isDragging = false;
-  private dragMode: 'none' | 'translate' | 'scale' = 'none';
+  private dragMode: 'none' | 'translate' | 'scale' | 'rotate' = 'none';
   private activeHandle: GizmoHandleType | null = null;
+  private rotateHandle: Graphics;
+  private resizeModeToggleBtn: Graphics;
+  private isCenteredResize: boolean = true;
+  private rotateCenterScreen = { x: 0, y: 0 };
+  private startRotateAngle = 0;
 
   private startScreenPos = { x: 0, y: 0 };
   private startBBox = { x: 0, y: 0, width: 0, height: 0 }; // in stage coordinates
@@ -91,6 +96,26 @@ export class TransformGizmo extends Container {
       this.addChild(g);
       this.handles.set(conf.type, { type: conf.type, cursor: conf.cursor, graphics: g });
     }
+
+    // 4. Rotate Handle (Interactive rotation stem)
+    this.rotateHandle = new Graphics();
+    this.rotateHandle.eventMode = 'static';
+    this.rotateHandle.cursor = 'grab';
+    this.rotateHandle.hitArea = new Rectangle(-12, -12, 24, 24);
+    this.rotateHandle.on('pointerdown', this.onRotateStart, this);
+    this.addChild(this.rotateHandle);
+
+    // 5. Resize Mode Toggle Button (Centered vs Unilateral)
+    this.resizeModeToggleBtn = new Graphics();
+    this.resizeModeToggleBtn.eventMode = 'static';
+    this.resizeModeToggleBtn.cursor = 'pointer';
+    this.resizeModeToggleBtn.hitArea = new Rectangle(-12, -12, 24, 24);
+    this.resizeModeToggleBtn.on('pointerdown', (e) => {
+      e.stopPropagation();
+      this.isCenteredResize = !this.isCenteredResize;
+      this.update();
+    });
+    this.addChild(this.resizeModeToggleBtn);
 
     this.boundOnPointerMove = this.onGlobalPointerMove.bind(this);
     this.boundOnPointerUp = () => this.onGlobalPointerUp();
@@ -194,6 +219,46 @@ export class TransformGizmo extends Container {
           .fill({ color: 0xffffff, alpha: 0.95 })
           .stroke({ width: 1.5, color: 0x00e5ff, alpha: 1 });
       }
+
+      // 5. Rotation Handle (stem + rotating circle)
+      const pRot = node.container.toGlobal({ x: lx + lw / 2, y: ly - 28 });
+      this.outlineGraphics
+        .moveTo(pN.x, pN.y)
+        .lineTo(pRot.x, pRot.y)
+        .stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.85 });
+
+      this.rotateHandle.position.set(pRot.x, pRot.y);
+      this.rotateHandle.clear();
+      this.rotateHandle
+        .circle(0, 0, 8.5)
+        .fill({ color: 0x0c0d16, alpha: 0.95 })
+        .stroke({ width: 2, color: 0x00e5ff, alpha: 1 });
+      this.rotateHandle
+        .arc(0, 0, 4.5, -Math.PI * 0.7, Math.PI * 0.7)
+        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.95 });
+      this.rotateHandle
+        .poly([
+          { x: 3, y: 3 },
+          { x: 5.5, y: 5.5 },
+          { x: 1, y: 5.5 },
+        ])
+        .fill({ color: 0xffffff });
+
+      // 6. Resize Mode Toggle Button (Centered vs Unilateral)
+      const pToggle = node.container.toGlobal({ x: lx + lw + 18, y: ly - 18 });
+      this.resizeModeToggleBtn.position.set(pToggle.x, pToggle.y);
+      this.resizeModeToggleBtn.clear();
+      this.resizeModeToggleBtn
+        .circle(0, 0, 8.5)
+        .fill({ color: 0x0c0d16, alpha: 0.95 })
+        .stroke({ width: 2, color: this.isCenteredResize ? 0x00ff9d : 0xffea00, alpha: 1 });
+      if (this.isCenteredResize) {
+        this.resizeModeToggleBtn.circle(0, 0, 2.5).fill({ color: 0x00ff9d });
+        this.resizeModeToggleBtn.circle(0, 0, 5).stroke({ width: 1, color: 0x00ff9d, alpha: 0.8 });
+      } else {
+        this.resizeModeToggleBtn.rect(-3.5, -3.5, 7, 7).stroke({ width: 1.5, color: 0xffea00 });
+        this.resizeModeToggleBtn.rect(-1.5, -1.5, 3, 3).fill({ color: 0xffea00 });
+      }
       return;
     }
 
@@ -220,6 +285,8 @@ export class TransformGizmo extends Container {
     if (!Number.isFinite(minX) || maxX <= minX || maxY <= minY) {
       this.outlineGraphics.clear();
       this.moveHitArea.clear();
+      this.rotateHandle.clear();
+      this.resizeModeToggleBtn.clear();
       for (const h of this.handles.values()) h.graphics.clear();
       return;
     }
@@ -281,6 +348,46 @@ export class TransformGizmo extends Container {
         .rect(-half, -half, handleSize, handleSize)
         .fill({ color: 0xffffff, alpha: 0.95 })
         .stroke({ width: 1.5, color: 0x00e5ff, alpha: 1 });
+    }
+
+    // 5. Rotation handle with stem line
+    const pRotMulti = { x: centerX, y: by - 28 };
+    this.outlineGraphics
+      .moveTo(centerX, by)
+      .lineTo(pRotMulti.x, pRotMulti.y)
+      .stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.85 });
+
+    this.rotateHandle.position.set(pRotMulti.x, pRotMulti.y);
+    this.rotateHandle.clear();
+    this.rotateHandle
+      .circle(0, 0, 8.5)
+      .fill({ color: 0x0c0d16, alpha: 0.95 })
+      .stroke({ width: 2, color: 0x00e5ff, alpha: 1 });
+    this.rotateHandle
+      .arc(0, 0, 4.5, -Math.PI * 0.7, Math.PI * 0.7)
+      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.95 });
+    this.rotateHandle
+      .poly([
+        { x: 3, y: 3 },
+        { x: 5.5, y: 5.5 },
+        { x: 1, y: 5.5 },
+      ])
+      .fill({ color: 0xffffff });
+
+    // 6. Resize Mode Toggle Button (Multi-selection)
+    const pToggleMulti = { x: bx + bw + 18, y: by - 18 };
+    this.resizeModeToggleBtn.position.set(pToggleMulti.x, pToggleMulti.y);
+    this.resizeModeToggleBtn.clear();
+    this.resizeModeToggleBtn
+      .circle(0, 0, 8.5)
+      .fill({ color: 0x0c0d16, alpha: 0.95 })
+      .stroke({ width: 2, color: this.isCenteredResize ? 0x00ff9d : 0xffea00, alpha: 1 });
+    if (this.isCenteredResize) {
+      this.resizeModeToggleBtn.circle(0, 0, 2.5).fill({ color: 0x00ff9d });
+      this.resizeModeToggleBtn.circle(0, 0, 5).stroke({ width: 1, color: 0x00ff9d, alpha: 0.8 });
+    } else {
+      this.resizeModeToggleBtn.rect(-3.5, -3.5, 7, 7).stroke({ width: 1.5, color: 0xffea00 });
+      this.resizeModeToggleBtn.rect(-1.5, -1.5, 3, 3).fill({ color: 0xffea00 });
     }
   }
 
@@ -344,6 +451,54 @@ export class TransformGizmo extends Container {
     };
 
     this.captureInitialState();
+    window.addEventListener('pointermove', this.boundOnPointerMove);
+    window.addEventListener('pointerup', this.boundOnPointerUp);
+    window.addEventListener('pointercancel', this.boundOnPointerUp);
+    window.addEventListener('blur', this.boundOnPointerUp);
+  }
+
+  private onRotateStart(e: { stopPropagation: () => void; clientX?: number; clientY?: number }): void {
+    e.stopPropagation();
+    if (this.selectedNodes.length === 0) return;
+
+    this.isDragging = true;
+    this.dragMode = 'rotate';
+    this.activeHandle = null;
+    this.rotateHandle.cursor = 'grabbing';
+
+    const mouseEvent = e as unknown as MouseEvent;
+    this.startScreenPos = {
+      x: mouseEvent.clientX ?? 0,
+      y: mouseEvent.clientY ?? 0,
+    };
+
+    this.captureInitialState();
+
+    if (this.selectedNodes.length === 1) {
+      const node = this.selectedNodes[0];
+      const lb = node.container.getLocalBounds();
+      const lx = Number.isFinite(lb.x) ? lb.x : 0;
+      const ly = Number.isFinite(lb.y) ? lb.y : 0;
+      const lw = Number.isFinite(lb.width) ? lb.width : 10;
+      const lh = Number.isFinite(lb.height) ? lb.height : 10;
+      const pCenter = node.container.toGlobal({ x: lx + lw / 2, y: ly + lh / 2 });
+      this.rotateCenterScreen = { x: pCenter.x, y: pCenter.y };
+    } else {
+      const bbox = this.startBBox;
+      const scale = this.sceneContainer.scale.x || 1;
+      const offsetX = this.sceneContainer.x || 0;
+      const offsetY = this.sceneContainer.y || 0;
+      this.rotateCenterScreen = {
+        x: (bbox.x + bbox.width / 2) * scale + offsetX,
+        y: (bbox.y + bbox.height / 2) * scale + offsetY,
+      };
+    }
+
+    this.startRotateAngle = Math.atan2(
+      (mouseEvent.clientY ?? 0) - this.rotateCenterScreen.y,
+      (mouseEvent.clientX ?? 0) - this.rotateCenterScreen.x
+    );
+
     window.addEventListener('pointermove', this.boundOnPointerMove);
     window.addEventListener('pointerup', this.boundOnPointerUp);
     window.addEventListener('pointercancel', this.boundOnPointerUp);
@@ -437,7 +592,26 @@ export class TransformGizmo extends Container {
         state.node.container.x = Math.round(state.x + deltaStageX);
         state.node.container.y = Math.round(state.y + deltaStageY);
       }
+    } else if (this.dragMode === 'rotate') {
+      const currentAngle = Math.atan2(
+        e.clientY - this.rotateCenterScreen.y,
+        e.clientX - this.rotateCenterScreen.x
+      );
+      let deltaAngle = currentAngle - this.startRotateAngle;
+
+      for (const state of this.initialStates.values()) {
+        let newRot = state.rotation + deltaAngle;
+        if (e.shiftKey) {
+          // Snap to 15-degree increments (PI / 12)
+          const step = Math.PI / 12;
+          newRot = Math.round(newRot / step) * step;
+        }
+        state.node.container.rotation = newRot;
+      }
     } else if (this.dragMode === 'scale' && this.activeHandle) {
+      const isCentered = this.isCenteredResize;
+      const factor = isCentered ? 2 : 1;
+
       if (this.selectedNodes.length === 1) {
         // Single rotated/oriented node scale
         const state = Array.from(this.initialStates.values())[0];
@@ -455,41 +629,103 @@ export class TransformGizmo extends Container {
 
           switch (this.activeHandle) {
             case 'e':
-              newW = Math.max(10, Math.round(state.initW + localDeltaX * 2));
+              newW = Math.max(10, Math.round(state.initW + localDeltaX * factor));
               break;
             case 'w':
-              newW = Math.max(10, Math.round(state.initW - localDeltaX * 2));
+              newW = Math.max(10, Math.round(state.initW - localDeltaX * factor));
               break;
             case 's':
-              newH = Math.max(10, Math.round(state.initH + localDeltaY * 2));
+              newH = Math.max(10, Math.round(state.initH + localDeltaY * factor));
               break;
             case 'n':
-              newH = Math.max(10, Math.round(state.initH - localDeltaY * 2));
+              newH = Math.max(10, Math.round(state.initH - localDeltaY * factor));
               break;
             case 'se':
-              newW = Math.max(10, Math.round(state.initW + localDeltaX * 2));
-              newH = Math.max(10, Math.round(state.initH + localDeltaY * 2));
+              newW = Math.max(10, Math.round(state.initW + localDeltaX * factor));
+              newH = Math.max(10, Math.round(state.initH + localDeltaY * factor));
               break;
             case 'sw':
-              newW = Math.max(10, Math.round(state.initW - localDeltaX * 2));
-              newH = Math.max(10, Math.round(state.initH + localDeltaY * 2));
+              newW = Math.max(10, Math.round(state.initW - localDeltaX * factor));
+              newH = Math.max(10, Math.round(state.initH + localDeltaY * factor));
               break;
             case 'ne':
-              newW = Math.max(10, Math.round(state.initW + localDeltaX * 2));
-              newH = Math.max(10, Math.round(state.initH - localDeltaY * 2));
+              newW = Math.max(10, Math.round(state.initW + localDeltaX * factor));
+              newH = Math.max(10, Math.round(state.initH - localDeltaY * factor));
               break;
             case 'nw':
-              newW = Math.max(10, Math.round(state.initW - localDeltaX * 2));
-              newH = Math.max(10, Math.round(state.initH - localDeltaY * 2));
+              newW = Math.max(10, Math.round(state.initW - localDeltaX * factor));
+              newH = Math.max(10, Math.round(state.initH - localDeltaY * factor));
               break;
+          }
+
+          // Symmetric / Proportional scaling when CTRL is held
+          if (e.ctrlKey || e.metaKey) {
+            const aspect = state.initW / Math.max(1, state.initH);
+            if (this.activeHandle === 'e' || this.activeHandle === 'w') {
+              newH = Math.max(10, Math.round(newW / aspect));
+            } else if (this.activeHandle === 'n' || this.activeHandle === 's') {
+              newW = Math.max(10, Math.round(newH * aspect));
+            } else {
+              const ratioX = newW / state.initW;
+              const ratioY = newH / state.initH;
+              const uniformRatio = Math.max(ratioX, ratioY);
+              newW = Math.max(10, Math.round(state.initW * uniformRatio));
+              newH = Math.max(10, Math.round(state.initH * uniformRatio));
+            }
           }
 
           state.currentW = newW;
           state.currentH = newH;
 
-          // CRITICAL: Position (x, y) NEVER changes during resize!
-          state.node.container.x = state.x;
-          state.node.container.y = state.y;
+          if (isCentered) {
+            // Position (x, y) remains invariant in centered resize
+            state.node.container.x = state.x;
+            state.node.container.y = state.y;
+          } else {
+            // Unilateral resize: compute center shift so the opposite side is stationary
+            const dW = newW - state.initW;
+            const dH = newH - state.initH;
+            let localShiftX = 0;
+            let localShiftY = 0;
+
+            switch (this.activeHandle) {
+              case 'e':
+                localShiftX = dW / 2;
+                break;
+              case 'w':
+                localShiftX = -dW / 2;
+                break;
+              case 's':
+                localShiftY = dH / 2;
+                break;
+              case 'n':
+                localShiftY = -dH / 2;
+                break;
+              case 'se':
+                localShiftX = dW / 2;
+                localShiftY = dH / 2;
+                break;
+              case 'sw':
+                localShiftX = -dW / 2;
+                localShiftY = dH / 2;
+                break;
+              case 'ne':
+                localShiftX = dW / 2;
+                localShiftY = -dH / 2;
+                break;
+              case 'nw':
+                localShiftX = -dW / 2;
+                localShiftY = -dH / 2;
+                break;
+            }
+
+            // Rotate localShift into stage coordinate space
+            const shiftStageX = localShiftX * cos - localShiftY * sin;
+            const shiftStageY = localShiftX * sin + localShiftY * cos;
+
+            state.node.container.x = Math.round(state.x + shiftStageX);
+            state.node.container.y = Math.round(state.y + shiftStageY);
+          }
 
           // Live visual scaling for immediate feedback
           state.node.container.scale.x = Math.max(0.02, state.scaleX * (newW / state.initW));
@@ -503,53 +739,59 @@ export class TransformGizmo extends Container {
 
         switch (this.activeHandle) {
           case 'se': {
-            const newW = Math.max(10, bbox.width + deltaStageX * 2);
-            const newH = Math.max(10, bbox.height + deltaStageY * 2);
+            const newW = Math.max(10, bbox.width + deltaStageX * factor);
+            const newH = Math.max(10, bbox.height + deltaStageY * factor);
             ratioX = newW / bbox.width;
             ratioY = newH / bbox.height;
             break;
           }
           case 'nw': {
-            const newW = Math.max(10, bbox.width - deltaStageX * 2);
-            const newH = Math.max(10, bbox.height - deltaStageY * 2);
+            const newW = Math.max(10, bbox.width - deltaStageX * factor);
+            const newH = Math.max(10, bbox.height - deltaStageY * factor);
             ratioX = newW / bbox.width;
             ratioY = newH / bbox.height;
             break;
           }
           case 'ne': {
-            const newW = Math.max(10, bbox.width + deltaStageX * 2);
-            const newH = Math.max(10, bbox.height - deltaStageY * 2);
+            const newW = Math.max(10, bbox.width + deltaStageX * factor);
+            const newH = Math.max(10, bbox.height - deltaStageY * factor);
             ratioX = newW / bbox.width;
             ratioY = newH / bbox.height;
             break;
           }
           case 'sw': {
-            const newW = Math.max(10, bbox.width - deltaStageX * 2);
-            const newH = Math.max(10, bbox.height + deltaStageY * 2);
+            const newW = Math.max(10, bbox.width - deltaStageX * factor);
+            const newH = Math.max(10, bbox.height + deltaStageY * factor);
             ratioX = newW / bbox.width;
             ratioY = newH / bbox.height;
             break;
           }
           case 'e': {
-            const newW = Math.max(10, bbox.width + deltaStageX * 2);
+            const newW = Math.max(10, bbox.width + deltaStageX * factor);
             ratioX = newW / bbox.width;
             break;
           }
           case 'w': {
-            const newW = Math.max(10, bbox.width - deltaStageX * 2);
+            const newW = Math.max(10, bbox.width - deltaStageX * factor);
             ratioX = newW / bbox.width;
             break;
           }
           case 's': {
-            const newH = Math.max(10, bbox.height + deltaStageY * 2);
+            const newH = Math.max(10, bbox.height + deltaStageY * factor);
             ratioY = newH / bbox.height;
             break;
           }
           case 'n': {
-            const newH = Math.max(10, bbox.height - deltaStageY * 2);
+            const newH = Math.max(10, bbox.height - deltaStageY * factor);
             ratioY = newH / bbox.height;
             break;
           }
+        }
+
+        if (e.ctrlKey || e.metaKey) {
+          const uniformRatio = Math.max(ratioX, ratioY);
+          ratioX = uniformRatio;
+          ratioY = uniformRatio;
         }
 
         for (const state of this.initialStates.values()) {
@@ -578,6 +820,7 @@ export class TransformGizmo extends Container {
     this.isDragging = false;
     this.dragMode = 'none';
     this.activeHandle = null;
+    this.rotateHandle.cursor = 'grab';
 
     window.removeEventListener('pointermove', this.boundOnPointerMove);
     window.removeEventListener('pointerup', this.boundOnPointerUp);
@@ -597,6 +840,16 @@ export class TransformGizmo extends Container {
             ...node.data.transform,
             x: Math.round(node.container.x),
             y: Math.round(node.container.y),
+          },
+        };
+        node.updateData(updatedNode);
+        updated.push(updatedNode);
+      } else if (dragMode === 'rotate') {
+        const updatedNode: SceneNodeData = {
+          ...node.data,
+          transform: {
+            ...node.data.transform,
+            rotation: node.container.rotation,
           },
         };
         node.updateData(updatedNode);
@@ -621,18 +874,18 @@ export class TransformGizmo extends Container {
           props.width = newH;
         }
 
-        // Reset container scale back to unit (1, 1) and guarantee invariant position
+        // Reset container scale back to unit (1, 1) and guarantee updated position
         node.container.scale.set(1, 1);
-        node.container.x = state.x;
-        node.container.y = state.y;
+        const finalX = Math.round(node.container.x);
+        const finalY = Math.round(node.container.y);
 
         const updatedNode: SceneNodeData = {
           ...node.data,
           properties: props,
           transform: {
             ...node.data.transform,
-            x: state.x,
-            y: state.y,
+            x: finalX,
+            y: finalY,
             scaleX: 1,
             scaleY: 1,
           },

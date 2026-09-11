@@ -370,7 +370,34 @@ export function EditorPropertiesPanel({
             <span className="font-mono text-[10px] text-white/40">{selectedTrigger.id}</span>
           </div>
 
-          {/* Timeline Layer */}
+          {/* 1. Trigger ID (Integer Numeric Input) */}
+          <label className="flex flex-col gap-1 text-white/70">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold text-yellow-400">Trigger ID</span>
+              <span className="text-[10px] text-white/40 font-mono">
+                {selectedTrigger.targetId !== undefined && selectedTrigger.targetId !== 'all'
+                  ? `ID: ${selectedTrigger.targetId}`
+                  : 'ID: 0'}
+              </span>
+            </div>
+            <NumericInput
+              step="1"
+              min={0}
+              value={typeof selectedTrigger.targetId === 'number' ? selectedTrigger.targetId : 0}
+              onChange={(val) =>
+                onUpdateTrigger({
+                  ...selectedTrigger,
+                  targetId: Math.max(0, Math.round(val)),
+                })
+              }
+              className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#ffea00] outline-none"
+            />
+            <span className="text-[10px] text-white/40">
+              Afecta a todos los objetos con este Trigger ID.
+            </span>
+          </label>
+
+          {/* 2. Timeline Layer */}
           <label className="flex flex-col gap-1 text-white/70">
             <div className="flex justify-between items-center">
               <span className="font-semibold">Timeline Layer</span>
@@ -387,11 +414,11 @@ export function EditorPropertiesPanel({
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#ffea00] outline-none"
             />
             <span className="text-[10px] text-white/40">
-              Only rendered when Timeline Triggers mode is set to this layer.
+              Solo se muestra en el Timeline cuando este layer está activo.
             </span>
           </label>
 
-          {/* Trigger Time */}
+          {/* 3. Trigger Time */}
           <div className="flex flex-col gap-1 text-white/70">
             <div className="flex justify-between">
               <span>Time (s)</span>
@@ -430,7 +457,7 @@ export function EditorPropertiesPanel({
             </div>
           </div>
 
-          {/* Duration */}
+          {/* 4. Duration */}
           <label className="flex flex-col gap-1 text-white/70">
             <div className="flex justify-between">
               <span>Duration (s)</span>
@@ -447,7 +474,7 @@ export function EditorPropertiesPanel({
             />
           </label>
 
-          {/* Easing (if duration > 0) */}
+          {/* 5. Easing (if duration > 0) */}
           {selectedTrigger.duration > 0 && (
             <label className="flex flex-col gap-1 text-white/70">
               Easing Curve
@@ -472,72 +499,7 @@ export function EditorPropertiesPanel({
             </label>
           )}
 
-          {/* Target ID / Node Selection */}
-          <div className="flex flex-col gap-1 text-white/70">
-            <div className="flex justify-between items-center">
-              <span className="font-semibold">Target ID (Affected Objects)</span>
-              <span className="text-[10px] text-white/40 font-mono">
-                {selectedTrigger.targetId === 'all' ? 'all' : `ID: ${selectedTrigger.targetId}`}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedTrigger.targetId === 'all' ? 'all' : String(selectedTrigger.targetId)}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  onUpdateTrigger({
-                    ...selectedTrigger,
-                    targetId: val === 'all' ? 'all' : Number(val),
-                  });
-                }}
-                className="flex-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#ffea00] font-mono cursor-pointer text-xs"
-              >
-                <option value="all">[All Scene Objects]</option>
-                {Array.from(
-                  new Set(
-                    nodes
-                      .map((n) => (n.targetId !== undefined ? n.targetId : (typeof n.id === 'number' ? n.id : null)))
-                      .filter((id): id is number => id !== null && id !== undefined)
-                  )
-                )
-                  .sort((a, b) => a - b)
-                  .map((assignedId) => {
-                    const matchedNames = nodes
-                      .filter((n) => {
-                        const tid = n.targetId !== undefined ? n.targetId : (typeof n.id === 'number' ? n.id : null);
-                        return tid === assignedId;
-                      })
-                      .map((n) => n.name || n.uid)
-                      .join(', ');
-                    return (
-                      <option key={assignedId} value={String(assignedId)}>
-                        ID {assignedId} ({matchedNames})
-                      </option>
-                    );
-                  })}
-              </select>
-
-              <input
-                type="number"
-                placeholder="ID #"
-                title="Enter numeric ID directly"
-                value={typeof selectedTrigger.targetId === 'number' ? selectedTrigger.targetId : ''}
-                onChange={(e) => {
-                  const val = e.target.value.trim();
-                  onUpdateTrigger({
-                    ...selectedTrigger,
-                    targetId: val === '' ? 'all' : Number(val),
-                  });
-                }}
-                className="w-16 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono text-center outline-none focus:border-[#ffea00] text-xs placeholder:text-white/30"
-              />
-            </div>
-            <span className="text-[10px] text-white/40">
-              Affects all objects assigned this numeric ID.
-            </span>
-          </div>
-
-          {/* Action Selector */}
+          {/* 6. Action Type Selector */}
           <label className="flex flex-col gap-1 text-white/70">
             Action Type
             <select
@@ -545,14 +507,16 @@ export function EditorPropertiesPanel({
               onChange={(e) => {
                 const action = e.target.value as TriggerActionType;
                 let defaultProps: Record<string, number | string | boolean> = {};
-                if (action === 'transform') {
-                  defaultProps = { scaleX: 1.25, scaleY: 1.25, rotation: 0 };
+                if (action === 'pos') {
+                  defaultProps = { x: 0, y: 0 };
+                } else if (action === 'rot') {
+                  defaultProps = { rotation: 0 };
+                } else if (action === 'scale') {
+                  defaultProps = { scale: 1.25, scaleX: 1.25, scaleY: 1.25 };
                 } else if (action === 'color') {
                   defaultProps = { color: '#ff007f', opacity: 1 };
                 } else if (action === 'pulse') {
                   defaultProps = { band: 'bass', multiplier: 1.5 };
-                } else {
-                  defaultProps = { effectType: 'reactivePulse' };
                 }
                 onUpdateTrigger({
                   ...selectedTrigger,
@@ -562,31 +526,32 @@ export function EditorPropertiesPanel({
               }}
               className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white outline-none focus:border-[#ffea00] font-mono cursor-pointer"
             >
-              <option value="transform">Transform (Scale / Pos / Rot)</option>
-              <option value="color">Color / Opacity</option>
+              <option value="pos">Position (Pos)</option>
+              <option value="rot">Rotation (Rot)</option>
+              <option value="scale">Scale</option>
+              <option value="color">Color</option>
               <option value="pulse">Audio Pulse (FFT Band)</option>
-              <option value="effect">Special Effect / Shaders</option>
             </select>
           </label>
 
-          {/* Action Parameters Form */}
+          {/* 7. Action Parameters Form */}
           <div className="p-2.5 bg-black/40 rounded border border-white/10 flex flex-col gap-2">
             <span className="text-[10px] uppercase font-mono font-bold text-white/50">Action Parameters</span>
 
-            {selectedTrigger.action === 'transform' && (
+            {/* Pos (X & Y) */}
+            {selectedTrigger.action === 'pos' && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col text-white/60">
-                  Scale
+                  Pos X
                   <NumericInput
-                    step="0.1"
-                    value={(selectedTrigger.properties.scaleX as number) ?? 1}
+                    step="10"
+                    value={(selectedTrigger.properties.x as number) ?? 0}
                     onChange={(val) =>
                       onUpdateTrigger({
                         ...selectedTrigger,
                         properties: {
                           ...selectedTrigger.properties,
-                          scaleX: val,
-                          scaleY: val,
+                          x: val,
                         },
                       })
                     }
@@ -594,16 +559,16 @@ export function EditorPropertiesPanel({
                   />
                 </label>
                 <label className="flex flex-col text-white/60">
-                  Rot (deg)
+                  Pos Y
                   <NumericInput
-                    step="15"
-                    value={Math.round((((selectedTrigger.properties.rotation as number) ?? 0) * 180) / Math.PI)}
+                    step="10"
+                    value={(selectedTrigger.properties.y as number) ?? 0}
                     onChange={(val) =>
                       onUpdateTrigger({
                         ...selectedTrigger,
                         properties: {
                           ...selectedTrigger.properties,
-                          rotation: (val * Math.PI) / 180,
+                          y: val,
                         },
                       })
                     }
@@ -613,6 +578,52 @@ export function EditorPropertiesPanel({
               </div>
             )}
 
+            {/* Rot (degrees) */}
+            {selectedTrigger.action === 'rot' && (
+              <label className="flex flex-col text-white/60">
+                Rot (deg)
+                <NumericInput
+                  step="15"
+                  value={Math.round((((selectedTrigger.properties.rotation as number) ?? 0) * 180) / Math.PI)}
+                  onChange={(val) =>
+                    onUpdateTrigger({
+                      ...selectedTrigger,
+                      properties: {
+                        ...selectedTrigger.properties,
+                        rotation: (val * Math.PI) / 180,
+                      },
+                    })
+                  }
+                  className="mt-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                />
+              </label>
+            )}
+
+            {/* Scale */}
+            {selectedTrigger.action === 'scale' && (
+              <label className="flex flex-col text-white/60">
+                Scale Factor
+                <NumericInput
+                  step="0.1"
+                  min={0.01}
+                  value={(selectedTrigger.properties.scale as number) ?? (selectedTrigger.properties.scaleX as number) ?? 1.25}
+                  onChange={(val) =>
+                    onUpdateTrigger({
+                      ...selectedTrigger,
+                      properties: {
+                        ...selectedTrigger.properties,
+                        scale: val,
+                        scaleX: val,
+                        scaleY: val,
+                      },
+                    })
+                  }
+                  className="mt-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                />
+              </label>
+            )}
+
+            {/* Color */}
             {selectedTrigger.action === 'color' && (
               <div className="flex flex-col gap-2">
                 <label className="flex flex-col text-white/60">
@@ -663,6 +674,7 @@ export function EditorPropertiesPanel({
               </div>
             )}
 
+            {/* Pulse */}
             {selectedTrigger.action === 'pulse' && (
               <div className="flex flex-col gap-2">
                 <label className="flex flex-col text-white/60">
@@ -700,25 +712,6 @@ export function EditorPropertiesPanel({
                   />
                 </label>
               </div>
-            )}
-
-            {selectedTrigger.action === 'effect' && (
-              <label className="flex flex-col text-white/60">
-                Efecto
-                <select
-                  value={(selectedTrigger.properties.effectType as string) || 'reactivePulse'}
-                  onChange={(e) =>
-                    onUpdateTrigger({
-                      ...selectedTrigger,
-                      properties: { ...selectedTrigger.properties, effectType: e.target.value },
-                    })
-                  }
-                  className="mt-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-white font-mono"
-                >
-                  <option value="reactivePulse">Reactive Pulse</option>
-                  <option value="particleBurst">Particle Burst</option>
-                </select>
-              </label>
             )}
           </div>
 
@@ -796,27 +789,31 @@ export function EditorPropertiesPanel({
             </select>
           </label>
 
-          {/* Target: Target ID dropdown */}
+          {/* Target: Trigger ID Numeric Input */}
           {selectedEffect.scope === 'object' && (
             <label className="flex flex-col gap-1 text-white/70">
-              <span className="font-semibold">Target ID</span>
-              <select
-                value={selectedEffect.targetNodeId || ''}
-                onChange={(e) =>
+              <div className="flex justify-between items-center">
+                <span className="font-semibold">Trigger ID (Target ID)</span>
+                <span className="text-[10px] text-fuchsia-300 font-mono">
+                  ID: {selectedEffect.targetId !== undefined ? selectedEffect.targetId : (typeof selectedEffect.targetNodeId === 'number' ? selectedEffect.targetNodeId : 0)}
+                </span>
+              </div>
+              <NumericInput
+                step="1"
+                min={0}
+                value={selectedEffect.targetId !== undefined ? selectedEffect.targetId : (typeof selectedEffect.targetNodeId === 'number' ? selectedEffect.targetNodeId : 0)}
+                onChange={(val) =>
                   onUpdateEffect?.({
                     ...selectedEffect,
-                    targetNodeId: e.target.value || undefined,
+                    targetId: Math.max(0, Math.round(val)),
+                    targetNodeId: String(Math.max(0, Math.round(val))),
                   })
                 }
-                className="bg-black/50 border border-white/10 rounded px-2 py-1.5 text-white font-mono focus:border-fuchsia-400 outline-none cursor-pointer"
-              >
-                <option value="">-- Select Target ID --</option>
-                {nodes.map((n) => (
-                  <option key={n.uid} value={n.uid}>
-                    Target ID: #{n.targetId !== null && n.targetId !== undefined ? n.targetId : n.uid} — {n.name || n.uid} ({n.type})
-                  </option>
-                ))}
-              </select>
+                className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-fuchsia-400 outline-none"
+              />
+              <span className="text-[10px] text-white/40">
+                Afecta a todos los objetos con este Trigger ID.
+              </span>
             </label>
           )}
 
@@ -1116,6 +1113,91 @@ export function EditorPropertiesPanel({
                 />
               </label>
             </div>
+          </div>
+
+          {/* Fade Transitions (Fade In & Fade Out) */}
+          <div className="flex flex-col gap-2 p-2.5 rounded bg-white/[0.03] border border-white/10">
+            <span className="font-semibold text-white/80">Fade Transitions</span>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1 text-white/60">
+                <span>Fade In (s)</span>
+                <NumericInput
+                  step="0.05"
+                  min={0}
+                  value={selectedEffect.fadeIn ?? 0}
+                  onChange={(val) =>
+                    onUpdateEffect?.({
+                      ...selectedEffect,
+                      fadeIn: Math.max(0, val),
+                    })
+                  }
+                  className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-white/60">
+                <span>Fade In Easing</span>
+                <select
+                  value={selectedEffect.fadeInEasing || 'linear'}
+                  onChange={(e) =>
+                    onUpdateEffect?.({
+                      ...selectedEffect,
+                      fadeInEasing: e.target.value as EasingType,
+                    })
+                  }
+                  className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono text-[11px] outline-none focus:border-fuchsia-400 cursor-pointer"
+                >
+                  <option value="linear">Linear</option>
+                  <option value="easeIn">Ease In</option>
+                  <option value="easeOut">Ease Out</option>
+                  <option value="easeInOut">Ease In-Out</option>
+                  <option value="easeInQuad">Ease In Quad</option>
+                  <option value="easeOutQuad">Ease Out Quad</option>
+                  <option value="easeInOutQuad">Ease In-Out Quad</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1 text-white/60">
+                <span>Fade Out (s)</span>
+                <NumericInput
+                  step="0.05"
+                  min={0}
+                  value={selectedEffect.fadeOut ?? 0}
+                  onChange={(val) =>
+                    onUpdateEffect?.({
+                      ...selectedEffect,
+                      fadeOut: Math.max(0, val),
+                    })
+                  }
+                  className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-white/60">
+                <span>Fade Out Easing</span>
+                <select
+                  value={selectedEffect.fadeOutEasing || 'linear'}
+                  onChange={(e) =>
+                    onUpdateEffect?.({
+                      ...selectedEffect,
+                      fadeOutEasing: e.target.value as EasingType,
+                    })
+                  }
+                  className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono text-[11px] outline-none focus:border-fuchsia-400 cursor-pointer"
+                >
+                  <option value="linear">Linear</option>
+                  <option value="easeIn">Ease In</option>
+                  <option value="easeOut">Ease Out</option>
+                  <option value="easeInOut">Ease In-Out</option>
+                  <option value="easeInQuad">Ease In Quad</option>
+                  <option value="easeOutQuad">Ease Out Quad</option>
+                  <option value="easeInOutQuad">Ease In-Out Quad</option>
+                </select>
+              </label>
+            </div>
+            <span className="text-[10px] text-white/40">
+              Suaviza la entrada y salida de la intensidad del shader.
+            </span>
           </div>
 
           {/* Delete Shader */}

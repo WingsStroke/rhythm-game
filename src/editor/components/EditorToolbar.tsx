@@ -381,14 +381,14 @@ export function EditorToolbar({
             setIsObjectMenuOpen(false);
             setIsShaderMenuOpen(false);
           }}
-          title="Borrador (E)"
+          title="Eraser (E)"
           className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
             activeTool === 'eraser'
               ? 'bg-red-500/25 text-red-400 border border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.3)]'
               : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
           }`}
         >
-          <Eraser className="w-3.5 h-3.5" /> Borrador (E)
+          <Eraser className="w-3.5 h-3.5" /> Eraser (E)
         </button>
       </div>
 

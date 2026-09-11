@@ -28,6 +28,8 @@ interface UseEditorEngineOptions {
   activeTool?: string;
   customKeybindings?: KeybindingMap;
   onSelectNode?: (nodeId: string | null, isShift?: boolean) => void;
+  onRemoveNode?: (id: string) => void;
+  onSelectNodesBatch?: (ids: string[], additive: boolean) => void;
   onUpdateNodesBatch?: (nodes: SceneNodeData[]) => void;
   onRecordEvent?: (event: PadEvent) => void;
   onCanvasClick?: (stageX: number, stageY: number) => void;
@@ -44,6 +46,8 @@ export function useEditorEngine({
   activeTool,
   customKeybindings,
   onSelectNode,
+  onRemoveNode,
+  onSelectNodesBatch,
   onUpdateNodesBatch,
   onRecordEvent,
   onCanvasClick,
@@ -92,6 +96,12 @@ export function useEditorEngine({
 
   const gridSubdivisionRef = useRef(gridSubdivision);
   gridSubdivisionRef.current = gridSubdivision;
+
+  const onRemoveNodeRef = useRef(onRemoveNode);
+  onRemoveNodeRef.current = onRemoveNode;
+
+  const onSelectNodesBatchRef = useRef(onSelectNodesBatch);
+  onSelectNodesBatchRef.current = onSelectNodesBatch;
 
   const onUpdateNodesBatchRef = useRef(onUpdateNodesBatch);
   onUpdateNodesBatchRef.current = onUpdateNodesBatch;
@@ -229,6 +239,12 @@ export function useEditorEngine({
       );
       ve.onNodeSelect = (id, isShift) => {
         onSelectNode?.(id, isShift);
+      };
+      ve.onNodeRemove = (id) => {
+        onRemoveNodeRef.current?.(id);
+      };
+      ve.onNodesSelectBatch = (ids, additive) => {
+        onSelectNodesBatchRef.current?.(ids, additive);
       };
       ve.onNodesTransformCommit = (updatedNodes) => {
         onUpdateNodesBatchRef.current?.(updatedNodes);

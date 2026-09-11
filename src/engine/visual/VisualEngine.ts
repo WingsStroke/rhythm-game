@@ -17,7 +17,7 @@ import type { AudioEngine } from '../audio/AudioEngine';
 import type { ModulatedChannels } from '../audio/AudioModulator';
 import { AudioModulator } from '../audio/AudioModulator';
 import { SceneGraph } from './SceneGraph';
-import { Animator } from './Animator';
+import { Animator, applyEasing } from './Animator';
 import { TriggerDispatcher } from './TriggerDispatcher';
 import { ParticlePool } from './ParticlePool';
 import { NotePool } from './NotePool';
@@ -142,13 +142,18 @@ export class VisualEngine {
 
   /** Emitted when player clicks/touches a pad directly */
   public onPadInput: ((padId: PadId, pressed: boolean) => void) | null = null;
-  /** Emitted when a SceneNode is clicked */
+  /** Emitted when a SceneNode is clicked with select tool */
   public onNodeSelect: ((nodeId: string | null, isShift?: boolean) => void) | null = null;
+  /** Emitted when a SceneNode is clicked with eraser tool */
+  public onNodeRemove?: ((nodeId: string) => void) | null = null;
+  /** Emitted when multiple SceneNodes are marquee-selected in Live Preview */
+  public onNodesSelectBatch?: ((nodeIds: string[], isAdditive: boolean) => void) | null = null;
   /** Emitted when node transforms are modified and committed via Live Preview gizmo */
   public onNodesTransformCommit?: ((nodes: SceneNodeData[]) => void) | null = null;
   /** Emitted when player/creator clicks on the canvas background outside interactive elements */
   public onCanvasClick?: ((stageX: number, stageY: number) => void) | null = null;
   private currentTool: string = 'select';
+  private marqueeGfx = new Graphics();
 
   constructor(
     root: HTMLElement,
@@ -398,6 +403,7 @@ export class VisualEngine {
       this.onNodesTransformCommit?.(updated);
     };
     this.editorOverlayContainer.addChild(this.transformGizmo);
+    this.editorOverlayContainer.addChild(this.marqueeGfx);
 
     this.app.stage.sortableChildren = true;
     this.mainStage = new Container();
@@ -421,18 +427,6 @@ export class VisualEngine {
       this.hudLayer,
       this.editorOverlayContainer
     );
-    this.app.stage.sortChildren();
-
-    // Scale and center scene layers to virtual 1920x1080 stage
-    const sceneScale = Math.min(w / 1920, h / 1080);
-    const offsetX = (w - 1920 * sceneScale) / 2;
-    const offsetY = (h - 1080 * sceneScale) / 2;
-    for (const layer of [this.sceneLayer, this.sceneAboveLanesLayer, this.sceneAbovePadsLayer]) {
-      layer.scale.set(sceneScale);
-      layer.x = offsetX;
-      layer.y = offsetY;
-    }
-
     // 2. Initialize SceneGraph, Animator, and TriggerDispatcher
     this.sceneGraph = new SceneGraph(
       this.sceneLayer,
@@ -442,6 +436,11 @@ export class VisualEngine {
     this.animator = new Animator(this.sceneGraph);
     this.triggerDispatcher = new TriggerDispatcher(this.sceneGraph, this.animator);
 
+    this.updateLayout();
+
+    this.triggerDispatcher.onTrigger = (trigger) => {
+      this.handleTriggerFired(trigger);
+    };
     this.triggerDispatcher.onEffect = (effectType, targetId, props) => {
       this.handleVisualEffect(effectType, targetId, props);
     };
@@ -463,14 +462,108 @@ export class VisualEngine {
     this.bgRect.rect(0, 0, w, h).fill({ color: 0x070714 });
     this.bgRect.eventMode = 'static';
     this.bgRect.cursor = this.currentTool === 'object' ? 'crosshair' : 'default';
+
+    let isMarqueeDragging = false;
+    let marqueeStartX = 0;
+    let marqueeStartY = 0;
+    let marqueeIsShift = false;
+
     this.bgRect.on('pointerdown', (e) => {
       const localPos = this.sceneLayer.toLocal(e.global);
       const stageX = Math.max(0, Math.min(1920, Math.round(localPos.x)));
       const stageY = Math.max(0, Math.min(1080, Math.round(localPos.y)));
+
+      if (this.currentTool === 'select') {
+        isMarqueeDragging = true;
+        marqueeStartX = e.global.x;
+        marqueeStartY = e.global.y;
+        marqueeIsShift = Boolean(e.shiftKey);
+        this.marqueeGfx.clear();
+        return;
+      }
+
       if (this.onCanvasClick) {
         this.onCanvasClick(stageX, stageY);
       }
     });
+
+    const onMarqueePointerMove = (e: PointerEvent) => {
+      if (!isMarqueeDragging) return;
+      let currGlobalX = 0;
+      let currGlobalY = 0;
+      try {
+        const rect = this.app.canvas.getBoundingClientRect();
+        currGlobalX = (e.clientX - rect.left) * (this.app.renderer.width / rect.width);
+        currGlobalY = (e.clientY - rect.top) * (this.app.renderer.height / rect.height);
+      } catch {
+        currGlobalX = e.clientX;
+        currGlobalY = e.clientY;
+      }
+
+      const minX = Math.min(marqueeStartX, currGlobalX);
+      const maxX = Math.max(marqueeStartX, currGlobalX);
+      const minY = Math.min(marqueeStartY, currGlobalY);
+      const maxY = Math.max(marqueeStartY, currGlobalY);
+
+      this.marqueeGfx.clear();
+      this.marqueeGfx.rect(minX, minY, maxX - minX, maxY - minY);
+      this.marqueeGfx.fill({ color: 0x00e5ff, alpha: 0.15 });
+      this.marqueeGfx.stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.9 });
+    };
+
+    const onMarqueePointerUp = (e: PointerEvent) => {
+      if (!isMarqueeDragging) return;
+      isMarqueeDragging = false;
+      this.marqueeGfx.clear();
+
+      let currGlobalX = 0;
+      let currGlobalY = 0;
+      try {
+        const rect = this.app.canvas.getBoundingClientRect();
+        currGlobalX = (e.clientX - rect.left) * (this.app.renderer.width / rect.width);
+        currGlobalY = (e.clientY - rect.top) * (this.app.renderer.height / rect.height);
+      } catch {
+        currGlobalX = e.clientX;
+        currGlobalY = e.clientY;
+      }
+
+      const dist = Math.hypot(currGlobalX - marqueeStartX, currGlobalY - marqueeStartY);
+      if (dist > 8) {
+        const minX = Math.min(marqueeStartX, currGlobalX);
+        const maxX = Math.max(marqueeStartX, currGlobalX);
+        const minY = Math.min(marqueeStartY, currGlobalY);
+        const maxY = Math.max(marqueeStartY, currGlobalY);
+
+        const hitUids: string[] = [];
+        if (this.sceneGraph) {
+          for (const node of this.sceneGraph.getAllNodes()) {
+            if (node.container.destroyed || !node.container.visible) continue;
+            const bounds = node.container.getBounds();
+            if (
+              bounds.x < maxX &&
+              bounds.x + bounds.width > minX &&
+              bounds.y < maxY &&
+              bounds.y + bounds.height > minY
+            ) {
+              hitUids.push(node.uid);
+            }
+          }
+        }
+        this.onNodesSelectBatch?.(hitUids, marqueeIsShift);
+      } else {
+        if (!marqueeIsShift) {
+          this.onNodeSelect?.(null, false);
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', onMarqueePointerMove);
+    window.addEventListener('pointerup', onMarqueePointerUp);
+    this.eventUnsubscribers.push(() => {
+      window.removeEventListener('pointermove', onMarqueePointerMove);
+      window.removeEventListener('pointerup', onMarqueePointerUp);
+    });
+
     this.bgLayer.addChild(this.bgRect);
     this.bgLayer.addChild(this.bgGrid);
 
@@ -478,7 +571,15 @@ export class VisualEngine {
     this.laneLayer.addChild(this.laneGfx);
 
     this.sceneGraph.onNodeSelect = (id, isShift) => {
-      if (this.onNodeSelect) this.onNodeSelect(id, isShift);
+      if (this.currentTool === 'eraser') {
+        if (id && this.onNodeRemove) {
+          this.onNodeRemove(id);
+        }
+        return;
+      }
+      if (this.currentTool === 'select') {
+        if (this.onNodeSelect) this.onNodeSelect(id, isShift);
+      }
     };
 
     // 4. Pads
@@ -849,11 +950,23 @@ export class VisualEngine {
       if (effect.scope === 'global') {
         globalFilters.push(...filters);
         this.activeVisualEffects.push({ effect, filters });
-      } else if (effect.scope === 'object' && effect.targetNodeId) {
-        const node = this.sceneGraph?.getNode(effect.targetNodeId) || this.sceneGraph?.getNodesByTargetId(effect.targetNodeId)[0];
-        if (node) {
+      } else if (effect.scope === 'object' && (effect.targetNodeId || effect.targetId !== undefined)) {
+        const targetId = effect.targetId !== undefined ? effect.targetId : effect.targetNodeId!;
+        let nodes = this.sceneGraph?.getNodesByTargetId(targetId) || [];
+        if (nodes.length === 0 && typeof targetId === 'string') {
+          const single = this.sceneGraph?.getNode(targetId);
+          if (single) nodes = [single];
+        }
+        for (const node of nodes) {
           node.container.filters = filters;
-          this.activeVisualEffects.push({ effect, filters, targetNodeId: effect.targetNodeId });
+        }
+        if (nodes.length > 0) {
+          this.activeVisualEffects.push({
+            effect,
+            filters,
+            targetNodeId: effect.targetNodeId,
+            matchedNodes: nodes,
+          });
         }
       } else if (effect.scope === 'range') {
         const minZ = effect.zIndexMin ?? -Infinity;
@@ -1132,9 +1245,13 @@ export class VisualEngine {
         if (inWindow) {
           activeGlobalFilters.push(...filters);
         }
-      } else if (effect.scope === 'object' && item.targetNodeId) {
-        const node = this.sceneGraph?.getNode(item.targetNodeId) || this.sceneGraph?.getNodesByTargetId(item.targetNodeId)[0];
-        if (node) {
+      } else if (effect.scope === 'object') {
+        const targetNodes = item.matchedNodes && item.matchedNodes.length > 0
+          ? item.matchedNodes
+          : (item.targetNodeId
+            ? (this.sceneGraph?.getNodesByTargetId(item.targetNodeId) || [this.sceneGraph?.getNode(item.targetNodeId)].filter((n): n is SceneNode => Boolean(n)))
+            : []);
+        for (const node of targetNodes) {
           node.container.filters = inWindow ? filters : [];
         }
       } else if (effect.scope === 'range' && item.matchedNodes) {
@@ -1146,11 +1263,26 @@ export class VisualEngine {
       }
 
       if (inWindow) {
+        let fadeFactor = 1.0;
+        if (hasTimeWindow && effect.duration! > 0) {
+          const t = audioTime - effect.startTime!;
+          const dur = effect.duration!;
+          if (effect.fadeIn && effect.fadeIn > 0 && t < effect.fadeIn) {
+            const progress = Math.max(0, Math.min(1, t / effect.fadeIn));
+            fadeFactor *= applyEasing(progress, effect.fadeInEasing ?? 'easeOutQuad');
+          }
+          if (effect.fadeOut && effect.fadeOut > 0 && (dur - t) < effect.fadeOut) {
+            const progress = Math.max(0, Math.min(1, (dur - t) / effect.fadeOut));
+            fadeFactor *= applyEasing(progress, effect.fadeOutEasing ?? 'easeInQuad');
+          }
+        }
+        const effectiveIntensity = (effect.intensity ?? 1.0) * Math.max(0, Math.min(1, fadeFactor));
+
         EffectRegistry.update(
           filters,
           effect.type,
           effect.parameters ?? {},
-          effect.intensity ?? 1.0,
+          effectiveIntensity,
           audioTime
         );
       }

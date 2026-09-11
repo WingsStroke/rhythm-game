@@ -171,10 +171,15 @@ export interface VisualEffect {
   enabled?: boolean;
   intensity?: number;
   targetNodeId?: string;
+  targetId?: number;
   zIndexMin?: number;
   zIndexMax?: number;
   startTime?: number;
   duration?: number;
+  fadeIn?: number;
+  fadeOut?: number;
+  fadeInEasing?: EasingType;
+  fadeOutEasing?: EasingType;
   region?: { x: number; y: number; width: number; height: number };
   parameters: Record<string, number | string | boolean>;
 }
@@ -273,7 +278,15 @@ export interface VisualGroupData extends SceneNodeData {
   childrenIds?: string[];
 }
 
-export type TriggerActionType = 'transform' | 'color' | 'pulse' | 'effect' | 'appearance';
+export type TriggerActionType =
+  | 'pos'
+  | 'rot'
+  | 'scale'
+  | 'color'
+  | 'pulse'
+  | 'transform'
+  | 'effect'
+  | 'appearance';
 export type TriggerEffectType = 'reactivePulse' | 'particleBurst';
 export type ShaderEffectType =
   | 'bloom'
