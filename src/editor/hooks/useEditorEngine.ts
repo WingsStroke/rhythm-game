@@ -371,9 +371,12 @@ export function useEditorEngine({
 
   // Sync keyMap when level.pads or customKeybindings changes
   useEffect(() => {
+    const map = customKeybindings || loadUserKeybindings(level.pads);
     if (inputRef.current) {
-      const map = customKeybindings || loadUserKeybindings(level.pads);
       inputRef.current.setKeyMap(map);
+    }
+    if (visualRef.current) {
+      visualRef.current.syncKeybindings(map);
     }
   }, [level.pads, customKeybindings]);
 

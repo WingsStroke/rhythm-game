@@ -27,6 +27,7 @@ import { TransformGizmo } from './editor/TransformGizmo';
 import type { SceneNode } from './objects/SceneNode';
 import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
 import { audioTimeToSongTime } from '../time/timeUtils';
+import { loadUserKeybindings, getBoundKeyForPad, formatKeyCode, type KeybindingMap } from '../input/Keybindings';
 
 /**
  * VisualEngine — modular and reactive presentation engine using PixiJS v8.
@@ -268,6 +269,16 @@ export class VisualEngine {
       this.level.timing = { bpm: 120, offset, windows: { perfect: 0.05, good: 0.1, miss: 0.15 } };
     } else {
       this.level.timing.offset = offset;
+    }
+  }
+
+  public syncKeybindings(keyMap?: KeybindingMap): void {
+    const map = keyMap || loadUserKeybindings(this.level.pads);
+    for (const [padId, visual] of this.padVisuals.entries()) {
+      const boundKey = getBoundKeyForPad(map, padId);
+      const padConfig = this.level.pads.find((p) => p.id === padId);
+      const displayKey = boundKey ? formatKeyCode(boundKey) : (padConfig?.keyHint || '');
+      visual.keyText.text = displayKey;
     }
   }
 
@@ -631,9 +642,13 @@ export class VisualEngine {
       rect.zIndex = 2;
       container.addChild(rect);
 
-      // Key hint (A, S, D, F)
+      // Key hint (dynamically resolved from user keybindings)
+      const userBindings = loadUserKeybindings(this.level.pads);
+      const boundKey = getBoundKeyForPad(userBindings, pad.id);
+      const displayKey = boundKey ? formatKeyCode(boundKey) : (pad.keyHint || '');
+
       const keyText = new Text({
-        text: pad.keyHint || '',
+        text: displayKey,
         style: { fontFamily: 'monospace', fontSize: 22, fill: 0xffffff, fontWeight: 'bold' },
       });
       keyText.anchor.set(0.5);
@@ -881,7 +896,7 @@ export class VisualEngine {
     }
 
     try {
-      const rgbEnabled = settings?.rgbShiftEnabled !== false;
+      const rgbEnabled = Boolean(settings?.rgbShiftEnabled);
       if (rgbEnabled) {
         const fragShader = `
           precision highp float;
@@ -895,7 +910,8 @@ export class VisualEngine {
 
           void main() {
             vec2 uv = vTextureCoord;
-            float shift = 0.002 + uBass * 0.006 + uAmp * 0.003;
+            float rawShift = 0.001 + uBass * 0.003 + uAmp * 0.0015;
+            float shift = clamp(rawShift, 0.0, 0.006);
             float r = texture(uTexture, uv + vec2(shift, 0.0)).r;
             vec4 center = texture(uTexture, uv);
             float b = texture(uTexture, uv - vec2(shift, 0.0)).b;
@@ -1223,8 +1239,8 @@ export class VisualEngine {
     }
     this.beatPulse *= 0.92;
 
-    // 5. RGB shift uniforms update from level visual settings
-    const rgbEnabled = settings?.rgbShiftEnabled !== false;
+    // 5. RGB shift uniforms update from level visual settings (only if explicitly enabled)
+    const rgbEnabled = Boolean(settings?.rgbShiftEnabled);
     const rgbIntensity = rgbEnabled ? (settings?.rgbShiftIntensity ?? 1.0) : 0;
     if (this.rgbFilter) {
       try {

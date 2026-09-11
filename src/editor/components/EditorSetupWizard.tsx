@@ -222,6 +222,7 @@ export const EditorSetupWizard: React.FC<EditorSetupWizardProps> = ({
         timing: {
           bpm: Math.max(40, Math.min(300, Number(bpm) || 128)),
           offset: (Number(songOffsetMs) || 0) / 1000,
+          leadIn: Math.max(0, Number(leadInSeconds) || 0),
           windows: { perfect: 0.045, good: 0.090, miss: 0.150 },
         },
         visual: {

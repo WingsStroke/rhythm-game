@@ -14,6 +14,7 @@ import {
   timelineXToSongTime,
   timelineXToTimelineTime,
 } from '../engine/time/timeUtils';
+import { loadUserKeybindings, getBoundKeyForPad, formatKeyCode } from '../engine/input/Keybindings';
 
 export type { GridSubdivision };
 export type EditorTool = 'select' | 'pen' | 'eraser' | 'object' | 'shader';
@@ -968,6 +969,8 @@ export function Timeline({
     () => sceneNodes.filter((n) => (n.layer ?? 1) === activeLayer),
     [sceneNodes, activeLayer]
   );
+
+  const userKeybindings = useMemo(() => loadUserKeybindings(level.pads), [level.pads]);
 
   // Precompute events grouped by padId once in O(events) time, avoiding O(pads * events) per render
   const eventsByPad = useMemo(() => {
@@ -2166,7 +2169,10 @@ export function Timeline({
                     />
                     <span className="text-sm font-mono font-bold text-white tracking-wide truncate">{pad.label}</span>
                     <span className="ml-auto text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/80 font-semibold border border-white/10">
-                      {pad.keyHint}
+                      {(() => {
+                        const boundKey = getBoundKeyForPad(userKeybindings, pad.id);
+                        return boundKey ? formatKeyCode(boundKey) : (pad.keyHint || '?');
+                      })()}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1.5 text-[10px] text-white/40 font-mono">

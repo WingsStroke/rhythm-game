@@ -74,6 +74,10 @@ export function SongPadsModal({
     const sec = Number((ms / 1000).toFixed(4));
     onChangeLevel({
       ...level,
+      song: {
+        ...level.song,
+        offset: sec,
+      },
       timing: {
         ...level.timing,
         offset: sec,

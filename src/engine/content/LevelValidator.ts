@@ -164,6 +164,15 @@ export class LevelValidator {
           warnings.push('Timing windows are irregular or missing; defaulting to standard windows.');
         }
       }
+      if (timing.leadIn !== undefined && (typeof timing.leadIn !== 'number' || isNaN(timing.leadIn) || timing.leadIn < 0)) {
+        warnings.push('Invalid "timing.leadIn": expected non-negative number.');
+      }
+      if (timing.fadeIn !== undefined && (typeof timing.fadeIn !== 'number' || isNaN(timing.fadeIn) || timing.fadeIn < 0)) {
+        warnings.push('Invalid "timing.fadeIn": expected non-negative number.');
+      }
+      if (timing.fadeOut !== undefined && (typeof timing.fadeOut !== 'number' || isNaN(timing.fadeOut) || timing.fadeOut < 0)) {
+        warnings.push('Invalid "timing.fadeOut": expected non-negative number.');
+      }
     }
 
     // 7. visual
@@ -204,6 +213,25 @@ export class LevelValidator {
     const visualRaw = (raw.visual || {}) as Record<string, unknown>;
 
     const bpm = Number(timingRaw.bpm || songRaw.bpm || 120);
+    const timingOffset = Number(timingRaw.offset ?? songRaw.offset) || 0;
+
+    const rawLeadIn = timingRaw.leadIn !== undefined ? timingRaw.leadIn : songRaw.leadIn;
+    const leadIn =
+      typeof rawLeadIn === 'number' && !isNaN(rawLeadIn) && rawLeadIn >= 0
+        ? Number(rawLeadIn.toFixed(4))
+        : undefined;
+
+    const rawFadeIn = timingRaw.fadeIn !== undefined ? timingRaw.fadeIn : songRaw.fadeIn;
+    const fadeIn =
+      typeof rawFadeIn === 'number' && !isNaN(rawFadeIn) && rawFadeIn >= 0
+        ? Number(rawFadeIn.toFixed(4))
+        : undefined;
+
+    const rawFadeOut = timingRaw.fadeOut !== undefined ? timingRaw.fadeOut : songRaw.fadeOut;
+    const fadeOut =
+      typeof rawFadeOut === 'number' && !isNaN(rawFadeOut) && rawFadeOut >= 0
+        ? Number(rawFadeOut.toFixed(4))
+        : undefined;
 
     // Clean and validate timing windows
     const rawWindows = (timingRaw.windows || {}) as Record<string, unknown>;
@@ -415,7 +443,7 @@ export class LevelValidator {
         title: String(songRaw.title || 'Untitled Track'),
         artist: String(songRaw.artist || 'Unknown Artist'),
         bpm,
-        offset: Number(songRaw.offset) || 0,
+        offset: timingOffset,
         duration: Number(songRaw.duration) || 0,
         url: songRaw.url ? String(songRaw.url) : undefined,
         audioUrl: songRaw.audioUrl ? String(songRaw.audioUrl) : undefined,
@@ -425,8 +453,11 @@ export class LevelValidator {
       events,
       timing: {
         bpm,
-        offset: Number(timingRaw.offset) || 0,
+        offset: timingOffset,
         windows,
+        leadIn,
+        fadeIn,
+        fadeOut,
       },
       visual: {
         nodes,
