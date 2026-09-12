@@ -167,6 +167,7 @@ EffectRegistry.register({
       out vec4 finalColor;
 
       uniform sampler2D uTexture;
+      uniform vec4 uInputSize;
       uniform float uThreshold;
       uniform float uIntensity;
       uniform float uRadius;
@@ -179,7 +180,7 @@ EffectRegistry.register({
 
       void main() {
         vec4 base = texture(uTexture, vTextureCoord);
-        vec2 texel = vec2(1.0 / 1920.0, 1.0 / 1080.0) * uRadius;
+        vec2 texel = uInputSize.zw * uRadius;
         vec3 bloom = vec3(0.0);
 
         // Ring 1: Inner tight glow (4 samples)
@@ -414,13 +415,13 @@ EffectRegistry.register({
       out vec4 finalColor;
 
       uniform sampler2D uTexture;
+      uniform vec4 uInputSize;
       uniform float uPixelSize;
-      uniform vec2 uResolution;
 
       void main() {
         vec2 coord = vTextureCoord;
-        if (uPixelSize > 1.0 && uResolution.x > 0.0 && uResolution.y > 0.0) {
-          vec2 d = vec2(uPixelSize) / uResolution;
+        if (uPixelSize > 1.0) {
+          vec2 d = uInputSize.zw * uPixelSize;
           coord = floor(coord / d) * d + d * 0.5;
         }
         finalColor = texture(uTexture, coord);
@@ -429,7 +430,6 @@ EffectRegistry.register({
 
     return createShaderFilter('pixelate-filter', frag, {
       uPixelSize: { value: rawSize, type: 'f32' },
-      uResolution: { value: [1920, 1080], type: 'vec2<f32>' },
     });
   },
   updateFilter: (filter, params, intensity = 1.0) => {
@@ -447,8 +447,8 @@ EffectRegistry.register({
   description: 'Directional velocity streak sample blur',
   defaultParameters: { velocityX: 16.0, velocityY: 0.0 },
   createFilter: (params, intensity = 1.0) => {
-    const vx = (Number(params.velocityX ?? 16.0) * intensity) / 1920.0;
-    const vy = (Number(params.velocityY ?? 0.0) * intensity) / 1080.0;
+    const vx = Number(params.velocityX ?? 16.0) * intensity;
+    const vy = Number(params.velocityY ?? 0.0) * intensity;
 
     const frag = `
       precision highp float;
@@ -456,18 +456,20 @@ EffectRegistry.register({
       out vec4 finalColor;
 
       uniform sampler2D uTexture;
+      uniform vec4 uInputSize;
       uniform vec2 uVelocity;
 
       void main() {
         vec2 uv = vTextureCoord;
+        vec2 vel = uVelocity * uInputSize.zw;
         vec4 color = vec4(0.0);
-        color += texture(uTexture, uv - uVelocity * 0.50) * 0.05;
-        color += texture(uTexture, uv - uVelocity * 0.33) * 0.12;
-        color += texture(uTexture, uv - uVelocity * 0.16) * 0.20;
+        color += texture(uTexture, uv - vel * 0.50) * 0.05;
+        color += texture(uTexture, uv - vel * 0.33) * 0.12;
+        color += texture(uTexture, uv - vel * 0.16) * 0.20;
         color += texture(uTexture, uv) * 0.26;
-        color += texture(uTexture, uv + uVelocity * 0.16) * 0.20;
-        color += texture(uTexture, uv + uVelocity * 0.33) * 0.12;
-        color += texture(uTexture, uv + uVelocity * 0.50) * 0.05;
+        color += texture(uTexture, uv + vel * 0.16) * 0.20;
+        color += texture(uTexture, uv + vel * 0.33) * 0.12;
+        color += texture(uTexture, uv + vel * 0.50) * 0.05;
         finalColor = color;
       }
     `;
@@ -482,8 +484,8 @@ EffectRegistry.register({
     );
   },
   updateFilter: (filter, params, intensity = 1.0) => {
-    const vx = (Number(params.velocityX ?? 16.0) * intensity) / 1920.0;
-    const vy = (Number(params.velocityY ?? 0.0) * intensity) / 1080.0;
+    const vx = Number(params.velocityX ?? 16.0) * intensity;
+    const vy = Number(params.velocityY ?? 0.0) * intensity;
     updateShaderUniforms(filter, {
       uVelocity: [vx, vy],
     });
