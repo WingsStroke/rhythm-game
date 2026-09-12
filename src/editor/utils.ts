@@ -64,7 +64,7 @@ export interface EventCollisionTarget {
 export function areEventsColliding(
   a: EventCollisionTarget,
   b: EventCollisionTarget,
-  tolerance = 0.03
+  tolerance = 0.002
 ): boolean {
   if (a.id && b.id && a.id === b.id) return false;
   if (a.padId !== b.padId) return false;
@@ -107,10 +107,16 @@ export function areEventsColliding(
     return Math.max(aStart, bStart) < Math.min(aEnd, bEnd) - tolerance;
   }
   if (aIsHold && !bIsHold) {
-    return bStart >= aStart - tolerance && bStart <= aEnd - tolerance;
+    // Collides if tap starts at the exact same time as hold start,
+    // or if tap is strictly inside the hold body (between start and end)
+    if (Math.abs(bStart - aStart) < tolerance) return true;
+    return bStart > aStart + tolerance && bStart < aEnd - tolerance;
   }
   if (!aIsHold && bIsHold) {
-    return aStart >= bStart - tolerance && aStart <= bEnd - tolerance;
+    // Collides if tap starts at the exact same time as hold start,
+    // or if tap is strictly inside the hold body (between start and end)
+    if (Math.abs(aStart - bStart) < tolerance) return true;
+    return aStart > bStart + tolerance && aStart < bEnd - tolerance;
   }
 
   // Case 4: Instant notes on the same pad
@@ -123,7 +129,7 @@ export function areEventsColliding(
 export function hasEventCollision(
   candidate: EventCollisionTarget,
   existingEvents: EventCollisionTarget[],
-  tolerance = 0.03
+  tolerance = 0.002
 ): boolean {
   return existingEvents.some((existing) => areEventsColliding(candidate, existing, tolerance));
 }

@@ -1683,6 +1683,8 @@ export function Timeline({
   const dragPointerX = useRef<number | null>(null);
   const dragPointerY = useRef<number | null>(null);
   const dragAutoScrollRaf = useRef<number | null>(null);
+  const dragRaf = useRef<number | null>(null);
+  const lastDragUpdateKey = useRef<string>('');
 
   const performDragUpdate = useCallback((clientX: number, clientY: number) => {
     const currentDrag = dragStateRef.current;
@@ -1699,16 +1701,36 @@ export function Timeline({
       const otherEvents = level.events.filter((ev) => ev.id !== currentDrag.event!.id);
       if (currentDrag.mode === 'move') {
         const snapped = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
-        const candidate = { ...currentDrag.event, targetTime: snapped };
-        if (!hasEventCollision(candidate, otherEvents)) {
-          if (snapped !== currentDrag.event.targetTime) onUpdateEvent(candidate);
+        const updateKey = `evt_move_${currentDrag.event.id}_${snapped}`;
+        if (updateKey !== lastDragUpdateKey.current) {
+          const candidate = { ...currentDrag.event, targetTime: snapped };
+          if (!hasEventCollision(candidate, otherEvents)) {
+            lastDragUpdateKey.current = updateKey;
+            onUpdateEvent(candidate);
+          }
         }
       } else {
         const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
-        const snapped = interval > 0 ? Math.max(interval, Math.round(Math.max(0.05, currentDrag.origDuration! + deltaTime) / interval) * interval) : Math.max(0.05, currentDrag.origDuration! + deltaTime);
-        const candidate = { ...currentDrag.event, duration: snapped };
-        if (!hasEventCollision(candidate, otherEvents)) {
-          if (snapped !== currentDrag.event.duration) onUpdateEvent(candidate);
+        let snapped = interval > 0
+          ? Math.max(interval, Math.round(Math.max(0.05, currentDrag.origDuration! + deltaTime) / interval) * interval)
+          : Math.max(0.05, currentDrag.origDuration! + deltaTime);
+
+        // Magnetic snap: clamp to avoid overlapping next note on the same pad
+        const nextEventOnPad = otherEvents
+          .filter((ev) => ev.padId === currentDrag.event!.padId && ev.targetTime >= currentDrag.event!.targetTime)
+          .sort((a, b) => a.targetTime - b.targetTime)[0];
+        if (nextEventOnPad) {
+          const maxDuration = Math.max(interval > 0 ? interval : 0.05, nextEventOnPad.targetTime - currentDrag.event!.targetTime);
+          snapped = Math.min(snapped, maxDuration);
+        }
+
+        const updateKey = `evt_res_${currentDrag.event.id}_${snapped}`;
+        if (updateKey !== lastDragUpdateKey.current) {
+          const candidate = { ...currentDrag.event, duration: snapped };
+          if (!hasEventCollision(candidate, otherEvents)) {
+            lastDragUpdateKey.current = updateKey;
+            onUpdateEvent(candidate);
+          }
         }
       }
     } else if (currentDrag.targetType === 'batch_events' && currentDrag.origEvents && currentDrag.event) {
@@ -1716,27 +1738,37 @@ export function Timeline({
       const deltaSnap = snappedPivot - currentDrag.origTargetTime!;
       const minTime = Math.min(...currentDrag.origEvents.map((ev) => ev.targetTime));
       const validDelta = (minTime + deltaSnap < 0) ? -minTime : deltaSnap;
-      const draggedIds = new Set(currentDrag.origEvents.map((ev) => ev.id));
-      const otherEvents = level.events.filter((ev) => !draggedIds.has(ev.id));
-      const updated = currentDrag.origEvents.map((ev) => ({
-        ...ev,
-        targetTime: Math.max(0, Number((ev.targetTime + validDelta).toFixed(4))),
-      }));
-      const hasAnyCollision = updated.some((ev) => hasEventCollision(ev, otherEvents));
-      if (!hasAnyCollision) {
-        onUpdateEventsBatch?.(updated);
+      const updateKey = `batch_evt_${validDelta}`;
+      if (updateKey !== lastDragUpdateKey.current) {
+        const draggedIds = new Set(currentDrag.origEvents.map((ev) => ev.id));
+        const otherEvents = level.events.filter((ev) => !draggedIds.has(ev.id));
+        const updated = currentDrag.origEvents.map((ev) => ({
+          ...ev,
+          targetTime: Math.max(0, Number((ev.targetTime + validDelta).toFixed(4))),
+        }));
+        const hasAnyCollision = updated.some((ev) => hasEventCollision(ev, otherEvents));
+        if (!hasAnyCollision) {
+          lastDragUpdateKey.current = updateKey;
+          onUpdateEventsBatch?.(updated);
+        }
       }
     } else if (currentDrag.targetType === 'trigger' && currentDrag.trigger) {
       if (currentDrag.mode === 'move') {
         const snapped = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
         const targetSubLane = Math.max(0, Math.min(SUB_LANE_COUNT - 1, (currentDrag.origSubLane ?? 0) + subLaneDelta));
-        if (snapped !== currentDrag.trigger.time || targetSubLane !== currentDrag.trigger.subLane) {
+        const updateKey = `trig_move_${currentDrag.trigger.id}_${snapped}_${targetSubLane}`;
+        if (updateKey !== lastDragUpdateKey.current) {
+          lastDragUpdateKey.current = updateKey;
           onUpdateTrigger?.({ ...currentDrag.trigger, time: snapped, subLane: targetSubLane });
         }
       } else {
         const interval = getSnapInterval(level.timing.bpm, gridSubdivision);
         const snapped = interval > 0 ? Math.max(interval, Math.round(Math.max(0, currentDrag.origDuration! + deltaTime) / interval) * interval) : Math.max(0, currentDrag.origDuration! + deltaTime);
-        if (snapped !== currentDrag.trigger.duration) onUpdateTrigger?.({ ...currentDrag.trigger, duration: snapped });
+        const updateKey = `trig_res_${currentDrag.trigger.id}_${snapped}`;
+        if (updateKey !== lastDragUpdateKey.current) {
+          lastDragUpdateKey.current = updateKey;
+          onUpdateTrigger?.({ ...currentDrag.trigger, duration: snapped });
+        }
       }
     } else if (currentDrag.targetType === 'batch_triggers' && currentDrag.origTriggers && currentDrag.trigger) {
       const snappedPivot = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
@@ -1747,21 +1779,27 @@ export function Timeline({
       const minLane = Math.min(...currentLanes);
       const maxLane = Math.max(...currentLanes);
       const clampedLaneDelta = Math.max(-minLane, Math.min((SUB_LANE_COUNT - 1) - maxLane, subLaneDelta));
-      const updated = currentDrag.origTriggers.map((tr) => {
-        const origLane = currentDrag.origTriggerSubLanes?.get(tr.id) ?? (tr.subLane ?? 0);
-        return {
-          ...tr,
-          time: Math.max(0, Number((tr.time + validDelta).toFixed(4))),
-          subLane: Math.max(0, Math.min(SUB_LANE_COUNT - 1, origLane + clampedLaneDelta)),
-        };
-      });
-      onUpdateTriggersBatch?.(updated);
+      const updateKey = `batch_trig_${validDelta}_${clampedLaneDelta}`;
+      if (updateKey !== lastDragUpdateKey.current) {
+        lastDragUpdateKey.current = updateKey;
+        const updated = currentDrag.origTriggers.map((tr) => {
+          const origLane = currentDrag.origTriggerSubLanes?.get(tr.id) ?? (tr.subLane ?? 0);
+          return {
+            ...tr,
+            time: Math.max(0, Number((tr.time + validDelta).toFixed(4))),
+            subLane: Math.max(0, Math.min(SUB_LANE_COUNT - 1, origLane + clampedLaneDelta)),
+          };
+        });
+        onUpdateTriggersBatch?.(updated);
+      }
     } else if (currentDrag.targetType === 'node' && currentDrag.node) {
       if (currentDrag.mode === 'move') {
         const targetSubLane = Math.max(0, Math.min(SUB_LANE_COUNT - 1, (currentDrag.origSubLane ?? 0) + subLaneDelta));
         if (currentDrag.node.lifespan) {
           const snapped = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
-          if (snapped !== currentDrag.node.lifespan.startTime || targetSubLane !== currentDrag.node.subLane) {
+          const updateKey = `node_move_${currentDrag.node.uid}_${snapped}_${targetSubLane}`;
+          if (updateKey !== lastDragUpdateKey.current) {
+            lastDragUpdateKey.current = updateKey;
             onUpdateNode?.(currentDrag.node.uid, {
               subLane: targetSubLane,
               lifespan: {
@@ -1772,7 +1810,9 @@ export function Timeline({
           }
         } else {
           // Object without temporal lifespan: moves vertically between lanes
-          if (targetSubLane !== currentDrag.node.subLane) {
+          const updateKey = `node_move_${currentDrag.node.uid}_${targetSubLane}`;
+          if (updateKey !== lastDragUpdateKey.current) {
+            lastDragUpdateKey.current = updateKey;
             onUpdateNode?.(currentDrag.node.uid, {
               subLane: targetSubLane,
             });
@@ -1783,9 +1823,10 @@ export function Timeline({
         const snapped = interval > 0
           ? Math.max(interval, Math.round(Math.max(0.1, currentDrag.origDuration! + deltaTime) / interval) * interval)
           : Math.max(0.1, currentDrag.origDuration! + deltaTime);
-        const existingLifespan = currentDrag.node.lifespan;
-        const currentDuration = existingLifespan?.duration ?? (level.song.duration || 120);
-        if (snapped !== currentDuration) {
+        const updateKey = `node_res_${currentDrag.node.uid}_${snapped}`;
+        if (updateKey !== lastDragUpdateKey.current) {
+          lastDragUpdateKey.current = updateKey;
+          const existingLifespan = currentDrag.node.lifespan;
           onUpdateNode?.(currentDrag.node.uid, {
             lifespan: {
               startTime: existingLifespan?.startTime ?? 0,
@@ -1805,32 +1846,40 @@ export function Timeline({
       const minLane = Math.min(...currentLanes);
       const maxLane = Math.max(...currentLanes);
       const clampedLaneDelta = Math.max(-minLane, Math.min((SUB_LANE_COUNT - 1) - maxLane, subLaneDelta));
-      const updatedNodes = currentDrag.origNodes.map((n) => {
-        const origLane = currentDrag.origNodeSubLanes?.get(n.uid) ?? (n.subLane ?? 0);
-        const origTime = n.lifespan?.startTime ?? 0;
-        return {
-          ...n,
-          subLane: Math.max(0, Math.min(SUB_LANE_COUNT - 1, origLane + clampedLaneDelta)),
-          lifespan: n.lifespan
-            ? {
-                ...n.lifespan,
-                startTime: Math.max(0, Number((origTime + validDelta).toFixed(4))),
-              }
-            : undefined,
-        };
-      });
-      onUpdateNodesBatch?.(updatedNodes);
+      const updateKey = `batch_nodes_${validDelta}_${clampedLaneDelta}`;
+      if (updateKey !== lastDragUpdateKey.current) {
+        lastDragUpdateKey.current = updateKey;
+        const updatedNodes = currentDrag.origNodes.map((n) => {
+          const origLane = currentDrag.origNodeSubLanes?.get(n.uid) ?? (n.subLane ?? 0);
+          const origTime = n.lifespan?.startTime ?? 0;
+          return {
+            ...n,
+            subLane: Math.max(0, Math.min(SUB_LANE_COUNT - 1, origLane + clampedLaneDelta)),
+            lifespan: n.lifespan
+              ? {
+                  ...n.lifespan,
+                  startTime: Math.max(0, Number((origTime + validDelta).toFixed(4))),
+                }
+              : undefined,
+          };
+        });
+        onUpdateNodesBatch?.(updatedNodes);
+      }
     } else if (currentDrag.targetType === 'effect' && currentDrag.effect) {
       if (currentDrag.mode === 'move') {
         const targetSubLane = Math.max(0, Math.min(3, (currentDrag.origSubLane ?? 0) + subLaneDelta));
         const hasTime = typeof currentDrag.effect.startTime === 'number';
         if (hasTime) {
           const snapped = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
-          if (snapped !== currentDrag.effect.startTime || targetSubLane !== currentDrag.effect.lane) {
+          const updateKey = `eff_move_${currentDrag.effect.id}_${snapped}_${targetSubLane}`;
+          if (updateKey !== lastDragUpdateKey.current) {
+            lastDragUpdateKey.current = updateKey;
             onUpdateEffect?.({ ...currentDrag.effect, startTime: snapped, lane: targetSubLane });
           }
         } else {
-          if (targetSubLane !== currentDrag.effect.lane) {
+          const updateKey = `eff_move_${currentDrag.effect.id}_${targetSubLane}`;
+          if (updateKey !== lastDragUpdateKey.current) {
+            lastDragUpdateKey.current = updateKey;
             onUpdateEffect?.({ ...currentDrag.effect, lane: targetSubLane });
           }
         }
@@ -1839,7 +1888,9 @@ export function Timeline({
         const snapped = interval > 0
           ? Math.max(interval, Math.round(Math.max(0.1, currentDrag.origDuration! + deltaTime) / interval) * interval)
           : Math.max(0.1, currentDrag.origDuration! + deltaTime);
-        if (snapped !== currentDrag.effect.duration) {
+        const updateKey = `eff_res_${currentDrag.effect.id}_${snapped}`;
+        if (updateKey !== lastDragUpdateKey.current) {
+          lastDragUpdateKey.current = updateKey;
           onUpdateEffect?.({ ...currentDrag.effect, duration: snapped });
         }
       }
@@ -1908,6 +1959,9 @@ export function Timeline({
     return () => {
       if (dragAutoScrollRaf.current !== null) {
         cancelAnimationFrame(dragAutoScrollRaf.current);
+      }
+      if (dragRaf.current !== null) {
+        cancelAnimationFrame(dragRaf.current);
       }
     };
   }, []);
@@ -1991,7 +2045,15 @@ export function Timeline({
     dragPointerX.current = e.clientX;
     dragPointerY.current = e.clientY;
     startDragAutoScroller();
-    performDragUpdate(e.clientX, e.clientY);
+
+    if (!dragRaf.current) {
+      dragRaf.current = requestAnimationFrame(() => {
+        dragRaf.current = null;
+        if (dragPointerX.current !== null && dragPointerY.current !== null) {
+          performDragUpdate(dragPointerX.current, dragPointerY.current);
+        }
+      });
+    }
   }, [
     marquee,
     dragState,
@@ -2004,6 +2066,10 @@ export function Timeline({
   ]);
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (dragRaf.current !== null) {
+      cancelAnimationFrame(dragRaf.current);
+      dragRaf.current = null;
+    }
     stopDragAutoScroller();
     if (marquee) {
       try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* intentional no-op */ }
@@ -2012,6 +2078,8 @@ export function Timeline({
     }
     if (dragState) {
       try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* intentional no-op */ }
+      performDragUpdate(e.clientX, e.clientY);
+      lastDragUpdateKey.current = '';
       if (dragState.targetType === 'batch_events' && Math.abs(e.clientX - dragState.startX) < 3 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
         if (dragState.event) {
           onSelectEvent(dragState.event);
