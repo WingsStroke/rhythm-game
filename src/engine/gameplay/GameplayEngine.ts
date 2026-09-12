@@ -194,12 +194,45 @@ export class GameplayEngine {
       }
     }
 
+    // Auto-chain consecutive hold notes when player maintains the pad pressed
+    for (let i = 0; i < this.pending.length; i++) {
+      const pendingEvt = this.pending[i];
+      if (
+        pendingEvt.behavior === 'hold' &&
+        !this.loopChildIds.has(pendingEvt.id) &&
+        this.pressedPads.has(pendingEvt.padId)
+      ) {
+        const offset = Math.abs(time - pendingEvt.targetTime);
+        if (offset <= this.windows.good) {
+          this.pending.splice(i, 1);
+          i--;
+          const signedOffset = time - pendingEvt.targetTime;
+          this.evaluateHoldStart(pendingEvt, offset, signedOffset);
+        }
+      }
+    }
+
     // Deactivate expired holds
     for (const [id, evt] of this.activeHolds) {
       if (evt.duration !== undefined && time >= evt.targetTime + evt.duration) {
         this.activeHolds.delete(id);
-        this.emitPadStateChange(evt.padId, 'holding', 'success', evt);
-        this.schedulePadStateTransition(evt.padId, 'success', 'ready', 300);
+        const s = this.playerState;
+        this.applyHitScore('perfect');
+        this.eventBus?.emit({
+          type: 'HIT_PERFECT',
+          padId: evt.padId,
+          time,
+          event: evt,
+          score: s.score,
+          combo: s.combo,
+        });
+        this.onScoreChange?.(this.state);
+
+        const otherHoldOnPad = Array.from(this.activeHolds.values()).some((h) => h.padId === evt.padId);
+        if (!otherHoldOnPad) {
+          this.emitPadStateChange(evt.padId, 'holding', 'success', evt);
+          this.schedulePadStateTransition(evt.padId, 'success', 'ready', 300);
+        }
       }
     }
 
@@ -318,7 +351,7 @@ export class GameplayEngine {
         this.evaluateTap(bestEvt, bestOffset, signedOffset);
         break;
       case 'hold':
-        this.evaluateHoldStart(bestEvt, bestOffset);
+        this.evaluateHoldStart(bestEvt, bestOffset, signedOffset);
         break;
       case 'loop':
         this.evaluateLoopStart(bestEvt, bestOffset, signedOffset);
@@ -338,14 +371,54 @@ export class GameplayEngine {
       const heldDuration = time - evt.targetTime;
       const required = evt.duration ?? 0;
       const heldEnough = required === 0 || heldDuration >= required * 0.8;
+      const s = this.playerState;
+      const otherHoldOnPad = Array.from(this.activeHolds.values()).some((h) => h.padId === pad);
 
       if (heldEnough) {
-        this.emitPadStateChange(pad, 'holding', 'success', evt);
-        this.schedulePadStateTransition(pad, 'success', 'ready', 300);
+        this.applyHitScore('good');
+        this.eventBus?.emit({
+          type: 'HIT_GOOD',
+          padId: pad,
+          time,
+          event: evt,
+          score: s.score,
+          combo: s.combo,
+        });
+        this.onScoreChange?.(this.state);
+
+        if (!otherHoldOnPad) {
+          this.emitPadStateChange(pad, 'holding', 'success', evt);
+          this.schedulePadStateTransition(pad, 'success', 'ready', 300);
+        }
       } else {
-        // Released too early — treat as dropped sustain without score/combo impact
-        this.emitPadStateChange(pad, 'holding', 'miss', evt);
-        this.schedulePadStateTransition(pad, 'miss', 'ready', 400);
+        // Released too early — treat as dropped sustain and break combo
+        if (s.combo > 0) {
+          this.onComboBreak?.();
+          this.eventBus?.emit({
+            type: 'COMBO_BREAK',
+            padId: pad,
+            time,
+            event: evt,
+            score: s.score,
+            combo: 0,
+          });
+        }
+        this.applyMiss();
+        this.eventBus?.emit({
+          type: 'HIT_MISS',
+          padId: pad,
+          time,
+          event: evt,
+          score: s.score,
+          combo: 0,
+        });
+        this.onJudgement?.(evt, 'miss', 0);
+        this.onScoreChange?.(this.state);
+
+        if (!otherHoldOnPad) {
+          this.emitPadStateChange(pad, 'holding', 'miss', evt);
+          this.schedulePadStateTransition(pad, 'miss', 'ready', 400);
+        }
       }
       break;
     }
@@ -358,15 +431,52 @@ export class GameplayEngine {
     this.judge(evt, judgement, signedOffset);
   }
 
-  private evaluateHoldStart(evt: PadEvent, absOffset: number): void {
+  private evaluateHoldStart(evt: PadEvent, absOffset: number, signedOffset: number): void {
     const judgement = this.offsetToJudgement(absOffset);
+    const eventTime = this.getSongTime();
+    const s = this.playerState;
+
     if (judgement === 'miss') {
+      if (s.combo > 0) {
+        this.onComboBreak?.();
+        this.eventBus?.emit({
+          type: 'COMBO_BREAK',
+          padId: evt.padId,
+          time: eventTime,
+          event: evt,
+          score: s.score,
+          combo: 0,
+        });
+      }
+      this.applyMiss();
+      this.eventBus?.emit({
+        type: 'HIT_MISS',
+        padId: evt.padId,
+        time: eventTime,
+        event: evt,
+        score: s.score,
+        combo: 0,
+      });
       this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'miss', evt);
       this.schedulePadStateTransition(evt.padId, 'miss', 'ready', 300);
+      this.onJudgement?.(evt, 'miss', signedOffset);
+      this.onScoreChange?.(this.state);
       return;
     }
 
-    // Valid press — start tracking sustain without score/combo modifications
+    // Valid press — award initial hit points and combo
+    this.applyHitScore(judgement);
+    this.eventBus?.emit({
+      type: judgement === 'perfect' ? 'HIT_PERFECT' : 'HIT_GOOD',
+      padId: evt.padId,
+      time: eventTime,
+      event: evt,
+      score: s.score,
+      combo: s.combo,
+    });
+    this.onJudgement?.(evt, judgement, signedOffset);
+    this.onScoreChange?.(this.state);
+
     this.activeHolds.set(evt.id, evt);
     this.emitPadStateChange(evt.padId, this.padStates.get(evt.padId) ?? 'ready', 'holding', evt);
   }

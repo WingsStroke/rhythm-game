@@ -350,21 +350,24 @@ export class VisualEngine {
               this.activeLoopEventIds.delete(gameEvent.event.id);
               this.notePool?.release(gameEvent.event);
             } else {
-              // Clear active holds associated with this pad
+              // Only clear active holds that have actually expired their duration
+              const songTime = this.currentSongTime;
               for (const id of Array.from(this.activeHoldEventIds)) {
                 const pooled = this.notePool?.get(id);
                 if (pooled && pooled.event?.padId === gameEvent.padId) {
-                  this.activeHoldEventIds.delete(id);
-                  this.notePool?.release(id);
+                  const duration = pooled.event.duration || 0;
+                  if (songTime >= pooled.event.targetTime + duration) {
+                    this.activeHoldEventIds.delete(id);
+                    this.notePool?.release(id);
+                  }
                 }
               }
               // Only clear active loops if the loop duration has actually expired
-              const songTime = this.currentSongTime;
               for (const id of Array.from(this.activeLoopEventIds)) {
                 const pooled = this.notePool?.get(id);
                 if (pooled && pooled.event?.padId === gameEvent.padId) {
-                  const loopEnd = (pooled.event.targetTime ?? 0) + (pooled.event.duration ?? 0);
-                  if (songTime >= loopEnd - 0.05) {
+                  const duration = pooled.event.duration || 0;
+                  if (songTime >= pooled.event.targetTime + duration) {
                     this.activeLoopEventIds.delete(id);
                     this.notePool?.release(id);
                   }
@@ -845,35 +848,41 @@ export class VisualEngine {
   private drawLanes(): void {
     this.laneGfx.clear();
 
+    const screenH = this.app.screen.height;
+    const laneBottom = Math.max(screenH, this.padY + PAD_HEIGHT + 40);
+    const lanePadding = 4;
+    const laneWidth = 100 + lanePadding * 2;
+
     for (const pad of this.pads) {
       const x = this.padXPositions.get(pad.id);
       if (x === undefined) continue;
       const color = this.hexToInt(pad.color);
+      const laneX = x - lanePadding;
 
-      // 1. Black translucent lane column (low opacity)
+      // 1. Black translucent lane column (covers entire lane background from top past the pads)
       this.laneGfx
-        .rect(x, 0, 100, this.padY + PAD_HEIGHT)
+        .rect(laneX, 0, laneWidth, laneBottom)
         .fill({ color: 0x000000, alpha: 0.35 });
 
       // 2. Neon separator lines on left and right borders of the lane
       // Soft neon glow pass
       this.laneGfx
-        .moveTo(x, 0)
-        .lineTo(x, this.padY + PAD_HEIGHT)
+        .moveTo(laneX, 0)
+        .lineTo(laneX, laneBottom)
         .stroke({ color, width: 3, alpha: 0.20 });
       this.laneGfx
-        .moveTo(x + 100, 0)
-        .lineTo(x + 100, this.padY + PAD_HEIGHT)
+        .moveTo(laneX + laneWidth, 0)
+        .lineTo(laneX + laneWidth, laneBottom)
         .stroke({ color, width: 3, alpha: 0.20 });
 
       // Crisp vibrant neon core line
       this.laneGfx
-        .moveTo(x, 0)
-        .lineTo(x, this.padY + PAD_HEIGHT)
+        .moveTo(laneX, 0)
+        .lineTo(laneX, laneBottom)
         .stroke({ color, width: 1.5, alpha: 0.65 });
       this.laneGfx
-        .moveTo(x + 100, 0)
-        .lineTo(x + 100, this.padY + PAD_HEIGHT)
+        .moveTo(laneX + laneWidth, 0)
+        .lineTo(laneX + laneWidth, laneBottom)
         .stroke({ color, width: 1.5, alpha: 0.65 });
     }
   }
@@ -1139,6 +1148,8 @@ export class VisualEngine {
     // 1. Immediately return note sprite to pool, unless it's actively being sustained in a hold or active loop
     if (event.behavior === 'loop') {
       this.activeLoopEventIds.add(event.id);
+    } else if (event.behavior === 'hold' && (judgement === 'perfect' || judgement === 'good')) {
+      this.activeHoldEventIds.add(event.id);
     } else if (this.notePool && !this.activeHoldEventIds.has(event.id) && !this.activeLoopEventIds.has(event.id)) {
       this.notePool.release(event);
     }
