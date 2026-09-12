@@ -105,7 +105,7 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     key={event.id}
                     data-event-item="true"
                     data-event-id={event.id}
-                    className={`absolute top-1/2 -translate-y-1/2 w-5 h-12 rounded-lg transition-all z-20 cursor-grab active:cursor-grabbing ${
+                    className={`absolute top-1/2 -translate-y-1/2 w-5 h-12 rounded-lg transition-[border-color,box-shadow,transform] z-20 cursor-grab active:cursor-grabbing ${
                       isSelected
                         ? 'ring-2 ring-white scale-105 shadow-[0_0_20px_#ffffff]'
                         : 'hover:brightness-125 hover:scale-102'
@@ -133,29 +133,30 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     key={event.id}
                     data-event-item="true"
                     data-event-id={event.id}
-                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center border z-20 cursor-grab active:cursor-grabbing transition-all ${
+                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center border z-20 cursor-grab active:cursor-grabbing overflow-hidden transition-[border-color,box-shadow] ${
                       isSelected
                         ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffffff]'
                         : 'border-white/30 hover:brightness-110'
                     }`}
                     style={{
                       left: x,
-                      width,
+                      width: Math.max(24, width),
                       backgroundColor: `${pad.color}40`,
                       borderLeft: `5px solid ${pad.color}`,
                     }}
                     onPointerDown={(e) => onEventMove(e, event)}
                   >
-                    <span className="text-[11px] font-mono font-bold text-white/90 px-2 truncate flex-1 pointer-events-none">
+                    <span className="text-[11px] font-mono font-bold text-white/90 px-2 min-w-0 truncate flex-1 pointer-events-none mr-5">
                       HOLD ({(event.duration || 0).toFixed(2)}s)
                     </span>
-                    {activeTool === 'select' && (
+                    {(activeTool === 'select' || activeTool === 'pen') && (
                       <div
                         data-event-item="true"
-                        className="w-4 h-full hover:bg-white/40 rounded-r-md cursor-ew-resize flex items-center justify-center flex-shrink-0"
+                        className="absolute right-0 top-0 bottom-0 w-6 hover:bg-white/30 cursor-ew-resize flex items-center justify-center z-30 transition-colors"
                         onPointerDown={(e) => onEventResize(e, event)}
+                        title="Arrastrar para cambiar duración"
                       >
-                        <div className="w-1.5 h-6 bg-white/70 rounded-full pointer-events-none" />
+                        <div className="w-1.5 h-6 bg-white/80 rounded-full shadow-[0_0_6px_rgba(255,255,255,0.6)] pointer-events-none" />
                       </div>
                     )}
                   </div>
@@ -167,7 +168,7 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     key={event.id}
                     data-event-item="true"
                     data-event-id={event.id}
-                    className={`absolute top-1 bottom-1 rounded-lg flex items-center border transition-all z-10 ${
+                    className={`absolute top-1 bottom-1 rounded-lg flex items-center border transition-[border-color,box-shadow] z-10 ${
                       activeTool === 'pen'
                         ? 'pointer-events-none'
                         : 'cursor-grab active:cursor-grabbing'
@@ -200,7 +201,7 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     </div>
 
                     {/* End handle (Punto de Desactivación & Resize) */}
-                    {activeTool === 'select' && (
+                    {(activeTool === 'select' || activeTool === 'pen') && (
                       <div
                         data-event-item="true"
                         className="absolute right-0 top-0 bottom-0 w-6 bg-[#ff0055]/30 hover:bg-[#ff0055]/50 border-l border-[#ff0055]/70 cursor-ew-resize flex items-center justify-center z-30 transition-colors"
@@ -220,7 +221,7 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     key={event.id}
                     data-event-item="true"
                     data-event-id={event.id}
-                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center gap-1.5 px-2.5 border-2 z-20 cursor-grab active:cursor-grabbing transition-all ${
+                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-md flex items-center gap-1.5 px-2.5 border-2 z-20 cursor-grab active:cursor-grabbing transition-[border-color,box-shadow] ${
                       isSelected
                         ? 'ring-2 ring-white border-white shadow-[0_0_20px_#ffea00]'
                         : hasAssignedTrigger
@@ -1440,10 +1441,11 @@ export function Timeline({
 
   const startEventResize = useCallback((e: React.PointerEvent, event: PadEvent) => {
     e.stopPropagation();
-    if (activeTool !== 'select') return;
+    if (activeTool !== 'select' && activeTool !== 'pen') return;
     onSelectEvent(event);
     onSelectTrigger?.(null);
     onSelectNode?.(null);
+    lastDragUpdateKey.current = '';
     setDragState({
       targetType: 'event',
       mode: 'resize',
@@ -1677,6 +1679,8 @@ export function Timeline({
 
   const dragStateRef = useRef(dragState);
   dragStateRef.current = dragState;
+  const levelRef = useRef(level);
+  levelRef.current = level;
   const dragPointerX = useRef<number | null>(null);
   const dragPointerY = useRef<number | null>(null);
   const dragAutoScrollRaf = useRef<number | null>(null);
@@ -1695,9 +1699,11 @@ export function Timeline({
     const subLaneDelta = Math.round(deltaY / subLaneHeight);
 
     if (currentDrag.targetType === 'event' && currentDrag.event) {
-      const otherEvents = level.events.filter((ev) => ev.id !== currentDrag.event!.id);
+      const allEvents = levelRef.current.events;
+      const otherEvents = allEvents.filter((ev) => ev.id !== currentDrag.event!.id);
       if (currentDrag.mode === 'move') {
-        const snapped = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
+        const rawSnapped = snapTimeToGrid(Math.max(0, currentDrag.origTargetTime! + deltaTime), level.timing.bpm, gridSubdivision);
+        const snapped = Number(rawSnapped.toFixed(4));
         const updateKey = `evt_move_${currentDrag.event.id}_${snapped}`;
         if (updateKey !== lastDragUpdateKey.current) {
           const candidate = { ...currentDrag.event, targetTime: snapped };
@@ -1711,13 +1717,15 @@ export function Timeline({
         let snapped = interval > 0
           ? Math.max(interval, Math.round(Math.max(0.05, currentDrag.origDuration! + deltaTime) / interval) * interval)
           : Math.max(0.05, currentDrag.origDuration! + deltaTime);
+        snapped = Number(snapped.toFixed(4));
 
         // Magnetic snap: clamp to avoid overlapping next barrier on the same pad
         const isLoop = currentDrag.event.behavior === 'loop';
         const nextBarrierOnPad = otherEvents
           .filter((ev) => {
             if (ev.padId !== currentDrag.event!.padId) return false;
-            if (ev.targetTime < currentDrag.event!.targetTime) return false;
+            // Barrier must be strictly in front of this event (by at least 2ms tolerance)
+            if (ev.targetTime <= currentDrag.event!.targetTime + 0.002) return false;
             if (isLoop) {
               // Loops can enclose instant notes (tap, trigger); only another Loop or Hold forms an outer boundary
               return ev.behavior === 'loop' || ev.behavior === 'hold';
@@ -1728,7 +1736,7 @@ export function Timeline({
 
         if (nextBarrierOnPad) {
           const maxDuration = Math.max(interval > 0 ? interval : 0.05, nextBarrierOnPad.targetTime - currentDrag.event!.targetTime);
-          snapped = Math.min(snapped, maxDuration);
+          snapped = Math.min(snapped, Number(maxDuration.toFixed(4)));
         }
 
         const updateKey = `evt_res_${currentDrag.event.id}_${snapped}`;
