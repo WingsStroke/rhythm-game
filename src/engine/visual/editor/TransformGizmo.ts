@@ -1,4 +1,4 @@
-import { Container, Graphics, Rectangle, type Application } from 'pixi.js';
+import { Container, Graphics, Rectangle, Text, type Application } from 'pixi.js';
 import type { SceneNode } from '../objects/SceneNode';
 import type { SceneNodeData } from '../../types';
 
@@ -37,13 +37,20 @@ export class TransformGizmo extends Container {
   private outlineGraphics: Graphics;
   private moveHitArea: Graphics;
   private handles: Map<GizmoHandleType, HandleInfo> = new Map();
+  private rotateHandle: Graphics;
+  private resizeModeToggleBtn: Graphics;
+
+  // Rotation snapping & floating angle badge
+  public snapAngleStepDeg = 15;
+  public rotationSnapAlwaysOn = false;
+  private rotationBadge: Container;
+  private rotationBadgeBg: Graphics;
+  private rotationBadgeText: Text;
 
   private selectedNodes: SceneNode[] = [];
   private isDragging = false;
   private dragMode: 'none' | 'translate' | 'scale' | 'rotate' = 'none';
   private activeHandle: GizmoHandleType | null = null;
-  private rotateHandle: Graphics;
-  private resizeModeToggleBtn: Graphics;
   private isCenteredResize: boolean = true;
   private rotateCenterScreen = { x: 0, y: 0 };
   private startRotateAngle = 0;
@@ -116,6 +123,24 @@ export class TransformGizmo extends Container {
       this.update();
     });
     this.addChild(this.resizeModeToggleBtn);
+
+    // 6. Floating Rotation Angle Badge
+    this.rotationBadge = new Container();
+    this.rotationBadge.visible = false;
+    this.rotationBadgeBg = new Graphics();
+    this.rotationBadgeText = new Text({
+      text: '0.0°',
+      style: {
+        fontFamily: 'Orbitron, monospace',
+        fontSize: 11,
+        fill: 0x00e5ff,
+        fontWeight: 'bold',
+      },
+    });
+    this.rotationBadgeText.anchor.set(0.5);
+    this.rotationBadge.addChild(this.rotationBadgeBg);
+    this.rotationBadge.addChild(this.rotationBadgeText);
+    this.addChild(this.rotationBadge);
 
     this.boundOnPointerMove = this.onGlobalPointerMove.bind(this);
     this.boundOnPointerUp = () => this.onGlobalPointerUp();
@@ -599,15 +624,44 @@ export class TransformGizmo extends Container {
       );
       const deltaAngle = currentAngle - this.startRotateAngle;
 
+      const isSnapActive = e.shiftKey || this.rotationSnapAlwaysOn;
+      const stepRad = (this.snapAngleStepDeg * Math.PI) / 180;
+      let primaryRot = 0;
+
       for (const state of this.initialStates.values()) {
         let newRot = state.rotation + deltaAngle;
-        if (e.shiftKey) {
-          // Snap to 15-degree increments (PI / 12)
-          const step = Math.PI / 12;
-          newRot = Math.round(newRot / step) * step;
+        if (isSnapActive) {
+          newRot = Math.round(newRot / stepRad) * stepRad;
         }
         state.node.container.rotation = newRot;
+        primaryRot = newRot;
       }
+
+      // Update and position floating rotation badge
+      const rawDeg = ((primaryRot * 180) / Math.PI) % 360;
+      const displayDeg = rawDeg < 0 ? rawDeg + 360 : rawDeg;
+      const snapLabel = isSnapActive ? ' [SNAP]' : '';
+      this.rotationBadgeText.text = `${displayDeg.toFixed(1)}°${snapLabel}`;
+
+      const textBounds = this.rotationBadgeText.getLocalBounds();
+      const padX = 8;
+      const padY = 4;
+      this.rotationBadgeBg.clear();
+      this.rotationBadgeBg
+        .roundRect(
+          textBounds.x - padX,
+          textBounds.y - padY,
+          textBounds.width + padX * 2,
+          textBounds.height + padY * 2,
+          6
+        )
+        .fill({ color: 0x0a0b14, alpha: 0.9 })
+        .stroke({ width: 1.5, color: isSnapActive ? 0x00ff9d : 0x00e5ff, alpha: 0.9 });
+
+      const badgeX = this.rotateCenterScreen.x + Math.cos(currentAngle) * 55;
+      const badgeY = this.rotateCenterScreen.y + Math.sin(currentAngle) * 55;
+      this.rotationBadge.position.set(badgeX, badgeY);
+      this.rotationBadge.visible = true;
     } else if (this.dragMode === 'scale' && this.activeHandle) {
       const isCentered = this.isCenteredResize;
       const factor = isCentered ? 2 : 1;
@@ -821,6 +875,7 @@ export class TransformGizmo extends Container {
     this.dragMode = 'none';
     this.activeHandle = null;
     this.rotateHandle.cursor = 'grab';
+    this.rotationBadge.visible = false;
 
     window.removeEventListener('pointermove', this.boundOnPointerMove);
     window.removeEventListener('pointerup', this.boundOnPointerUp);
