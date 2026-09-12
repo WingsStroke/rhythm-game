@@ -214,6 +214,8 @@ export interface SceneNodeTransform {
   rotation?: number;
   scaleX?: number;
   scaleY?: number;
+  skewX?: number;
+  skewY?: number;
   opacity?: number;
   pivotX?: number;
   pivotY?: number;
@@ -296,6 +298,7 @@ export type TriggerActionType =
   | 'pos'
   | 'rot'
   | 'scale'
+  | 'skew'
   | 'color'
   | 'pulse'
   | 'transform'
@@ -311,7 +314,10 @@ export type ShaderEffectType =
   | 'glitch'
   | 'colorGrade'
   | 'rgbShift'
-  | 'shockwave';
+  | 'shockwave'
+  | 'grain'
+  | 'zoomBlur'
+  | 'shake';
 export type EffectType = TriggerEffectType | ShaderEffectType | string;
 
 export interface TriggerData {

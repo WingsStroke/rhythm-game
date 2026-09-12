@@ -12,6 +12,8 @@ export function getTriggerColor(action: TriggerActionType): string {
       return '#ff007f';
     case 'scale':
       return '#00ff9d';
+    case 'skew':
+      return '#38bdf8';
     case 'color':
       return '#b388ff';
     case 'pulse':

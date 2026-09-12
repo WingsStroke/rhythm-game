@@ -294,7 +294,17 @@ export class LevelValidator {
 
       // Sanitize transform and blendMode without artificial opacity/blend restrictions
       const rawTransform = (node.transform as SceneNodeData['transform']) || { x: 960, y: 540 };
-      const transform = { ...rawTransform };
+      const transform = {
+        ...rawTransform,
+        skewX:
+          typeof rawTransform.skewX === 'number' && Number.isFinite(rawTransform.skewX)
+            ? rawTransform.skewX
+            : undefined,
+        skewY:
+          typeof rawTransform.skewY === 'number' && Number.isFinite(rawTransform.skewY)
+            ? rawTransform.skewY
+            : undefined,
+      };
       const blendMode: SceneNodeData['blendMode'] =
         (node.blendMode as SceneNodeData['blendMode']) || 'normal';
 

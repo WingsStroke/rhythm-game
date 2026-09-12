@@ -77,6 +77,8 @@ export class Animator {
       case 'scaleY': return node.container.scale.y;
       case 'scale': return node.container.scale.x;
       case 'rotation': return node.container.rotation;
+      case 'skewX': return node.container.skew.x;
+      case 'skewY': return node.container.skew.y;
       case 'alpha':
       case 'opacity': return node.container.alpha;
       case 'pivotX': return node.container.pivot.x;
@@ -141,6 +143,12 @@ export class Animator {
         break;
       case 'rotation':
         node.container.rotation = value;
+        break;
+      case 'skewX':
+        node.container.skew.x = value;
+        break;
+      case 'skewY':
+        node.container.skew.y = value;
         break;
       case 'alpha':
       case 'opacity':

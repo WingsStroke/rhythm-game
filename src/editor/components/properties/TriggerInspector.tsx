@@ -200,6 +200,8 @@ export function TriggerInspector({
               defaultProps = { rotation: 0 };
             } else if (action === 'scale') {
               defaultProps = { scale: 1.25, scaleX: 1.25, scaleY: 1.25 };
+            } else if (action === 'skew') {
+              defaultProps = { skewX: 0, skewY: 0 };
             } else if (action === 'color') {
               defaultProps = { color: '#ff007f', opacity: 1 };
             } else if (action === 'pulse') {
@@ -216,6 +218,7 @@ export function TriggerInspector({
           <option value="pos">Position (Pos)</option>
           <option value="rot">Rotation (Rot)</option>
           <option value="scale">Scale</option>
+          <option value="skew">Perspective (Skew)</option>
           <option value="color">Color</option>
           <option value="pulse">Audio Pulse (FFT Band)</option>
         </select>
@@ -308,6 +311,50 @@ export function TriggerInspector({
               className="mt-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-white font-mono"
             />
           </label>
+        )}
+
+        {/* Skew */}
+        {selectedTrigger.action === 'skew' && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col text-white/60">
+              Skew X (deg)
+              <NumericInput
+                step="5"
+                min={-85}
+                max={85}
+                value={Math.round((((selectedTrigger.properties.skewX as number) ?? 0) * 180) / Math.PI)}
+                onChange={(val) =>
+                  onUpdateTrigger({
+                    ...selectedTrigger,
+                    properties: {
+                      ...selectedTrigger.properties,
+                      skewX: (val * Math.PI) / 180,
+                    },
+                  })
+                }
+                className="mt-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-white font-mono"
+              />
+            </label>
+            <label className="flex flex-col text-white/60">
+              Skew Y (deg)
+              <NumericInput
+                step="5"
+                min={-85}
+                max={85}
+                value={Math.round((((selectedTrigger.properties.skewY as number) ?? 0) * 180) / Math.PI)}
+                onChange={(val) =>
+                  onUpdateTrigger({
+                    ...selectedTrigger,
+                    properties: {
+                      ...selectedTrigger.properties,
+                      skewY: (val * Math.PI) / 180,
+                    },
+                  })
+                }
+                className="mt-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-white font-mono"
+              />
+            </label>
+          </div>
         )}
 
         {/* Color */}

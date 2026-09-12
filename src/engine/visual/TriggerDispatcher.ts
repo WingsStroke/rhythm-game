@@ -106,6 +106,17 @@ export class TriggerDispatcher {
           if (sx !== undefined && !Number.isNaN(sx)) this.animator.applyPropertyToNode(node, 'scaleX', sx);
           if (sy !== undefined && !Number.isNaN(sy)) this.animator.applyPropertyToNode(node, 'scaleY', sy);
         }
+      } else if (trigger.action === 'skew') {
+        for (const node of targetNodes) {
+          if (trigger.properties.skewX !== undefined) {
+            const sx = Number(trigger.properties.skewX);
+            if (!Number.isNaN(sx)) this.animator.applyPropertyToNode(node, 'skewX', sx);
+          }
+          if (trigger.properties.skewY !== undefined) {
+            const sy = Number(trigger.properties.skewY);
+            if (!Number.isNaN(sy)) this.animator.applyPropertyToNode(node, 'skewY', sy);
+          }
+        }
       } else if (trigger.action === 'color' || trigger.action === 'appearance') {
         for (const node of targetNodes) {
           if (trigger.properties.opacity !== undefined) {
@@ -206,6 +217,40 @@ export class TriggerDispatcher {
           const targets = [
             { prop: 'scaleX', val: sx },
             { prop: 'scaleY', val: sy },
+          ];
+          for (const { prop, val } of targets) {
+            if (val !== undefined && !Number.isNaN(val)) {
+              if (trigger.duration > 0) {
+                const currentVal = this.animator.getNodeProperty(node.id, prop);
+                this.animator.addTransition(
+                  node.id,
+                  prop,
+                  currentVal,
+                  val,
+                  trigger.duration,
+                  trigger.easing ?? 'linear',
+                  currentTime
+                );
+              } else {
+                this.animator.applyPropertyToNode(node, prop, val);
+              }
+            }
+          }
+        }
+        break;
+      }
+
+      case 'skew': {
+        for (const node of targetNodes) {
+          const targets = [
+            {
+              prop: 'skewX',
+              val: trigger.properties.skewX !== undefined ? Number(trigger.properties.skewX) : undefined,
+            },
+            {
+              prop: 'skewY',
+              val: trigger.properties.skewY !== undefined ? Number(trigger.properties.skewY) : undefined,
+            },
           ];
           for (const { prop, val } of targets) {
             if (val !== undefined && !Number.isNaN(val)) {

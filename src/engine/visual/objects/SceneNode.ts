@@ -103,6 +103,8 @@ export class SceneNode {
     if (transform.scaleX !== undefined) this.container.scale.x = transform.scaleX;
     if (transform.scaleY !== undefined) this.container.scale.y = transform.scaleY;
     if (transform.rotation !== undefined) this.container.rotation = transform.rotation;
+    if (transform.skewX !== undefined) this.container.skew.x = transform.skewX;
+    if (transform.skewY !== undefined) this.container.skew.y = transform.skewY;
     if (transform.opacity !== undefined) this.container.alpha = transform.opacity;
     if (transform.pivotX !== undefined) this.container.pivot.x = transform.pivotX;
     if (transform.pivotY !== undefined) this.container.pivot.y = transform.pivotY;

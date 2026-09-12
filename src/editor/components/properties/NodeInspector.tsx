@@ -366,6 +366,46 @@ export function NodeInspector({
         </label>
       </div>
 
+      {/* Perspective Skew (Pseudo-3D) */}
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col text-white/60">
+          Skew X (deg)
+          <NumericInput
+            step="1"
+            min={-85}
+            max={85}
+            value={Math.round((((selectedNode.transform?.skewX ?? 0) * 180) / Math.PI))}
+            onChange={(val) =>
+              onUpdateNode({
+                transform: {
+                  ...selectedNode.transform,
+                  skewX: (val * Math.PI) / 180,
+                },
+              })
+            }
+            className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00e5ff] outline-none"
+          />
+        </label>
+        <label className="flex flex-col text-white/60">
+          Skew Y (deg)
+          <NumericInput
+            step="1"
+            min={-85}
+            max={85}
+            value={Math.round((((selectedNode.transform?.skewY ?? 0) * 180) / Math.PI))}
+            onChange={(val) =>
+              onUpdateNode({
+                transform: {
+                  ...selectedNode.transform,
+                  skewY: (val * Math.PI) / 180,
+                },
+              })
+            }
+            className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono focus:border-[#00e5ff] outline-none"
+          />
+        </label>
+      </div>
+
       {/* Opacity */}
       <label className="flex flex-col gap-1 text-white/60">
         <div className="flex justify-between items-center">
