@@ -36,7 +36,7 @@ function duplicateSceneNode(
 ): SceneNodeData {
   const cloned: SceneNodeData = JSON.parse(JSON.stringify(source));
   cloned.uid = newUid;
-  cloned.id = newUid;
+  cloned.id = source.targetId ?? source.id ?? newUid;
   if (cloned.name) {
     cloned.name = `${cloned.name}-copy`;
   }
@@ -678,10 +678,11 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
   }, [setLevel]);
 
   const handleRemoveBatch = useCallback((eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>, effectIds?: Set<string>) => {
-    const eIds = eventIds ?? selectedEventIds;
-    const tIds = triggerIds ?? selectedTriggerIds;
-    const nIds = nodeIds ?? selectedNodeIds;
-    const efIds = effectIds ?? selectedEffectIds;
+    const isGenericCall = eventIds === undefined && triggerIds === undefined && nodeIds === undefined && effectIds === undefined;
+    const eIds = eventIds ?? (isGenericCall ? selectedEventIds : new Set<string>());
+    const tIds = triggerIds ?? (isGenericCall ? selectedTriggerIds : new Set<string>());
+    const nIds = nodeIds ?? (isGenericCall ? selectedNodeIds : new Set<string>());
+    const efIds = effectIds ?? (isGenericCall ? selectedEffectIds : new Set<string>());
 
     if (eIds.size > 0 || tIds.size > 0 || nIds.size > 0 || efIds.size > 0) {
       setLevel((prev) => ({

@@ -162,7 +162,7 @@ export const PadTracksLane = React.memo(function PadTracksLane({
                     {(activeTool === 'select' || activeTool === 'pen') && (
                       <div
                         data-event-item="true"
-                        className="absolute right-0 top-0 bottom-0 w-6 bg-[#ff0055]/30 hover:bg-[#ff0055]/50 border-l border-[#ff0055]/70 cursor-ew-resize flex items-center justify-center z-30 transition-colors"
+                        className="absolute right-0 top-0 bottom-0 w-6 bg-[#ff0055]/30 hover:bg-[#ff0055]/50 border-l border-[#ff0055]/70 cursor-ew-resize flex items-center justify-center z-30 transition-colors pointer-events-auto"
                         onPointerDown={(e) => onEventResize(e, event)}
                         title="Fin de Bucle (Presionar para desactivar en gameplay / Arrastrar para duración)"
                       >

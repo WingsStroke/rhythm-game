@@ -35,7 +35,7 @@ export function NodeInspector({
         <button
           onClick={() => {
             const ids = new Set(selectedNodes.map((n) => n.uid));
-            onRemoveBatch?.(new Set(), new Set(), ids);
+            onRemoveBatch?.(new Set(), new Set(), ids, new Set());
           }}
           className="mt-2 w-full py-2 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold flex items-center justify-center gap-1.5 border border-red-500/30 transition-colors cursor-pointer"
         >

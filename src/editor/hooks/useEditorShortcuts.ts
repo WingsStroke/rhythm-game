@@ -102,7 +102,7 @@ export function useEditorShortcuts({
       }
 
       // Record shortcut (R)
-      if (e.code === 'KeyR') {
+      if (e.code === 'KeyR' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         onToggleRecord?.();
         return;
@@ -135,16 +135,18 @@ export function useEditorShortcuts({
         return;
       }
 
-      if (e.code === 'KeyV') {
-        onSelectTool('select');
-      } else if (e.code === 'KeyB') {
-        onSelectTool('pen');
-      } else if (e.code === 'KeyE') {
-        onSelectTool('eraser');
-      } else if (e.code === 'KeyO') {
-        onSelectTool('object');
-      } else if (e.code === 'KeyS') {
-        onSelectTool('shader');
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.code === 'KeyV') {
+          onSelectTool('select');
+        } else if (e.code === 'KeyB') {
+          onSelectTool('pen');
+        } else if (e.code === 'KeyE') {
+          onSelectTool('eraser');
+        } else if (e.code === 'KeyO') {
+          onSelectTool('object');
+        } else if (e.code === 'KeyS') {
+          onSelectTool('shader');
+        }
       }
     };
 

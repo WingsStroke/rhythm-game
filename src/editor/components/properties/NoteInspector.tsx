@@ -111,7 +111,7 @@ export function NoteInspector({
         <button
           onClick={() => {
             const ids = new Set(selectedEvents.map((e) => e.id));
-            onRemoveBatch?.(ids, new Set());
+            onRemoveBatch?.(ids, new Set(), new Set(), new Set());
           }}
           className="mt-2 w-full py-2 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold flex items-center justify-center gap-1.5 border border-red-500/30 transition-colors cursor-pointer"
         >
