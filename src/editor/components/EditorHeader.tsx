@@ -27,7 +27,6 @@ interface EditorHeaderProps {
   currentTime: number;
   isPlaying: boolean;
   isRecording: boolean;
-  enableHitsounds: boolean;
   playbackSpeed?: number;
   onChangePlaybackSpeed?: (speed: number) => void;
   canUndo?: boolean;
@@ -36,7 +35,6 @@ interface EditorHeaderProps {
   onRedo?: () => void;
   onTogglePlay: () => void;
   onToggleRecord: () => void;
-  onToggleHitsounds: () => void;
   onStop: () => void;
   onLoadAudioFile: (file: File) => void;
   onImportJson: (file: File) => void;
@@ -52,7 +50,6 @@ export function EditorHeader({
   currentTime,
   isPlaying,
   isRecording,
-  enableHitsounds,
   playbackSpeed = 1.0,
   onChangePlaybackSpeed,
   canUndo = false,
@@ -61,7 +58,6 @@ export function EditorHeader({
   onRedo,
   onTogglePlay,
   onToggleRecord,
-  onToggleHitsounds,
   onStop,
   onLoadAudioFile,
   onImportJson,
@@ -196,19 +192,7 @@ export function EditorHeader({
           <Square className="w-3.5 h-3.5" /> STOP
         </button>
 
-        {/* Hitsound Toggle */}
-        <button
-          onClick={onToggleHitsounds}
-          title={enableHitsounds ? 'Hitsounds Enabled (Low-latency audio click)' : 'Hitsounds Disabled'}
-          className={`px-3.5 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-2 shadow-sm border whitespace-nowrap shrink-0 cursor-pointer ${
-            enableHitsounds
-              ? 'bg-[#00ff9d]/20 text-[#00ff9d] border-[#00ff9d]/40 hover:bg-[#00ff9d]/30'
-              : 'bg-white/10 text-white/40 border-white/10 hover:bg-white/20'
-          }`}
-        >
-          {enableHitsounds ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-          {enableHitsounds ? 'HITS' : 'MUTE'}
-        </button>
+
 
         {/* Playback Speed Input (0.25x - 4x) */}
         {onChangePlaybackSpeed && (

@@ -41,8 +41,8 @@ export class Game {
 
   private isPreRolling = false;
 
-  get songSource(): 'file' | 'procedural' {
-    return this.transport.isUsingFile ? 'file' : 'procedural';
+  get songSource(): 'file' {
+    return 'file';
   }
 
   get isPaused(): boolean {
@@ -89,16 +89,21 @@ export class Game {
     songRegistry.registerSong(this.level.song);
 
     const songId = this.level.songId || this.level.song.id;
-    const cachedBuffer = songRegistry.getAudioBuffer(songId);
+    let cachedBuffer = songRegistry.getActiveAudioBuffer(songId);
 
-    if (cachedBuffer) {
-      // Instant in-memory cache hit: skip fetch and decodeAudioData
-      this.transport.loadAudioBuffer(cachedBuffer);
-    } else {
+    if (!cachedBuffer) {
       const audioUrl = this.level.song.url || this.level.song.audioUrl;
       if (audioUrl) {
         await this.transport.loadFile(audioUrl, songId);
+        cachedBuffer = songRegistry.getActiveAudioBuffer(songId);
       }
+    }
+
+    if (cachedBuffer) {
+      // Instant in-memory cache hit or decoded buffer load
+      this.transport.loadAudioBuffer(cachedBuffer);
+    } else {
+      console.warn('[Game] No AudioBuffer found for level song:', songId);
     }
 
     // 3. Initialize visual engine (PixiJS)
@@ -188,7 +193,6 @@ export class Game {
     this.input.onPadPress = (pad) => {
       if (this._isPaused) return;
       this.visual.pressPad(pad);
-      this.transport.playHitsound(pad);
     };
     this.input.onPadRelease = (pad) => {
       if (this._isPaused) return;

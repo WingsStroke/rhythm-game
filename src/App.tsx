@@ -265,7 +265,7 @@ function StartScreen({
                 hasSongFile ? 'bg-[#00ff9d] shadow-[0_0_8px_#00ff9d]' : 'bg-[#ffcc00] shadow-[0_0_8px_#ffcc00]'
               } animate-pulse`}
             />
-            <span>{hasSongFile ? 'External Audio File' : 'Procedural Synthesizer'}</span>
+            <span>{hasSongFile ? 'External Audio File' : 'Level Audio Stream'}</span>
           </div>
 
           {/* SongRegistry Buffer Cache Status */}

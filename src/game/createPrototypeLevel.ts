@@ -107,11 +107,11 @@ export function createPrototypeLevel(
         },
       ],
       settings: {
-        backgroundReactive: true,
-        gridEnabled: true,
-        gridReactive: true,
-        rgbShiftEnabled: true,
-        bloomIntensity: 1.06,
+        backgroundReactive: false,
+        gridEnabled: false,
+        gridReactive: false,
+        rgbShiftEnabled: false,
+        bloomIntensity: 1.0,
       },
     },
   };

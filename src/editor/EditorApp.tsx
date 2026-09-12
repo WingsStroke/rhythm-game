@@ -797,13 +797,11 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     canvasContainerRef,
     isPlaying,
     isRecording,
-    enableHitsounds,
     playbackSpeed,
     setPlaybackSpeed,
     currentTime,
     togglePlay,
     toggleRecord,
-    toggleHitsounds,
     handleStop,
     handleSeek,
     loadAudioFile,
@@ -1289,7 +1287,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         currentTime={currentTime}
         isPlaying={isPlaying}
         isRecording={isRecording}
-        enableHitsounds={enableHitsounds}
         playbackSpeed={playbackSpeed}
         onChangePlaybackSpeed={setPlaybackSpeed}
         canUndo={canUndo}
@@ -1298,7 +1295,6 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
         onRedo={redo}
         onTogglePlay={togglePlay}
         onToggleRecord={toggleRecord}
-        onToggleHitsounds={toggleHitsounds}
         onStop={handleStop}
         onLoadAudioFile={handleAudioLoad}
         onImportJson={handleJsonImport}

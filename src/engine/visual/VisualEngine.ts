@@ -1238,15 +1238,11 @@ export class VisualEngine {
 
     const settings = this.level.visual?.settings;
 
-    // 3. Modulated background response from level visual settings
-    if (this.isEditorPreview) {
-      this.bgRect.clear();
-      this.bgRect.rect(0, 0, w, h).fill({ color: 0x000000 });
-      this.bgGrid.clear();
-    } else {
-      const bgReactive = settings?.backgroundReactive !== false;
+    // 3. Modulated background response from level visual settings (only if explicitly enabled)
+    const bgReactive = Boolean(settings?.backgroundReactive);
+    if (bgReactive) {
       const bgBassMult = settings?.backgroundBassMultiplier ?? 0.6;
-      const bgIntensity = bgReactive ? (channels.bassIntensity * bgBassMult + this.beatPulse * 0.4) : 0;
+      const bgIntensity = channels.bassIntensity * bgBassMult + this.beatPulse * 0.4;
       const br = Math.min(255, 7 + bgIntensity * 35);
       const bg = Math.min(255, 7 + bgIntensity * 18);
       const bb = Math.min(255, 20 + bgIntensity * 55);
@@ -1254,22 +1250,25 @@ export class VisualEngine {
       this.bgRect
         .rect(0, 0, w, h)
         .fill({ color: (Math.round(br) << 16) | (Math.round(bg) << 8) | Math.round(bb) });
+    } else {
+      this.bgRect.clear();
+      this.bgRect.rect(0, 0, w, h).fill({ color: 0x000000 });
+    }
 
-      // 4. Modulated Grid pulse from level visual settings
-      this.bgGrid.clear();
-      const gridEnabled = settings?.gridEnabled !== false;
-      if (gridEnabled) {
-        const gridReactive = settings?.gridReactive !== false;
-        const gridAlpha = 0.04 + (gridReactive ? (this.beatPulse * 0.08 + channels.midsReactivity * 0.04) : 0);
-        const gridSpacing = 40 + (gridReactive ? channels.bassIntensity * 8 : 0);
-        for (let gx = 0; gx < w; gx += gridSpacing) {
-          this.bgGrid.moveTo(gx, 0).lineTo(gx, h);
-        }
-        for (let gy = 0; gy < h; gy += gridSpacing) {
-          this.bgGrid.moveTo(0, gy).lineTo(w, gy);
-        }
-        this.bgGrid.stroke({ width: 1, color: 0x303055, alpha: gridAlpha });
+    // 4. Modulated Grid pulse from level visual settings (only if explicitly enabled)
+    this.bgGrid.clear();
+    const gridEnabled = Boolean(settings?.gridEnabled);
+    if (gridEnabled) {
+      const gridReactive = settings?.gridReactive !== false;
+      const gridAlpha = 0.04 + (gridReactive ? (this.beatPulse * 0.08 + channels.midsReactivity * 0.04) : 0);
+      const gridSpacing = 40 + (gridReactive ? channels.bassIntensity * 8 : 0);
+      for (let gx = 0; gx < w; gx += gridSpacing) {
+        this.bgGrid.moveTo(gx, 0).lineTo(gx, h);
       }
+      for (let gy = 0; gy < h; gy += gridSpacing) {
+        this.bgGrid.moveTo(0, gy).lineTo(w, gy);
+      }
+      this.bgGrid.stroke({ width: 1, color: 0x303055, alpha: gridAlpha });
     }
     this.beatPulse *= 0.92;
 

@@ -54,7 +54,6 @@ export function useEditorEngine({
 }: UseEditorEngineOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [enableHitsounds, setEnableHitsounds] = useState(true);
   const [playbackSpeed, setPlaybackSpeedState] = useState(1.0);
   const [currentTime, setCurrentTime] = useState(0);
 
@@ -86,9 +85,6 @@ export function useEditorEngine({
 
   const customKeybindingsRef = useRef(customKeybindings);
   customKeybindingsRef.current = customKeybindings;
-
-  const enableHitsoundsRef = useRef(enableHitsounds);
-  enableHitsoundsRef.current = enableHitsounds;
 
   const creationBehaviorRef = useRef(creationBehavior);
   creationBehaviorRef.current = creationBehavior;
@@ -131,12 +127,7 @@ export function useEditorEngine({
     input.setKeyMap(map);
 
     input.onPadPress = (padId) => {
-      // 1. Play immediate hitsound if enabled
-      if (enableHitsoundsRef.current) {
-        transportRef.current?.playHitsound(padId);
-      }
-
-      // 2. Animate pad in visual engine
+      // 1. Animate pad in visual engine
       visualRef.current?.pressPad(padId);
 
       // 3. Live recording logic when recording and playback are active
@@ -595,9 +586,7 @@ export function useEditorEngine({
     }
   }, [isRecording, isPlaying, togglePlay]);
 
-  const toggleHitsounds = useCallback(() => {
-    setEnableHitsounds((prev) => !prev);
-  }, []);
+
 
   const loadAudioFile = useCallback(
     async (file: File, songId?: string): Promise<{ success: boolean; duration: number }> => {
@@ -637,14 +626,12 @@ export function useEditorEngine({
     canvasContainerRef,
     isPlaying,
     isRecording,
-    enableHitsounds,
     playbackSpeed,
     setPlaybackSpeed,
     currentTime,
     setCurrentTime,
     togglePlay,
     toggleRecord,
-    toggleHitsounds,
     handleStop,
     handleSeek,
     loadAudioFile,

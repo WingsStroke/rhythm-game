@@ -26,9 +26,7 @@ export class AudioEngine implements TimeSource {
   private waveData: Uint8Array = new Uint8Array(128);
   private spectrumFreqData: Uint8Array = new Uint8Array(256);
 
-  // Synthesis state
-  private musicTimer: number | null = null;
-  private nextBeatTime = 0;
+  // Playback state
   private beatCount = 0;
   private bpm = 120;
   private playing = false;
@@ -185,12 +183,11 @@ export class AudioEngine implements TimeSource {
   ): Promise<{ success: boolean; duration: number }> {
     if (!this.ctx) throw new Error('AudioEngine not initialized — call init() first');
 
-    // 1. Check SongRegistry memory cache if songId is provided
-    if (songId) {
-      const cached = SongRegistry.getInstance().getAudioBuffer(songId);
-      if (cached) {
-        return this.loadAudioBuffer(cached);
-      }
+    // 1. Check SongRegistry memory cache
+    const registry = SongRegistry.getInstance();
+    const cached = songId ? registry.getActiveAudioBuffer(songId) : registry.getLatestAudioBuffer();
+    if (cached) {
+      return this.loadAudioBuffer(cached);
     }
 
     try {
@@ -239,70 +236,10 @@ export class AudioEngine implements TimeSource {
   }
 
   /**
-   * Play an immediate, low-latency synthesized hitsound (<5ms) for the given pad.
+   * Hitsounds have been eliminated per project requirements.
    */
-  playHitsound(padId: string): void {
-    if (!this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      // Use triangle waveform for rich acoustic harmonics so low/mid transients
-      // remain clearly audible on laptop speakers, monitors, and headphones alike.
-      osc.type = 'triangle';
-
-      let startFreq = 440;
-      let endFreq = 220;
-      let hitGain = 0.25;
-      let duration = 0.06;
-
-      if (padId === 'pad_0') {
-        // Pad 0: Punchy Low-Mid Kick (240Hz -> 105Hz).
-        // Uses higher gain and punchy transient to guarantee equal loudness on all speakers.
-        startFreq = 240;
-        endFreq = 105;
-        hitGain = 0.36;
-        duration = 0.07;
-      } else if (padId === 'pad_1') {
-        // Pad 1: Snappy Snare / Low-Mid Snap (360Hz -> 200Hz).
-        startFreq = 360;
-        endFreq = 200;
-        hitGain = 0.26;
-        duration = 0.065;
-      } else if (padId === 'pad_2') {
-        // Pad 2: Crisp Mid Clap / Pop (560Hz -> 380Hz).
-        startFreq = 560;
-        endFreq = 380;
-        hitGain = 0.22;
-        duration = 0.06;
-      } else if (padId === 'pad_3') {
-        // Pad 3: Bright High Bell / Tick (860Hz -> 680Hz).
-        startFreq = 860;
-        endFreq = 680;
-        hitGain = 0.18;
-        duration = 0.055;
-      } else {
-        startFreq = 500;
-        endFreq = 300;
-        hitGain = 0.22;
-        duration = 0.06;
-      }
-
-      osc.frequency.setValueAtTime(startFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(10, endFreq), now + duration * 0.7);
-
-      gain.gain.setValueAtTime(hitGain, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + duration + 0.01);
-    } catch {
-      // AudioContext might be closed or suspended
-    }
+  playHitsound(_padId: string): void {
+    // Hitsounds disabled
   }
 
   /**
@@ -385,10 +322,10 @@ export class AudioEngine implements TimeSource {
       this.masterGain.gain.setValueAtTime(TARGET_GAIN, scheduledStart);
     }
 
-    if (this.useFile && this.audioBuffer) {
+    if (this.audioBuffer) {
       this.startFilePlayback(scheduledStart, offset);
     } else {
-      this.startSynthPlayback(scheduledStart, offset);
+      console.warn('[AudioEngine] No audio buffer loaded for level playback.');
     }
   }
 
@@ -435,28 +372,8 @@ export class AudioEngine implements TimeSource {
     this.beatTimer = window.setTimeout(this.scheduleFileBeats, interval);
   };
 
-  /** Start the procedural synthesizer (fallback when no file is loaded). */
-  private startSynthPlayback(scheduledStart: number, offset: number): void {
-    if (!this.ctx || !this.masterGain) return;
-    const beatLen = 60 / this.bpm;
-    this.beatCount = Math.floor(offset / beatLen);
-    
-    // Find the next upcoming beat time
-    this.nextBeatTime = this.startTime + (this.beatCount * beatLen);
-    while (this.nextBeatTime < scheduledStart) {
-      this.beatCount++;
-      this.nextBeatTime = this.startTime + (this.beatCount * beatLen);
-    }
-    
-    this.scheduleLoop();
-  }
-
   stop(): void {
     this.playing = false;
-    if (this.musicTimer !== null) {
-      clearTimeout(this.musicTimer);
-      this.musicTimer = null;
-    }
     if (this.beatTimer !== null) {
       clearTimeout(this.beatTimer);
       this.beatTimer = null;
@@ -477,159 +394,6 @@ export class AudioEngine implements TimeSource {
     }
   }
 
-  /** Schedule the next batch of beats ahead of time. */
-  private scheduleLoop = (): void => {
-    if (!this.ctx || !this.playing) return;
-    const beatLen = 60 / this.bpm;
-    const lookAhead = 0.25; // schedule 250ms ahead
-    const scheduleUntil = this.ctx.currentTime + lookAhead;
-
-    while (this.nextBeatTime < scheduleUntil) {
-      this.scheduleBeat(this.beatCount, this.nextBeatTime);
-      if (this.onBeat) this.onBeat(this.beatCount, this.nextBeatTime - this.startTime);
-      this.nextBeatTime += beatLen;
-      this.beatCount++;
-    }
-
-    this.musicTimer = window.setTimeout(this.scheduleLoop, 50);
-  };
-
-  /** Synthesize one beat of music. */
-  private scheduleBeat(beatIndex: number, beatTime: number): void {
-    const beatLen = 60 / this.bpm;
-    const eighth = beatLen / 2;
-    const sixteenth = beatLen / 4;
-
-    const inBar = beatIndex % 4;
-
-    // Kick on every beat
-    this.playKick(beatTime);
-
-    // Snare on beats 2 and 4
-    if (inBar === 1 || inBar === 3) {
-      this.playSnare(beatTime);
-    }
-
-    // Hi-hat on every eighth
-    this.playHat(beatTime, 0.3);
-    this.playHat(beatTime + eighth, 0.2);
-    this.playHat(beatTime + beatLen - sixteenth, 0.25);
-
-    // Bass line (root note pattern)
-    const bassNotes = [55, 55, 73.42, 65.41]; // A1, A1, D2, C2
-    this.playBass(beatTime, bassNotes[inBar], beatLen * 0.9);
-
-    // Lead arpeggio on sixteenths
-    const scale = [220, 246.94, 293.66, 329.63, 369.99]; // A minor pentatonic
-    for (let i = 0; i < 4; i++) {
-      const noteIndex = (beatIndex * 4 + i) % scale.length;
-      const freq = scale[noteIndex] * 2;
-      this.playLead(beatTime + i * sixteenth, freq, sixteenth * 0.8);
-    }
-  }
-
-  // ---- Synthesis primitives ----
-
-  private playKick(time: number): void {
-    const ctx = this.ctx!;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.frequency.setValueAtTime(150, time);
-    osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
-    gain.gain.setValueAtTime(0.8, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-    osc.connect(gain);
-    gain.connect(this.masterGain!);
-    osc.start(time);
-    osc.stop(time + 0.2);
-  }
-
-  private playSnare(time: number): void {
-    const ctx = this.ctx!;
-    // Noise burst
-    const bufferSize = ctx.sampleRate * 0.1;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 1000;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.4, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.masterGain!);
-    noise.start(time);
-    noise.stop(time + 0.1);
-  }
-
-  private playHat(time: number, volume: number): void {
-    const ctx = this.ctx!;
-    const bufferSize = ctx.sampleRate * 0.05;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 7000;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(volume * 0.15, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.masterGain!);
-    noise.start(time);
-    noise.stop(time + 0.05);
-  }
-
-  private playBass(time: number, freq: number, dur: number): void {
-    const ctx = this.ctx!;
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.value = freq;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(400, time);
-    filter.frequency.exponentialRampToValueAtTime(80, time + dur);
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(0.25, time + 0.01);
-    gain.gain.setValueAtTime(0.25, time + dur * 0.7);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.masterGain!);
-    osc.start(time);
-    osc.stop(time + dur);
-  }
-
-  private playLead(time: number, freq: number, dur: number): void {
-    const ctx = this.ctx!;
-    const osc = ctx.createOscillator();
-    osc.type = 'square';
-    osc.frequency.value = freq;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 2000;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(0.08, time + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.masterGain!);
-    osc.start(time);
-    osc.stop(time + dur);
-  }
 
   /**
    * Read FFT data and return frequency bands for visual reactivity.
