@@ -24,6 +24,7 @@ import { NotePool } from './NotePool';
 import { EffectRegistry, createShaderFilter, updateShaderUniforms } from './effects/EffectRegistry';
 import { AudioSpectrumVisualizer } from './objects/AudioSpectrumVisualizer';
 import { TransformGizmo } from './editor/TransformGizmo';
+import { LaneRenderer, PadRenderer, type PadVisual } from './renderers';
 import type { SceneNode } from './objects/SceneNode';
 import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
 import { audioTimeToSongTime } from '../time/timeUtils';
@@ -44,22 +45,6 @@ import { loadUserKeybindings, getBoundKeyForPad, formatKeyCode, type KeybindingM
  */
 
 const PAD_HEIGHT = 100;
-
-interface PadVisual {
-  container: Container;
-  socket: Graphics;
-  buttonContainer: Container;
-  buttonGlow: Graphics;
-  buttonBase: Graphics;
-  keyText: Text;
-  baseColor: number;
-  pressed: boolean;
-  pressAnim: number;
-  state: PadState;
-  stateAnim: number;
-  x: number;
-  channel: ModulationChannel;
-}
 
 interface JudgementPopup {
   text: Text;
@@ -846,45 +831,15 @@ export class VisualEngine {
   }
 
   private drawLanes(): void {
-    this.laneGfx.clear();
-
-    const screenH = this.app.screen.height;
-    const laneBottom = Math.max(screenH, this.padY + PAD_HEIGHT + 40);
-    const lanePadding = 4;
-    const laneWidth = 100 + lanePadding * 2;
-
-    for (const pad of this.pads) {
-      const x = this.padXPositions.get(pad.id);
-      if (x === undefined) continue;
-      const color = this.hexToInt(pad.color);
-      const laneX = x - lanePadding;
-
-      // 1. Black translucent lane column (covers entire lane background from top past the pads)
-      this.laneGfx
-        .rect(laneX, 0, laneWidth, laneBottom)
-        .fill({ color: 0x000000, alpha: 0.35 });
-
-      // 2. Neon separator lines on left and right borders of the lane
-      // Soft neon glow pass
-      this.laneGfx
-        .moveTo(laneX, 0)
-        .lineTo(laneX, laneBottom)
-        .stroke({ color, width: 3, alpha: 0.20 });
-      this.laneGfx
-        .moveTo(laneX + laneWidth, 0)
-        .lineTo(laneX + laneWidth, laneBottom)
-        .stroke({ color, width: 3, alpha: 0.20 });
-
-      // Crisp vibrant neon core line
-      this.laneGfx
-        .moveTo(laneX, 0)
-        .lineTo(laneX, laneBottom)
-        .stroke({ color, width: 1.5, alpha: 0.65 });
-      this.laneGfx
-        .moveTo(laneX + laneWidth, 0)
-        .lineTo(laneX + laneWidth, laneBottom)
-        .stroke({ color, width: 1.5, alpha: 0.65 });
-    }
+    LaneRenderer.drawLanes({
+      laneGfx: this.laneGfx,
+      pads: this.pads,
+      padXPositions: this.padXPositions,
+      padY: this.padY,
+      padHeight: PAD_HEIGHT,
+      screenHeight: this.app.screen.height,
+      hexToInt: (hex) => this.hexToInt(hex),
+    });
   }
 
   private updateLayout(): void {
@@ -1547,127 +1502,14 @@ export class VisualEngine {
 
     // 9. Pad animations driven by PadState and semantic modulated audio channels
     for (const [, pv] of this.padVisuals) {
-      let bandValue = 0;
-      switch (pv.channel) {
-        case 'bass':
-          bandValue = channels.bassIntensity;
-          break;
-        case 'mids':
-          bandValue = channels.midsReactivity;
-          break;
-        case 'treble':
-          bandValue = channels.trebleDispersion;
-          break;
-        case 'ambient':
-        default:
-          bandValue = channels.ambientBrightness;
-          break;
-      }
-
-      // Base idle glow modulated slightly by audio beats
-      let idleGlow = bandValue * 0.15;
-      const pressGlow = pv.pressAnim * 0.85;
-      let totalGlow = Math.min(1, idleGlow + pressGlow);
-      let glowColor = pv.baseColor;
-      let rimColor = 0xffffff;
-      let rimAlpha = 0.12 + totalGlow * 0.5;
-
-      // Button scale animation: ONLY the inner white button scales on input!
-      let buttonScale = 1.0 + pv.pressAnim * 0.12;
-
-      // State-specific visual behaviors
-      switch (pv.state) {
-        case 'queued': {
-          const pulse = Math.sin(audioTime * 16) * 0.5 + 0.5;
-          totalGlow = Math.max(totalGlow, 0.35 + pulse * 0.45);
-          break;
-        }
-        case 'playing': {
-          // Loop active: full vibrant neon illumination modulated in real-time
-          totalGlow = Math.max(totalGlow, 0.65 + bandValue * 0.35);
-          buttonScale = Math.max(buttonScale, 1.0 + bandValue * 0.05);
-          break;
-        }
-        case 'holding': {
-          // Holding sustained note: intense glow and continuous edge particles
-          totalGlow = Math.max(totalGlow, 0.85 + bandValue * 0.15);
-          buttonScale = Math.max(buttonScale, 1.04);
-          if (Math.random() < 0.35) {
-            this.particlePool.spawn(
-              pv.x + 20 + Math.random() * 60,
-              this.padY + PAD_HEIGHT / 2 + (Math.random() - 0.5) * 20,
-              pv.baseColor,
-              1,
-              0.6
-            );
-          }
-          break;
-        }
-        case 'miss': {
-          if (pv.stateAnim > 0) {
-            glowColor = 0xff3344;
-            totalGlow = Math.max(totalGlow, pv.stateAnim * 0.8);
-            pv.stateAnim *= 0.88;
-          }
-          break;
-        }
-        case 'ready':
-        default:
-          break;
-      }
-
-      // 1. Render Glow-Neon: fixed geometry, purely color/opacity pulse (no size expansion)
-      pv.buttonGlow.clear();
-      if (totalGlow > 0.02) {
-        // Outer soft diffusion halo
-        pv.buttonGlow
-          .roundRect(-46, -46, 92, 92, 12)
-          .fill({ color: glowColor, alpha: totalGlow * 0.35 });
-        // Core neon aura
-        pv.buttonGlow
-          .roundRect(-43, -43, 86, 86, 10)
-          .fill({ color: glowColor, alpha: totalGlow * 0.65 });
-      }
-
-      // 2. Render Button Base (the frosted white translucent silicone pad)
-      pv.buttonBase.clear();
-      // Matte dark silicone substrate
-      pv.buttonBase
-        .roundRect(-43, -43, 86, 86, 10)
-        .fill({ color: 0x1e1e24, alpha: 0.95 });
-      // Frosted white translucent layer (launchpad silicone look)
-      pv.buttonBase
-        .roundRect(-43, -43, 86, 86, 10)
-        .fill({ color: 0xffffff, alpha: 0.12 });
-      // Illuminated neon wash when glowing / pressed
-      if (totalGlow > 0.02) {
-        pv.buttonBase
-          .roundRect(-43, -43, 86, 86, 10)
-          .fill({ color: glowColor, alpha: totalGlow * 0.70 });
-        // Extra translucent white gloss when illuminated
-        pv.buttonBase
-          .roundRect(-43, -43, 86, 86, 10)
-          .fill({ color: 0xffffff, alpha: totalGlow * 0.18 });
-      }
-      // Silicone rim stroke
-      pv.buttonBase.stroke({
-        color: totalGlow > 0.1 ? glowColor : rimColor,
-        width: 1.5,
-        alpha: rimAlpha,
-      });
-
-      // 3. Key text opacity: subtle in idle, brighter when lit
-      pv.keyText.alpha = 0.38 + totalGlow * 0.38;
-
-      // 4. Animate button size on input: ONLY the inner button container scales!
-      pv.buttonContainer.scale.set(buttonScale);
-
-      // Outer container stays stationary at (pv.x, this.padY)
-      pv.container.scale.set(1.0);
-      pv.container.x = pv.x;
-      pv.container.y = this.padY;
-
-      pv.pressAnim *= 0.84;
+      PadRenderer.updatePadVisual(
+        pv,
+        channels,
+        audioTime,
+        this.padY,
+        PAD_HEIGHT,
+        this.particlePool
+      );
     }
 
     // 10. Update Particle Pool with treble dispersion modulation
