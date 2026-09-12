@@ -1,6 +1,7 @@
 import { Container, Graphics, Rectangle, Text, type Application } from 'pixi.js';
 import type { SceneNode } from '../objects/SceneNode';
 import type { SceneNodeData } from '../../types';
+import { AlignmentGuideSystem, type BoundingBox2D } from './AlignmentGuideSystem';
 
 export type GizmoHandleType = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
@@ -46,6 +47,11 @@ export class TransformGizmo extends Container {
   private rotationBadge: Container;
   private rotationBadgeBg: Graphics;
   private rotationBadgeText: Text;
+
+  // Magnetic Alignment Guides (Smart Guides)
+  public getSceneNodes?: () => SceneNode[];
+  public alignmentSnapEnabled = true;
+  private guidesGraphics: Graphics;
 
   private selectedNodes: SceneNode[] = [];
   private isDragging = false;
@@ -141,6 +147,10 @@ export class TransformGizmo extends Container {
     this.rotationBadge.addChild(this.rotationBadgeBg);
     this.rotationBadge.addChild(this.rotationBadgeText);
     this.addChild(this.rotationBadge);
+
+    // 7. Alignment Guide Overlay (Smart Guides)
+    this.guidesGraphics = new Graphics();
+    this.addChild(this.guidesGraphics);
 
     this.boundOnPointerMove = this.onGlobalPointerMove.bind(this);
     this.boundOnPointerUp = () => this.onGlobalPointerUp();
@@ -613,9 +623,68 @@ export class TransformGizmo extends Container {
     const deltaStageY = deltaScreenY / scale;
 
     if (this.dragMode === 'translate') {
+      let effectiveDeltaX = deltaStageX;
+      let effectiveDeltaY = deltaStageY;
+
+      if (!e.altKey && this.alignmentSnapEnabled && this.getSceneNodes) {
+        const selectedUids = new Set(this.selectedNodes.map((n) => n.uid));
+        const offsetX = this.sceneContainer.x || 0;
+        const offsetY = this.sceneContainer.y || 0;
+
+        const referenceBoxes: BoundingBox2D[] = [];
+        const allNodes = this.getSceneNodes();
+        for (const node of allNodes) {
+          if (selectedUids.has(node.uid) || node.container.destroyed || !node.container.visible) continue;
+          const b = node.container.getBounds();
+          const bx = (b.x - offsetX) / scale;
+          const by = (b.y - offsetY) / scale;
+          const bw = b.width / scale;
+          const bh = b.height / scale;
+          if (Number.isFinite(bx) && Number.isFinite(by) && bw > 0 && bh > 0) {
+            referenceBoxes.push({ x: bx, y: by, width: bw, height: bh });
+          }
+        }
+
+        const movingBBox: BoundingBox2D = {
+          x: this.startBBox.x + deltaStageX,
+          y: this.startBBox.y + deltaStageY,
+          width: this.startBBox.width,
+          height: this.startBBox.height,
+        };
+
+        const snapResult = AlignmentGuideSystem.calculateSnap(
+          movingBBox,
+          referenceBoxes,
+          scale,
+          offsetX,
+          offsetY,
+          8
+        );
+
+        effectiveDeltaX += snapResult.snapDeltaStageX;
+        effectiveDeltaY += snapResult.snapDeltaStageY;
+
+        this.guidesGraphics.clear();
+        for (const line of snapResult.lines) {
+          if (line.type === 'vertical') {
+            this.guidesGraphics
+              .moveTo(line.screenCoord, line.minScreen)
+              .lineTo(line.screenCoord, line.maxScreen)
+              .stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.9 });
+          } else {
+            this.guidesGraphics
+              .moveTo(line.minScreen, line.screenCoord)
+              .lineTo(line.maxScreen, line.screenCoord)
+              .stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.9 });
+          }
+        }
+      } else {
+        this.guidesGraphics.clear();
+      }
+
       for (const state of this.initialStates.values()) {
-        state.node.container.x = Math.round(state.x + deltaStageX);
-        state.node.container.y = Math.round(state.y + deltaStageY);
+        state.node.container.x = Math.round(state.x + effectiveDeltaX);
+        state.node.container.y = Math.round(state.y + effectiveDeltaY);
       }
     } else if (this.dragMode === 'rotate') {
       const currentAngle = Math.atan2(
@@ -876,6 +945,7 @@ export class TransformGizmo extends Container {
     this.activeHandle = null;
     this.rotateHandle.cursor = 'grab';
     this.rotationBadge.visible = false;
+    this.guidesGraphics.clear();
 
     window.removeEventListener('pointermove', this.boundOnPointerMove);
     window.removeEventListener('pointerup', this.boundOnPointerUp);

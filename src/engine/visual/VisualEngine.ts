@@ -430,6 +430,7 @@ export class VisualEngine {
     this.editorOverlayContainer = new Container();
     this.editorOverlayContainer.zIndex = 99;
     this.transformGizmo = new TransformGizmo(this.app, this.sceneLayer);
+    this.transformGizmo.getSceneNodes = () => this.sceneGraph.getAllNodes();
     this.transformGizmo.onCommit = (updated) => {
       this.onNodesTransformCommit?.(updated);
     };
