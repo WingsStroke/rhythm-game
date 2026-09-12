@@ -400,6 +400,155 @@ export function EffectInspector({
             </label>
           </div>
         )}
+
+        {selectedEffect.type === 'grain' && (
+          <div className="flex flex-col gap-2">
+            <label className="flex flex-col gap-1 text-white/60">
+              <span>Grain Amount ({Number(selectedEffect.parameters.amount ?? 0.15).toFixed(2)})</span>
+              <input
+                type="range"
+                min="0.02"
+                max="0.80"
+                step="0.02"
+                value={Number(selectedEffect.parameters.amount ?? 0.15)}
+                onChange={(e) =>
+                  onUpdateEffect?.({
+                    ...selectedEffect,
+                    parameters: {
+                      ...selectedEffect.parameters,
+                      amount: Number(e.target.value),
+                    },
+                  })
+                }
+                className="accent-fuchsia-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-white/60">
+              <span>Grain Speed ({Number(selectedEffect.parameters.speed ?? 1.0).toFixed(1)}x)</span>
+              <input
+                type="range"
+                min="0.2"
+                max="3.0"
+                step="0.1"
+                value={Number(selectedEffect.parameters.speed ?? 1.0)}
+                onChange={(e) =>
+                  onUpdateEffect?.({
+                    ...selectedEffect,
+                    parameters: {
+                      ...selectedEffect.parameters,
+                      speed: Number(e.target.value),
+                    },
+                  })
+                }
+                className="accent-fuchsia-400"
+              />
+            </label>
+          </div>
+        )}
+
+        {selectedEffect.type === 'zoomBlur' && (
+          <div className="flex flex-col gap-2">
+            <label className="flex flex-col gap-1 text-white/60">
+              <span>Zoom Strength ({Number(selectedEffect.parameters.strength ?? 0.25).toFixed(2)})</span>
+              <input
+                type="range"
+                min="0.05"
+                max="0.80"
+                step="0.05"
+                value={Number(selectedEffect.parameters.strength ?? 0.25)}
+                onChange={(e) =>
+                  onUpdateEffect?.({
+                    ...selectedEffect,
+                    parameters: {
+                      ...selectedEffect.parameters,
+                      strength: Number(e.target.value),
+                    },
+                  })
+                }
+                className="accent-fuchsia-400"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1 text-white/60">
+                <span>Center X</span>
+                <NumericInput
+                  step="0.05"
+                  min={0}
+                  max={1}
+                  value={Number(selectedEffect.parameters.centerX ?? 0.5)}
+                  onChange={(val) =>
+                    onUpdateEffect?.({
+                      ...selectedEffect,
+                      parameters: { ...selectedEffect.parameters, centerX: val },
+                    })
+                  }
+                  className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-white/60">
+                <span>Center Y</span>
+                <NumericInput
+                  step="0.05"
+                  min={0}
+                  max={1}
+                  value={Number(selectedEffect.parameters.centerY ?? 0.5)}
+                  onChange={(val) =>
+                    onUpdateEffect?.({
+                      ...selectedEffect,
+                      parameters: { ...selectedEffect.parameters, centerY: val },
+                    })
+                  }
+                  className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {selectedEffect.type === 'shake' && (
+          <div className="flex flex-col gap-2">
+            <label className="flex flex-col gap-1 text-white/60">
+              <span>Shake Amplitude ({Number(selectedEffect.parameters.amplitude ?? 0.02).toFixed(3)})</span>
+              <input
+                type="range"
+                min="0.005"
+                max="0.10"
+                step="0.005"
+                value={Number(selectedEffect.parameters.amplitude ?? 0.02)}
+                onChange={(e) =>
+                  onUpdateEffect?.({
+                    ...selectedEffect,
+                    parameters: {
+                      ...selectedEffect.parameters,
+                      amplitude: Number(e.target.value),
+                    },
+                  })
+                }
+                className="accent-fuchsia-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-white/60">
+              <span>Frequency ({Number(selectedEffect.parameters.frequency ?? 25.0).toFixed(0)} Hz)</span>
+              <input
+                type="range"
+                min="5"
+                max="60"
+                step="1"
+                value={Number(selectedEffect.parameters.frequency ?? 25.0)}
+                onChange={(e) =>
+                  onUpdateEffect?.({
+                    ...selectedEffect,
+                    parameters: {
+                      ...selectedEffect.parameters,
+                      frequency: Number(e.target.value),
+                    },
+                  })
+                }
+                className="accent-fuchsia-400"
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Timing Window */}

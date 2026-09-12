@@ -198,6 +198,9 @@ export function EditorToolbar({
     { type: 'glitch', label: 'Digital Glitch', description: 'Horizontal slice displacement' },
     { type: 'colorGrade', label: 'Color Grading', description: 'Cinematic color matrix adjustment' },
     { type: 'shockwave', label: 'Shockwave (Ripple)', description: 'Radial explosive wave distortion' },
+    { type: 'grain', label: 'Film Grain', description: 'Retro stochastic grain texture noise' },
+    { type: 'zoomBlur', label: 'Zoom Blur', description: 'Explosive radial streak blur' },
+    { type: 'shake', label: 'Screen Shake', description: 'Dynamic chaotic screen jitter and shake' },
   ];
 
   return (

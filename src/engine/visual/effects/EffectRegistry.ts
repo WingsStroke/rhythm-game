@@ -577,3 +577,160 @@ EffectRegistry.register({
     });
   },
 });
+
+// 10. Grain / Stochastic Noise
+EffectRegistry.register({
+  type: 'grain',
+  label: 'Film Grain',
+  description: 'Retro stochastic grain texture noise',
+  defaultParameters: { amount: 0.15, speed: 1.0 },
+  createFilter: (params, intensity = 1.0) => {
+    const rawAmount = Number(params.amount ?? 0.15) * intensity;
+    const rawSpeed = Number(params.speed ?? 1.0);
+
+    const frag = `
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
+      uniform sampler2D uTexture;
+      uniform float uTime;
+      uniform float uAmount;
+      uniform float uSpeed;
+
+      float hashNoise(vec2 co) {
+        return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+      }
+
+      void main() {
+        vec4 col = texture(uTexture, vTextureCoord);
+        float noise = hashNoise(vTextureCoord * 1200.0 + fract(uTime * uSpeed * 0.2) * 50.0) - 0.5;
+        col.rgb += noise * uAmount;
+        finalColor = col;
+      }
+    `;
+
+    return createShaderFilter('grain-filter', frag, {
+      uTime: { value: 0.0, type: 'f32' },
+      uAmount: { value: rawAmount, type: 'f32' },
+      uSpeed: { value: rawSpeed, type: 'f32' },
+    });
+  },
+  updateFilter: (filter, params, intensity = 1.0, time = 0) => {
+    const rawAmount = Number(params.amount ?? 0.15) * intensity;
+    const rawSpeed = Number(params.speed ?? 1.0);
+    updateShaderUniforms(filter, {
+      uTime: time,
+      uAmount: rawAmount,
+      uSpeed: rawSpeed,
+    });
+  },
+});
+
+// 11. Radial Zoom Blur
+EffectRegistry.register({
+  type: 'zoomBlur',
+  label: 'Zoom Blur',
+  description: 'Explosive radial streak zoom blur from focal center',
+  defaultParameters: { strength: 0.25, centerX: 0.5, centerY: 0.5 },
+  createFilter: (params, intensity = 1.0) => {
+    const rawStrength = Number(params.strength ?? 0.25) * intensity;
+    const cx = Number(params.centerX ?? 0.5);
+    const cy = Number(params.centerY ?? 0.5);
+
+    const frag = `
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
+      uniform sampler2D uTexture;
+      uniform vec4 uInputSize;
+      uniform vec2 uCenter;
+      uniform float uStrength;
+
+      void main() {
+        vec2 toCenter = (uCenter - vTextureCoord) * uStrength;
+        vec4 color = vec4(0.0);
+        const int SAMPLES = 10;
+        for (int i = 0; i < SAMPLES; i++) {
+          float percent = float(i) / float(SAMPLES - 1);
+          color += texture(uTexture, vTextureCoord + toCenter * percent);
+        }
+        finalColor = color / float(SAMPLES);
+      }
+    `;
+
+    return createShaderFilter(
+      'zoom-blur-filter',
+      frag,
+      {
+        uCenter: { value: [cx, cy], type: 'vec2<f32>' },
+        uStrength: { value: rawStrength, type: 'f32' },
+      },
+      16
+    );
+  },
+  updateFilter: (filter, params, intensity = 1.0) => {
+    const rawStrength = Number(params.strength ?? 0.25) * intensity;
+    const cx = Number(params.centerX ?? 0.5);
+    const cy = Number(params.centerY ?? 0.5);
+    updateShaderUniforms(filter, {
+      uCenter: [cx, cy],
+      uStrength: rawStrength,
+    });
+  },
+});
+
+// 12. Screen Shake / Jitter
+EffectRegistry.register({
+  type: 'shake',
+  label: 'Screen Shake',
+  description: 'Dynamic chaotic screen jitter and shake',
+  defaultParameters: { amplitude: 0.02, frequency: 25.0 },
+  createFilter: (params, intensity = 1.0) => {
+    const rawAmp = Number(params.amplitude ?? 0.02) * intensity;
+    const rawFreq = Number(params.frequency ?? 25.0);
+
+    const frag = `
+      precision highp float;
+      in vec2 vTextureCoord;
+      out vec4 finalColor;
+
+      uniform sampler2D uTexture;
+      uniform float uTime;
+      uniform float uAmplitude;
+      uniform float uFrequency;
+
+      void main() {
+        vec2 uv = vTextureCoord;
+        float t = uTime * uFrequency;
+        vec2 jitter = vec2(
+          sin(t * 1.3) * cos(t * 0.7),
+          cos(t * 1.1) * sin(t * 0.9)
+        ) * uAmplitude;
+        uv += jitter;
+        finalColor = texture(uTexture, uv);
+      }
+    `;
+
+    return createShaderFilter(
+      'shake-filter',
+      frag,
+      {
+        uTime: { value: 0.0, type: 'f32' },
+        uAmplitude: { value: rawAmp, type: 'f32' },
+        uFrequency: { value: rawFreq, type: 'f32' },
+      },
+      16
+    );
+  },
+  updateFilter: (filter, params, intensity = 1.0, time = 0) => {
+    const rawAmp = Number(params.amplitude ?? 0.02) * intensity;
+    const rawFreq = Number(params.frequency ?? 25.0);
+    updateShaderUniforms(filter, {
+      uTime: time,
+      uAmplitude: rawAmp,
+      uFrequency: rawFreq,
+    });
+  },
+});
