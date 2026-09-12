@@ -36,6 +36,7 @@ export interface EditorPropertiesPanelProps {
   onRemoveBatch?: (eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>, effectIds?: Set<string>) => void;
   onUpdateNode: (updates: Partial<SceneNodeData>) => void;
   onRemoveNode?: (id: string) => void;
+  onAddNode?: (node: SceneNodeData) => void;
   onUpdateTrigger: (trigger: TriggerData) => void;
   onRemoveTrigger: (id: string) => void;
   onUpdateEffect?: (effect: VisualEffect) => void;
@@ -61,6 +62,7 @@ export function EditorPropertiesPanel({
   onRemoveBatch,
   onUpdateNode,
   onRemoveNode,
+  onAddNode,
   onUpdateTrigger,
   onRemoveTrigger,
   onUpdateEffect,
@@ -107,6 +109,7 @@ export function EditorPropertiesPanel({
           onUpdateNode={onUpdateNode}
           onRemoveNode={onRemoveNode}
           onRemoveBatch={onRemoveBatch}
+          onAddNode={onAddNode}
         />
       ) : (
         /* Empty State */

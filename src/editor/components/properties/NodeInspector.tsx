@@ -2,6 +2,7 @@ import React from 'react';
 import { Layers, Trash2 } from 'lucide-react';
 import type { SceneNodeData, BlendModeType } from '../../../engine/types';
 import { ALLOWED_FONT_FAMILIES } from '../../../engine/types';
+import { combineSceneNodes } from '../../../engine/math/polygonClipping';
 import { NumericInput } from '../NumericInput';
 import { toValidHexColor } from './propertyUtils';
 
@@ -11,6 +12,7 @@ export interface NodeInspectorProps {
   onUpdateNode: (updates: Partial<SceneNodeData>) => void;
   onRemoveNode?: (id: string) => void;
   onRemoveBatch?: (eventIds?: Set<string>, triggerIds?: Set<string>, nodeIds?: Set<string>, effectIds?: Set<string>) => void;
+  onAddNode?: (node: SceneNodeData) => void;
 }
 
 export function NodeInspector({
@@ -19,6 +21,7 @@ export function NodeInspector({
   onUpdateNode,
   onRemoveNode,
   onRemoveBatch,
+  onAddNode,
 }: NodeInspectorProps) {
   // Batch selection mode
   if (selectedNodes && selectedNodes.length > 1) {
@@ -42,6 +45,65 @@ export function NodeInspector({
         >
           <Trash2 className="w-3.5 h-3.5" /> Delete {selectedNodes.length} Objects (Del)
         </button>
+
+        {selectedNodes.length === 2 && onAddNode && (
+          <div className="flex flex-col gap-2 p-3 rounded-lg bg-black/40 border border-white/10">
+            <span className="font-semibold text-white/80 flex items-center justify-between">
+              <span>Boolean Combine</span>
+              <span className="font-mono text-[10px] text-[#00e5ff]">2 Shapes</span>
+            </span>
+            <span className="text-[10px] text-white/40">
+              Combine both selected geometries into a single compound polygon.
+            </span>
+            <div className="grid grid-cols-3 gap-1.5 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const combined = combineSceneNodes(selectedNodes[0], selectedNodes[1], 'union');
+                  if (combined) {
+                    const ids = new Set(selectedNodes.map((n) => n.uid));
+                    onRemoveBatch?.(new Set(), new Set(), ids, new Set());
+                    onAddNode(combined);
+                  }
+                }}
+                className="px-2 py-1.5 bg-white/5 hover:bg-[#00e5ff]/20 text-white/90 hover:text-[#00e5ff] rounded border border-white/10 hover:border-[#00e5ff]/40 text-center font-mono font-medium transition-colors cursor-pointer"
+                title="Union: merges both shapes"
+              >
+                Union
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const combined = combineSceneNodes(selectedNodes[0], selectedNodes[1], 'intersect');
+                  if (combined) {
+                    const ids = new Set(selectedNodes.map((n) => n.uid));
+                    onRemoveBatch?.(new Set(), new Set(), ids, new Set());
+                    onAddNode(combined);
+                  }
+                }}
+                className="px-2 py-1.5 bg-white/5 hover:bg-[#00ff9d]/20 text-white/90 hover:text-[#00ff9d] rounded border border-white/10 hover:border-[#00ff9d]/40 text-center font-mono font-medium transition-colors cursor-pointer"
+                title="Intersect: keeps overlapping region"
+              >
+                Intersect
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const combined = combineSceneNodes(selectedNodes[0], selectedNodes[1], 'difference');
+                  if (combined) {
+                    const ids = new Set(selectedNodes.map((n) => n.uid));
+                    onRemoveBatch?.(new Set(), new Set(), ids, new Set());
+                    onAddNode(combined);
+                  }
+                }}
+                className="px-2 py-1.5 bg-white/5 hover:bg-[#ff007f]/20 text-white/90 hover:text-[#ff007f] rounded border border-white/10 hover:border-[#ff007f]/40 text-center font-mono font-medium transition-colors cursor-pointer"
+                title="Subtract: subtracts second shape from first"
+              >
+                Subtract
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

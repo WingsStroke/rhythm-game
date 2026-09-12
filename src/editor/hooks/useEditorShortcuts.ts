@@ -138,6 +138,8 @@ export function useEditorShortcuts({
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         if (e.code === 'KeyV') {
           onSelectTool('select');
+        } else if (e.code === 'KeyL') {
+          onSelectTool('lasso');
         } else if (e.code === 'KeyB') {
           onSelectTool('pen');
         } else if (e.code === 'KeyE') {

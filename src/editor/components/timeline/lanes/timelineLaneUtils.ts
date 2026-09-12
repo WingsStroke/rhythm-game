@@ -1,6 +1,6 @@
 import type { TriggerActionType } from '../../../../engine/types';
 
-export type EditorTool = 'select' | 'pen' | 'eraser' | 'object' | 'shader';
+export type EditorTool = 'select' | 'lasso' | 'pen' | 'eraser' | 'object' | 'shader';
 
 export const SUB_LANE_COUNT = 8;
 

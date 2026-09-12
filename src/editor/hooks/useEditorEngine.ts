@@ -33,6 +33,7 @@ interface UseEditorEngineOptions {
   onUpdateNodesBatch?: (nodes: SceneNodeData[]) => void;
   onRecordEvent?: (event: PadEvent) => void;
   onCanvasClick?: (stageX: number, stageY: number) => void;
+  onPolylineCreated?: (points: [number, number][]) => void;
 }
 
 export function useEditorEngine({
@@ -51,6 +52,7 @@ export function useEditorEngine({
   onUpdateNodesBatch,
   onRecordEvent,
   onCanvasClick,
+  onPolylineCreated,
 }: UseEditorEngineOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -103,6 +105,9 @@ export function useEditorEngine({
 
   const onUpdateNodesBatchRef = useRef(onUpdateNodesBatch);
   onUpdateNodesBatchRef.current = onUpdateNodesBatch;
+
+  const onPolylineCreatedRef = useRef(onPolylineCreated);
+  onPolylineCreatedRef.current = onPolylineCreated;
 
   // Ref kept in sync with currentTime so the rAF loop always reads the latest
   // value without being listed as a dependency (which would recreate the loop
@@ -244,6 +249,9 @@ export function useEditorEngine({
       };
       ve.onCanvasClick = (stageX, stageY) => {
         onCanvasClickRef.current?.(stageX, stageY);
+      };
+      ve.onPolylineCreated = (points) => {
+        onPolylineCreatedRef.current?.(points);
       };
 
       ve.onPadInput = (padId, pressed) => {

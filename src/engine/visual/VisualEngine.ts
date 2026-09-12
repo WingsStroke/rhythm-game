@@ -29,6 +29,8 @@ import type { SceneNode } from './objects/SceneNode';
 import type { GameplayEventBus } from '../gameplay/GameplayEventBus';
 import { audioTimeToSongTime } from '../time/timeUtils';
 import { loadUserKeybindings, getBoundKeyForPad, formatKeyCode, type KeybindingMap } from '../input/Keybindings';
+import { boundsIntersectPolygon, type Point2D } from '../math/pointInPolygon';
+import { douglasPeucker } from '../math/douglasPeucker';
 
 /**
  * VisualEngine — modular and reactive presentation engine using PixiJS v8.
@@ -139,6 +141,8 @@ export class VisualEngine {
   public onNodesSelectBatch?: ((nodeIds: string[], isAdditive: boolean) => void) | null = null;
   /** Emitted when node transforms are modified and committed via Live Preview gizmo */
   public onNodesTransformCommit?: ((nodes: SceneNodeData[]) => void) | null = null;
+  /** Emitted when a freehand polygon is drawn with pen tool and simplified */
+  public onPolylineCreated?: ((points: [number, number][]) => void) | null = null;
   /** Emitted when player/creator clicks on the canvas background outside interactive elements */
   public onCanvasClick?: ((stageX: number, stageY: number) => void) | null = null;
   private currentTool: string = 'select';
@@ -500,6 +504,13 @@ export class VisualEngine {
     let marqueeStartY = 0;
     let marqueeIsShift = false;
 
+    let isLassoDragging = false;
+    let lassoPoints: Point2D[] = [];
+    let lassoIsShift = false;
+
+    let isPenDragging = false;
+    let penPoints: Point2D[] = [];
+
     this.bgRect.on('pointerdown', (e) => {
       const localPos = this.sceneLayer.toLocal(e.global);
       const stageX = Math.max(0, Math.min(1920, Math.round(localPos.x)));
@@ -514,13 +525,28 @@ export class VisualEngine {
         return;
       }
 
+      if (this.currentTool === 'lasso') {
+        isLassoDragging = true;
+        lassoPoints = [{ x: e.global.x, y: e.global.y }];
+        lassoIsShift = Boolean(e.shiftKey);
+        this.marqueeGfx.clear();
+        return;
+      }
+
+      if (this.currentTool === 'pen') {
+        isPenDragging = true;
+        penPoints = [{ x: e.global.x, y: e.global.y }];
+        this.marqueeGfx.clear();
+        return;
+      }
+
       if (this.onCanvasClick) {
         this.onCanvasClick(stageX, stageY);
       }
     });
 
     const onMarqueePointerMove = (e: PointerEvent) => {
-      if (!isMarqueeDragging) return;
+      if (!isMarqueeDragging && !isLassoDragging && !isPenDragging) return;
       let currGlobalX = 0;
       let currGlobalY = 0;
       try {
@@ -532,60 +558,142 @@ export class VisualEngine {
         currGlobalY = e.clientY;
       }
 
-      const minX = Math.min(marqueeStartX, currGlobalX);
-      const maxX = Math.max(marqueeStartX, currGlobalX);
-      const minY = Math.min(marqueeStartY, currGlobalY);
-      const maxY = Math.max(marqueeStartY, currGlobalY);
-
-      this.marqueeGfx.clear();
-      this.marqueeGfx.rect(minX, minY, maxX - minX, maxY - minY);
-      this.marqueeGfx.fill({ color: 0x00e5ff, alpha: 0.15 });
-      this.marqueeGfx.stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.9 });
-    };
-
-    const onMarqueePointerUp = (e: PointerEvent) => {
-      if (!isMarqueeDragging) return;
-      isMarqueeDragging = false;
-      this.marqueeGfx.clear();
-
-      let currGlobalX = 0;
-      let currGlobalY = 0;
-      try {
-        const rect = this.app.canvas.getBoundingClientRect();
-        currGlobalX = (e.clientX - rect.left) * (this.app.renderer.width / rect.width);
-        currGlobalY = (e.clientY - rect.top) * (this.app.renderer.height / rect.height);
-      } catch {
-        currGlobalX = e.clientX;
-        currGlobalY = e.clientY;
-      }
-
-      const dist = Math.hypot(currGlobalX - marqueeStartX, currGlobalY - marqueeStartY);
-      if (dist > 8) {
+      if (isMarqueeDragging) {
         const minX = Math.min(marqueeStartX, currGlobalX);
         const maxX = Math.max(marqueeStartX, currGlobalX);
         const minY = Math.min(marqueeStartY, currGlobalY);
         const maxY = Math.max(marqueeStartY, currGlobalY);
 
-        const hitUids: string[] = [];
-        if (this.sceneGraph) {
-          for (const node of this.sceneGraph.getAllNodes()) {
-            if (node.container.destroyed || !node.container.visible) continue;
-            const bounds = node.container.getBounds();
-            if (
-              bounds.x < maxX &&
-              bounds.x + bounds.width > minX &&
-              bounds.y < maxY &&
-              bounds.y + bounds.height > minY
-            ) {
-              hitUids.push(node.uid);
+        this.marqueeGfx.clear();
+        this.marqueeGfx.rect(minX, minY, maxX - minX, maxY - minY);
+        this.marqueeGfx.fill({ color: 0x00e5ff, alpha: 0.15 });
+        this.marqueeGfx.stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.9 });
+        return;
+      }
+
+      if (isLassoDragging) {
+        const lastPt = lassoPoints[lassoPoints.length - 1];
+        if (!lastPt || Math.hypot(currGlobalX - lastPt.x, currGlobalY - lastPt.y) > 4) {
+          lassoPoints.push({ x: currGlobalX, y: currGlobalY });
+        }
+        this.marqueeGfx.clear();
+        if (lassoPoints.length >= 2) {
+          const flatPoints = lassoPoints.flatMap((p) => [p.x, p.y]);
+          this.marqueeGfx.poly(flatPoints, true);
+          this.marqueeGfx.fill({ color: 0x00e5ff, alpha: 0.15 });
+          this.marqueeGfx.stroke({ width: 1.5, color: 0x00e5ff, alpha: 0.9 });
+        }
+        return;
+      }
+
+      if (isPenDragging) {
+        const lastPt = penPoints[penPoints.length - 1];
+        if (!lastPt || Math.hypot(currGlobalX - lastPt.x, currGlobalY - lastPt.y) > 4) {
+          penPoints.push({ x: currGlobalX, y: currGlobalY });
+        }
+        this.marqueeGfx.clear();
+        if (penPoints.length >= 2) {
+          const flatPoints = penPoints.flatMap((p) => [p.x, p.y]);
+          this.marqueeGfx.poly(flatPoints, false);
+          this.marqueeGfx.stroke({ width: 2, color: 0x00e5ff, alpha: 0.9 });
+        }
+        return;
+      }
+    };
+
+    const onMarqueePointerUp = (e: PointerEvent) => {
+      if (!isMarqueeDragging && !isLassoDragging && !isPenDragging) return;
+
+      let currGlobalX = 0;
+      let currGlobalY = 0;
+      try {
+        const rect = this.app.canvas.getBoundingClientRect();
+        currGlobalX = (e.clientX - rect.left) * (this.app.renderer.width / rect.width);
+        currGlobalY = (e.clientY - rect.top) * (this.app.renderer.height / rect.height);
+      } catch {
+        currGlobalX = e.clientX;
+        currGlobalY = e.clientY;
+      }
+
+      if (isMarqueeDragging) {
+        isMarqueeDragging = false;
+        this.marqueeGfx.clear();
+
+        const dist = Math.hypot(currGlobalX - marqueeStartX, currGlobalY - marqueeStartY);
+        if (dist > 8) {
+          const minX = Math.min(marqueeStartX, currGlobalX);
+          const maxX = Math.max(marqueeStartX, currGlobalX);
+          const minY = Math.min(marqueeStartY, currGlobalY);
+          const maxY = Math.max(marqueeStartY, currGlobalY);
+
+          const hitUids: string[] = [];
+          if (this.sceneGraph) {
+            for (const node of this.sceneGraph.getAllNodes()) {
+              if (node.container.destroyed || !node.container.visible) continue;
+              const bounds = node.container.getBounds();
+              if (
+                bounds.x < maxX &&
+                bounds.x + bounds.width > minX &&
+                bounds.y < maxY &&
+                bounds.y + bounds.height > minY
+              ) {
+                hitUids.push(node.uid);
+              }
             }
           }
+          this.onNodesSelectBatch?.(hitUids, marqueeIsShift);
+        } else {
+          if (!marqueeIsShift) {
+            this.onNodeSelect?.(null, false);
+          }
         }
-        this.onNodesSelectBatch?.(hitUids, marqueeIsShift);
-      } else {
-        if (!marqueeIsShift) {
-          this.onNodeSelect?.(null, false);
+        return;
+      }
+
+      if (isLassoDragging) {
+        isLassoDragging = false;
+        this.marqueeGfx.clear();
+
+        if (lassoPoints.length >= 3) {
+          const hitUids: string[] = [];
+          if (this.sceneGraph) {
+            for (const node of this.sceneGraph.getAllNodes()) {
+              if (node.container.destroyed || !node.container.visible) continue;
+              const bounds = node.container.getBounds();
+              if (boundsIntersectPolygon(bounds, lassoPoints)) {
+                hitUids.push(node.uid);
+              }
+            }
+          }
+          this.onNodesSelectBatch?.(hitUids, lassoIsShift);
+        } else {
+          if (!lassoIsShift) {
+            this.onNodeSelect?.(null, false);
+          }
         }
+        lassoPoints = [];
+        return;
+      }
+
+      if (isPenDragging) {
+        isPenDragging = false;
+        this.marqueeGfx.clear();
+
+        if (penPoints.length >= 3) {
+          const scenePoints: Point2D[] = penPoints.map((pt) => {
+            const local = this.sceneLayer.toLocal(pt);
+            return {
+              x: Math.max(0, Math.min(1920, Math.round(local.x))),
+              y: Math.max(0, Math.min(1080, Math.round(local.y))),
+            };
+          });
+          const simplified = douglasPeucker(scenePoints, 4.0);
+          if (simplified.length >= 3) {
+            this.onPolylineCreated?.(simplified.map((p) => [p.x, p.y]));
+          }
+        }
+        penPoints = [];
+        return;
       }
     };
 
@@ -1605,10 +1713,10 @@ export class VisualEngine {
   public setActiveTool(tool: string): void {
     this.currentTool = tool;
     if (this.bgRect) {
-      this.bgRect.cursor = tool === 'object' ? 'crosshair' : 'default';
+      this.bgRect.cursor = tool === 'object' || tool === 'pen' || tool === 'lasso' ? 'crosshair' : 'default';
     }
     if (this.sceneGraph) {
-      this.sceneGraph.setNodesInteractive(tool !== 'object');
+      this.sceneGraph.setNodesInteractive(tool === 'select' || tool === 'eraser');
     }
   }
 

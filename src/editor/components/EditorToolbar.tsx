@@ -18,6 +18,7 @@ import {
   ZoomOut,
   Activity,
   Type,
+  Lasso,
 } from 'lucide-react';
 import type { EditorTool, GridSubdivision } from '../Timeline';
 import type { ScenePrimitiveType } from '../../engine/types';
@@ -235,6 +236,23 @@ export function EditorToolbar({
           }`}
         >
           <MousePointer className="w-3.5 h-3.5" /> Seleccionar (V)
+        </button>
+
+        {/* Lasso Tool */}
+        <button
+          onClick={() => {
+            onSelectTool('lasso');
+            setIsObjectMenuOpen(false);
+            setIsShaderMenuOpen(false);
+          }}
+          title="Selección por Lazo Libre (L)"
+          className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+            activeTool === 'lasso'
+              ? 'bg-[#00e5ff]/25 text-[#00e5ff] border border-[#00e5ff]/60 shadow-[0_0_8px_rgba(0,229,255,0.3)]'
+              : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
+        >
+          <Lasso className="w-3.5 h-3.5" /> Lazo (L)
         </button>
 
         {/* Pen Tool */}

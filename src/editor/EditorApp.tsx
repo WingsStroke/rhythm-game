@@ -794,6 +794,90 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     ]
   );
 
+  const handlePolylineCreated = useCallback(
+    (points: [number, number][]) => {
+      if (points.length < 3) return;
+
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+
+      for (const [x, y] of points) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+
+      const centerX = Math.round((minX + maxX) / 2);
+      const centerY = Math.round((minY + maxY) / 2);
+
+      const relativePoints: number[] = [];
+      for (const [x, y] of points) {
+        relativePoints.push(Math.round(x - centerX), Math.round(y - centerY));
+      }
+
+      const uid = `node_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const existingCount = (level.visual?.nodes || []).filter((n) => n.type === 'polygon').length;
+
+      const bpm = level.timing?.bpm || 120;
+      const leadIn = level.timing?.leadIn || 0;
+      const songOffset = level.timing?.offset || 0;
+      const songTime = Math.max(0, timelineTimeToSongTime(currentTimeRef.current, leadIn, songOffset));
+      const snappedTime = gridSubdivision !== 'free' ? snapTimeToGrid(songTime, bpm, gridSubdivision) : songTime;
+      const beatSec = 60 / bpm;
+      const defaultDuration = Math.max(1, Number((beatSec * 4).toFixed(3)));
+
+      const newNode: SceneNodeData = {
+        uid,
+        name: `polygon-${existingCount + 1}`,
+        targetId: null,
+        id: null,
+        type: 'polygon',
+        layer: activeLayer,
+        subLane: 0,
+        visible: true,
+        lifespan: {
+          startTime: snappedTime,
+          duration: defaultDuration,
+          fadeInMs: 200,
+          fadeOutMs: 200,
+        },
+        transform: {
+          x: centerX,
+          y: centerY,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0,
+          opacity: 0.9,
+        },
+        blendMode: 'normal',
+        zIndex: 0,
+        properties: {
+          points: relativePoints,
+          color: '#00e5ff',
+          strokeColor: '#ffffff',
+          strokeWidth: 2,
+          closed: true,
+        },
+      };
+
+      handleAddNode(newNode);
+      selectNode(newNode.uid);
+    },
+    [
+      level.timing?.bpm,
+      level.timing?.leadIn,
+      level.timing?.offset,
+      level.visual?.nodes,
+      gridSubdivision,
+      activeLayer,
+      handleAddNode,
+      selectNode,
+    ]
+  );
+
   const {
     canvasContainerRef,
     isPlaying,
@@ -822,6 +906,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
     onUpdateNodesBatch: handleUpdateNodesBatch,
     onRecordEvent: handleAddEvent,
     onCanvasClick: handleLivePreviewCanvasClick,
+    onPolylineCreated: handlePolylineCreated,
   });
 
   currentTimeRef.current = currentTime;
@@ -1540,6 +1625,7 @@ export function EditorApp({ onExit, onPlaytest, initialLevel }: EditorAppProps) 
           onRemoveTrigger={handleRemoveTrigger}
           onUpdateNode={handleUpdateNode}
           onRemoveNode={handleRemoveNode}
+          onAddNode={handleAddNode}
           onUpdateEffect={handleUpdateEffect}
           onRemoveEffect={handleRemoveEffect}
         />

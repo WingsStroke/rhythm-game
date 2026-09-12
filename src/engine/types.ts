@@ -255,6 +255,7 @@ export type ScenePrimitiveType =
   | 'audioSpectrum'
   | 'sprite'
   | 'text'
+  | 'polygon'
   | 'group';
 
 export interface SceneNodeData {

@@ -297,3 +297,35 @@ PrimitiveRegistry.register({
   },
 });
 
+// 13. Polygon (Custom Polyline / Boolean Combined Geometry)
+PrimitiveRegistry.register({
+  type: 'polygon',
+  label: 'Polygon',
+  category: 'polygon',
+  defaultProperties: {
+    points: [0, -50, 50, 50, -50, 50],
+    color: '#00e5ff',
+    strokeColor: '#ffffff',
+    strokeWidth: 0,
+    closed: true,
+  },
+  createDisplayObject: (props) => {
+    const g = new Graphics();
+    const color = safeParseColor(props.color, 0x00e5ff);
+    const rawPoints = Array.isArray(props.points) ? (props.points as number[]) : [0, -50, 50, 50, -50, 50];
+    const isClosed = (props.closed as boolean) ?? true;
+    if (rawPoints.length >= 4) {
+      g.poly(rawPoints, isClosed);
+      g.fill({ color });
+      const strokeW = Number(props.strokeWidth ?? 0);
+      if (strokeW > 0) {
+        g.stroke({
+          width: strokeW,
+          color: safeParseColor(props.strokeColor, 0xffffff),
+        });
+      }
+    }
+    return g;
+  },
+});
+
