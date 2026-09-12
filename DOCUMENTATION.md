@@ -279,6 +279,10 @@ Data contract for musical phrase grouping. Detection logic is planned for a futu
 
 Main PixiJS rendering class. Manages all layers and coordinates visual subsystems on every frame. Scales the decorative `sceneLayer` to fit the viewport using a virtual 1920x1080 coordinate space, while rendering gameplay elements (lanes, interactive launchpad, notes, particle bursts, and judgements) directly in responsive screen space with automatic horizontal centering and adaptive vertical receptor positioning. Integrated with a `ResizeObserver` for immediate layout recalculation upon container dimension changes. Responds to `GameplayEvent` objects from the event bus for hit feedback. Provides `onBeat` callback for beat-synchronized pulses.
 
+Delegates specialized sub-rendering routines to dedicated engine renderers:
+- **`src/engine/visual/renderers/LaneRenderer.ts`**: Handles drawing translucent lane backdrop columns and neon boundary separator lines with dual-pass soft glow.
+- **`src/engine/visual/renderers/PadRenderer.ts`**: Encapsulates the visual state machine and physical Launchpad styling (matte dark silicone substrate, frosted white translucent silicone caps, illuminated neon wash, audio-reactive pulses, press scaling, and edge particles).
+
 ### src/engine/visual/SceneGraph.ts
 
 Manages the hierarchy of `SceneNode` objects. Builds from `LevelData.visual.nodes`. Supports lookup by UID, by numeric `targetId` (for trigger grouping), by name, and by group.
@@ -321,6 +325,14 @@ The primary authoring surface. Multi-track DAW-style timeline engineered under U
 - **Horizontally Scrollable Canvas**: Scrollable tracks container for ruler, beat/bar grid lines, notes (tap, hold, loop, trigger), scene triggers, and playhead.
 - **Sticky Time Ruler**: Quantized ruler with seek-on-click, playhead drag, and edge auto-scrolling.
 
+Timeline tracks are decoupled into memoized sub-components located in `src/editor/components/timeline/lanes/`:
+- **`PadTracksLane.tsx`**: Renders note tracks (`tap`, `hold`, `loop`, `trigger`) with interactive dragging and duration handles.
+- **`TriggersLane.tsx`**: 8-subtrack lane rendering visual event triggers with action-coded colors.
+- **`VisualObjectsLane.tsx`**: 8-subtrack lane displaying SceneNode lifespan windows, z-index hierarchy badges (`BASE`, `LANES`, `PADS`), and fade in/out ramps.
+- **`ShadersLane.tsx`**: 4-subtrack lane rendering post-processing shader spans and scope information.
+- **`Playhead.tsx`**: Dedicated memoized red scrubber line with diamond marker.
+- **`timelineLaneUtils.ts`**: Lane constants (`SUB_LANE_COUNT = 8`), color mappers (`getTriggerColor`), and shared tool definitions (`EditorTool`).
+
 Tools: Pen (insert), Select (move/resize via drag, marquee selection, multi-item batch editing), Eraser (delete on click).
 
 ### src/editor/components/EditorHeader.tsx
@@ -353,7 +365,14 @@ Tree view of scene nodes. Displays name and numeric ID badge (golden if assigned
 
 ### src/editor/components/EditorPropertiesPanel.tsx
 
-Context-sensitive property inspector for selected PadEvent, TriggerData, or SceneNode. Strictly constrained to viewport height with internal vertical scrolling (`h-full min-h-0 overflow-y-auto custom-scrollbar`), guaranteeing that all form fields remain completely accessible in windowed mode.
+Modular context-sensitive property inspector. Strictly constrained to viewport height with internal vertical scrolling (`h-full min-h-0 overflow-y-auto custom-scrollbar`), guaranteeing that all form fields remain completely accessible in windowed mode.
+
+Orchestrates specialized, isolated sub-inspectors in `src/editor/components/properties/`:
+- **`NoteInspector.tsx`**: Single and batch note editor for pad re-assignment, timing adjustments, behavior selection (`tap`, `hold`, `loop`, `trigger`), duration tuning, and loop-nesting validation against `allEvents`.
+- **`TriggerInspector.tsx`**: Single and batch visual trigger editor for Trigger ID assignment, Timeline Layer allocation, duration, easing curve selection, and action parameter forms (`pos`, `rot`, `scale`, `color`, `pulse`).
+- **`EffectInspector.tsx`**: Single and batch shader inspector for active toggles, scope routing (`global`, `range`, `object`), target IDs, z-index bounds, intensity sliders, shader-specific parameters (`pixelate`, `chromatic`, `motionBlur`, `bloom`, `shockwave`), and timeline fade in/out durations with easing curves.
+- **`NodeInspector.tsx`**: Single and batch inspector for SceneNode objects. Controls object name, Trigger ID, Timeline Layer, z-index hierarchy with step controls, scene stacking priorities (`Above Lanes`, `Above Gameplay Pads`), temporal lifespan (start time, duration, fade in/out ms), 1920x1080 transform coordinates (X/Y, scale, rotation, opacity), geometry and color settings per primitive (Rectangle, Circle, Star, PointLight, BeamLight, AudioSpectrumVisualizer), and blend modes (`normal`, `add`, `screen`, `multiply`).
+- **`propertyUtils.ts`**: Color normalization utility (`toValidHexColor`) converting arbitrary hex strings into 7-character lowercase format (`#rrggbb`) for safe consumption by HTML5 color inputs.
 
 ### src/editor/hooks/useEditorHistory.ts
 

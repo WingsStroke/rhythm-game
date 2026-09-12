@@ -82,6 +82,8 @@ The engine does not receive key codes directly during gameplay. `InputManager` t
 | `objects/PrimitiveRegistry.ts` | Procedural vector shape generator for rectangles, circles, lines, triangles, diamonds, stars, hexagons, point lights, and beam lights. |
 | `objects/AudioSpectrumVisualizer.ts` | Dynamic audio spectrum visualizer rendering animated EQ frequency bars in real time from Web Audio FFT data. |
 | `effects/EffectRegistry.ts` | Registry and manager for full-screen and targeted visual shader filters (bloom, RGB split, chromatic aberration, glitch, blur, vignette, scanlines, color tint). |
+| `renderers/LaneRenderer.ts` | Static renderer for translucent lane column backgrounds and neon edge lines. |
+| `renderers/PadRenderer.ts` | Static renderer for physical Launchpad pads: silicone caps, neon glow, audio reactivity, and press animation. |
 | `editor/TransformGizmo.ts` | Interactive canvas transform gizmo providing translation drag and 8-point proportional/directional scale handles for single and multi-node selection in Live Preview. |
 
 #### Layer Hierarchy

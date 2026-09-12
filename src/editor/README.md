@@ -26,11 +26,18 @@ Delegates engine lifecycle to `useEditorEngine` and level state to `useEditorHis
 
 ### Timeline.tsx
 
-The primary event authoring surface. A horizontally scrollable, multi-track timeline in DAW style engineered for responsive behavior across three specialized modes:
-
-1. **Notes & Pads**: Multi-track pad timeline (one row per pad ID) with compact, responsive track heights (`h-14` / 56px minimum) and dynamic expansion to fill available vertical space.
+The primary event authoring surface. A horizontally scrollable, multi-track timeline in DAW style engineered for responsive behavior across specialized modes:
+1. **Notes & Pads**: Multi-track pad timeline (one row per pad ID) with compact, responsive track heights and dynamic expansion to fill available vertical space.
 2. **FX & Triggers**: Multi-track trigger automation lanes (up to 8 dynamic tracks) for keyframing animations, audio reactivity, color shifts, and camera pulses without empty voids.
 3. **Visuals & Atmosphere**: Scene graph timeline (up to 8 dynamic tracks) featuring draggable `SceneNodeLifespan` bars that define node entry, duration, and exit windows.
+4. **Shaders**: Multi-track post-processing timeline (4 dynamic tracks) displaying active shader time windows and targets.
+
+Tracks are modularized with `React.memo` inside `components/timeline/lanes/`:
+- **`PadTracksLane.tsx`**: Note events (`tap`, `hold`, `loop`, `trigger`) with drag and duration handles.
+- **`TriggersLane.tsx`**: 8-subtrack visual event triggers.
+- **`VisualObjectsLane.tsx`**: 8-subtrack scene objects with lifespan bars and z-index hierarchy indicators.
+- **`ShadersLane.tsx`**: 4-subtrack post-processing shader spans.
+- **`Playhead.tsx`**: Scrubbing playhead indicator.
 
 Layout Features:
 - Sticky time ruler at the top with seek-on-click and drag-to-scrub with auto-scroll.
@@ -109,12 +116,12 @@ Clicking a node selects it and populates the properties panel. Supports multi-se
 
 ### EditorPropertiesPanel.tsx
 
-Context-sensitive inspector strictly constrained to viewport height with internal vertical scrolling (`h-full min-h-0 overflow-y-auto custom-scrollbar`):
-
-- **PadEvent selected**: targetTime, padId, behavior (tap, hold, loop, trigger), duration (automatically hidden for tap events), triggerId.
-- **TriggerData selected**: time, action type, targetId (numeric or string), easing, duration, properties (transform/color/pulse values).
-- **SceneNode selected**: name, numeric ID (trigger group), type-specific properties (x, y, scaleX, scaleY, rotation, opacity, color, width, height, radius, innerRadius, points, light properties, audioSpectrum decay/attack/gain), blend mode, visibility, and delete node button.
-- **Multi-selection**: Displays item count and allows batch deletion and grouped inspection.
+Modular context-sensitive property inspector orchestrating specialized sub-inspectors in `components/properties/`:
+- **`NoteInspector.tsx`**: Single and batch note editor (Pad assignment, target time, behaviors `tap`/`hold`/`loop`/`trigger`, duration, loop-nesting validation).
+- **`TriggerInspector.tsx`**: Single and batch trigger editor (Trigger ID, Timeline Layer, duration, easing curves, and action parameters for `pos`, `rot`, `scale`, `color`, `pulse`).
+- **`EffectInspector.tsx`**: Single and batch shader inspector (scope `global`/`range`/`object`, target ID, z-index bounds, intensity, shader uniforms, fade in/out envelopes).
+- **`NodeInspector.tsx`**: Single and batch SceneNode inspector (naming, numeric Trigger ID, Timeline Layer, z-index hierarchy, scene stacking priorities `Above Lanes`/`Above Gameplay Pads`, temporal lifespan, 1920x1080 transforms, geometry, primitive-specific properties, and blend modes).
+- **`propertyUtils.ts`**: Color normalization helper (`toValidHexColor`).
 
 ---
 

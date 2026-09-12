@@ -1,4 +1,4 @@
-# MASTER TO-DO & ROADMAP TACTICO — NEON PULSE
+﻿# MASTER TO-DO & ROADMAP TACTICO — NEON PULSE
 ### Hoja de Ruta Viva y Backlog de Tareas hacia la Primera Version Publica (v1.0)
 
 > **Proposito de este documento:**
@@ -182,6 +182,11 @@ Foco en rendimiento sostenido a 60+ FPS, estabilidad termica y ergonomia:
 - [x] **[P2] Congelacion Formal de Semantica LOOP**
   - Congelación de ampliaciones de código para `loop` hasta contar con validación y especificación de diseño de gameplay en pistas reales.
 
+
+- [x] **[P0] Modularizacion Arquitectonica de Componentes Monoliticos**
+  - Desacoplamiento de EditorPropertiesPanel.tsx (reduccion de 2,158 lineas a 117 lineas) en inspectores modulares y aislados en components/properties/: NoteInspector.tsx, TriggerInspector.tsx, EffectInspector.tsx y NodeInspector.tsx.
+  - Desacoplamiento de Timeline.tsx (reduccion de ~800 lineas) en carriles independientes memoizados en components/timeline/lanes/: PadTracksLane.tsx, TriggersLane.tsx, VisualObjectsLane.tsx, ShadersLane.tsx y Playhead.tsx.
+  - Extraccion de renderers visuales dedicados en src/engine/visual/renderers/: LaneRenderer.ts y PadRenderer.ts, aliviando la complejidad ciclomatica de VisualEngine.ts.
 - [ ] **[P1] Perfiles de Calidad Grafica Adaptativa**
   - Selector en ajustes: *Baja, Media, Alta, Ultra*.
   - Opciones para conmutar shaders pesados (Bloom, Aberracion RGB), densidad de particulas y antialiasing para garantizar 60 FPS en laptops modestas o navegadores moviles.

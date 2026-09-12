@@ -1,4 +1,4 @@
-# Documento de visión y dirección del proyecto
+﻿# Documento de visión y dirección del proyecto
 
 ## 1. Descripción general
 
@@ -1009,10 +1009,16 @@ El proyecto evoluciona por fases estandarizadas, coordinadas directamente con la
 * Validación estricta de esquemas y sanitización profunda de niveles (`LevelValidator`)
 * Orquestador de empaquetado y preloading de niveles (`ContentManager`)
 
-### Fase 6 — Optimización y Pulido *(Siguiente Fase)*
-* Object pooling intensivo para display objects y partículas
+### Fase 6 - Optimizacion, Modularizacion y Pulido *(En Progreso)*
+* Object pooling intensivo para display objects (NotePool, ParticlePool) y eliminacion de pausas de Garbage Collection
+* Modularizacion arquitectonica de paneles e interfaces monoliticas:
+  * Desacoplamiento de EditorPropertiesPanel en inspectores modulares especializados (NoteInspector, TriggerInspector, EffectInspector, NodeInspector)
+  * Desacoplamiento de Timeline en carriles independientes memoizados (PadTracksLane, TriggersLane, VisualObjectsLane, ShadersLane, Playhead)
+  * Desacoplamiento de VisualEngine extrayendo renderers fisicos dedicados (LaneRenderer, PadRenderer)
+* Calibracion interactiva de offset acustico y pre-roll de preparacion (Lead-In) con pre-scheduling de Web Audio
+* Curvas de volumen de fundido de entrada y salida (Fade In / Fade Out) Bezier
+* Garantia de estabilidad continua a 60+ FPS y pruebas de respuesta tactil en multi-viewport responsive
 * Profiling de rendimiento en GPU/CPU y calidad adaptativa
-* Garantía de estabilidad continua a 60+ FPS y pruebas de respuesta táctil
 
 ### Fase 7 — Infraestructura Online y Backend
 * Cuentas de usuario y perfiles de progreso (Supabase)
