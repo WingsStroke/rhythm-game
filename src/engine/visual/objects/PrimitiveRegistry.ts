@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture, Text, TextStyle } from 'pixi.js';
 import { safeParseColor } from './SceneNode';
 import { GlowTextureCache } from '../GlowTextureCache';
 import { AudioSpectrumVisualizer } from './AudioSpectrumVisualizer';
@@ -264,5 +264,36 @@ PrimitiveRegistry.register({
     gap: 3,
   },
   createDisplayObject: (props) => new AudioSpectrumVisualizer(props),
+});
+
+// 12. Text
+PrimitiveRegistry.register({
+  type: 'text',
+  label: 'Text',
+  category: 'basic',
+  defaultProperties: {
+    text: 'New Text',
+    fontFamily: 'Orbitron',
+    fontSize: 48,
+    color: '#ffffff',
+    strokeColor: '#000000',
+    strokeWidth: 0,
+    align: 'center',
+  },
+  createDisplayObject: (props) => {
+    const style = new TextStyle({
+      fontFamily: (props.fontFamily as string) || 'Orbitron',
+      fontSize: (props.fontSize as number) || 48,
+      fill: safeParseColor(props.color, 0xffffff),
+      stroke: {
+        color: safeParseColor(props.strokeColor, 0x000000),
+        width: (props.strokeWidth as number) || 0,
+      },
+      align: (props.align as 'left' | 'center' | 'right') || 'center',
+    });
+    const text = new Text({ text: String(props.text ?? 'New Text'), style });
+    text.anchor.set(0.5);
+    return text;
+  },
 });
 

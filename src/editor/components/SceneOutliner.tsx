@@ -1,5 +1,5 @@
 import React from 'react';
-import { Square, Circle, Folder, Trash2, Layers } from 'lucide-react';
+import { Square, Circle, Folder, Trash2, Layers, Type } from 'lucide-react';
 import type { SceneNodeData } from '../../engine/types';
 
 interface SceneOutlinerProps {
@@ -108,12 +108,46 @@ export function SceneOutliner({
     onSelectNode(newGroup.uid);
   };
 
+  const handleAddText = () => {
+    const counter = getNextCounter('text');
+    const uid = `node_${Date.now().toString(36)}_${Math.floor(100 + Math.random() * 900)}`;
+    const newText: SceneNodeData = {
+      uid,
+      name: `text-${counter}`,
+      targetId: null,
+      id: null,
+      type: 'text',
+      visible: true,
+      transform: {
+        x: 960,
+        y: 540,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        opacity: 1.0,
+      },
+      properties: {
+        text: 'New Text',
+        fontFamily: 'Orbitron',
+        fontSize: 48,
+        color: '#ffffff',
+        strokeColor: '#000000',
+        strokeWidth: 0,
+        align: 'center',
+      },
+    };
+    onAddNode(newText);
+    onSelectNode(newText.uid);
+  };
+
   const getNodeIcon = (type: string) => {
     switch (type) {
       case 'rectangle':
         return <Square className="w-3.5 h-3.5 text-[#00e5ff]" />;
       case 'circle':
         return <Circle className="w-3.5 h-3.5 text-[#ff007f]" />;
+      case 'text':
+        return <Type className="w-3.5 h-3.5 text-[#00e5ff]" />;
       case 'group':
       case 'container':
         return <Folder className="w-3.5 h-3.5 text-[#ffea00]" />;
@@ -130,7 +164,7 @@ export function SceneOutliner({
           <span>Create Primitive</span>
           <span className="text-white/60">{nodes.length} {nodes.length === 1 ? 'node' : 'nodes'}</span>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5">
           <button
             onClick={handleAddRectangle}
             title="Create Rectangle at center (X:960, Y:540)"
@@ -146,6 +180,14 @@ export function SceneOutliner({
           >
             <Circle className="w-3 h-3 text-[#ff007f]" />
             <span>Circ</span>
+          </button>
+          <button
+            onClick={handleAddText}
+            title="Create Text element at center (X:960, Y:540)"
+            className="px-2 py-1.5 bg-white/5 hover:bg-[#00e5ff]/20 text-white/90 hover:text-[#00e5ff] rounded border border-white/10 hover:border-[#00e5ff]/40 transition-colors flex items-center justify-center gap-1 font-mono font-medium"
+          >
+            <Type className="w-3 h-3 text-[#00e5ff]" />
+            <span>Text</span>
           </button>
           <button
             onClick={handleAddGroup}

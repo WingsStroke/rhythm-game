@@ -17,6 +17,7 @@ import {
   ZoomIn,
   ZoomOut,
   Activity,
+  Type,
 } from 'lucide-react';
 import type { EditorTool, GridSubdivision } from '../Timeline';
 import type { ScenePrimitiveType } from '../../engine/types';
@@ -166,6 +167,13 @@ export function EditorToolbar({
       label: 'Audio Spectrum',
       description: 'Real-time FFT audio visualizer (bars/curve)',
       icon: <Activity className="w-3.5 h-3.5 text-[#00e5ff]" />,
+      color: '#00e5ff',
+    },
+    {
+      type: 'text',
+      label: 'Text Element',
+      description: 'Custom typographic text element',
+      icon: <Type className="w-3.5 h-3.5 text-[#00e5ff]" />,
       color: '#00e5ff',
     },
     {

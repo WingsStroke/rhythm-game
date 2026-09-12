@@ -1,4 +1,5 @@
 import type { LevelData, PadConfig, PadEvent, SceneNodeData, SceneNodeLifespan, TimingWindows, TriggerData, VisualEffect } from '../types';
+import { ALLOWED_FONT_FAMILIES } from '../types';
 
 export interface ValidationResult {
   valid: boolean;
@@ -325,6 +326,25 @@ export class LevelValidator {
           ? Math.max(0, Math.min(7, Math.floor(node.subLane)))
           : undefined;
 
+      const nodeProps = { ...((node.properties as Record<string, unknown>) || {}) };
+      if (node.type === 'text') {
+        const rawFamily = String(nodeProps.fontFamily || 'Orbitron');
+        nodeProps.fontFamily = (ALLOWED_FONT_FAMILIES as readonly string[]).includes(rawFamily)
+          ? rawFamily
+          : 'Orbitron';
+        nodeProps.fontSize =
+          typeof nodeProps.fontSize === 'number' && Number.isFinite(nodeProps.fontSize)
+            ? Math.max(8, Math.min(256, Math.round(nodeProps.fontSize)))
+            : 48;
+        nodeProps.strokeWidth =
+          typeof nodeProps.strokeWidth === 'number' && Number.isFinite(nodeProps.strokeWidth)
+            ? Math.max(0, Math.min(50, Math.round(nodeProps.strokeWidth)))
+            : 0;
+        nodeProps.text = typeof nodeProps.text === 'string' ? nodeProps.text : 'New Text';
+        nodeProps.align =
+          nodeProps.align === 'left' || nodeProps.align === 'right' ? nodeProps.align : 'center';
+      }
+
       return {
         uid,
         name: typeof node.name === 'string' ? node.name : `node-${idx + 1}`,
@@ -346,7 +366,7 @@ export class LevelValidator {
         subLane,
         lifespan,
         transform,
-        properties: (node.properties as Record<string, unknown>) || {},
+        properties: nodeProps,
       };
     });
 

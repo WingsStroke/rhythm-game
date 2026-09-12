@@ -230,6 +230,17 @@ export interface SceneNodeLifespan {
   fadeOutMs?: number;
 }
 
+export const ALLOWED_FONT_FAMILIES = [
+  'Orbitron',
+  'Rajdhani',
+  'Montserrat',
+  'Inter',
+  'Roboto Mono',
+  'Chakra Petch',
+] as const;
+
+export type AllowedFontFamily = (typeof ALLOWED_FONT_FAMILIES)[number];
+
 export type ScenePrimitiveType =
   | 'rectangle'
   | 'circle'
@@ -241,6 +252,7 @@ export type ScenePrimitiveType =
   | 'beamLight'
   | 'audioSpectrum'
   | 'sprite'
+  | 'text'
   | 'group';
 
 export interface SceneNodeData {

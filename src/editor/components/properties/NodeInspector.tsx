@@ -1,6 +1,7 @@
 import React from 'react';
 import { Layers, Trash2 } from 'lucide-react';
 import type { SceneNodeData, BlendModeType } from '../../../engine/types';
+import { ALLOWED_FONT_FAMILIES } from '../../../engine/types';
 import { NumericInput } from '../NumericInput';
 import { toValidHexColor } from './propertyUtils';
 
@@ -945,6 +946,111 @@ export function NodeInspector({
                 />
               </label>
             </div>
+          </div>
+        )}
+
+        {selectedNode.type === 'text' && (
+          <div className="flex flex-col gap-2 p-2.5 rounded bg-white/[0.03] border border-white/10">
+            <span className="font-semibold text-white/80">Typography Settings</span>
+            <label className="flex flex-col text-white/60">
+              Text Content
+              <input
+                type="text"
+                value={(selectedNode.properties?.text as string) ?? 'New Text'}
+                onChange={(e) =>
+                  onUpdateNode({
+                    properties: { ...selectedNode.properties, text: e.target.value },
+                  })
+                }
+                className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col text-white/60">
+                Font Family
+                <select
+                  value={(selectedNode.properties?.fontFamily as string) ?? 'Orbitron'}
+                  onChange={(e) =>
+                    onUpdateNode({
+                      properties: { ...selectedNode.properties, fontFamily: e.target.value },
+                    })
+                  }
+                  className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono cursor-pointer"
+                >
+                  {ALLOWED_FONT_FAMILIES.map((font) => (
+                    <option key={font} value={font}>
+                      {font}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col text-white/60">
+                Font Size (px)
+                <NumericInput
+                  step="2"
+                  min={8}
+                  max={256}
+                  value={(selectedNode.properties?.fontSize as number) ?? 48}
+                  onChange={(val) =>
+                    onUpdateNode({
+                      properties: { ...selectedNode.properties, fontSize: val },
+                    })
+                  }
+                  className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col text-white/60">
+                Alignment
+                <select
+                  value={(selectedNode.properties?.align as string) ?? 'center'}
+                  onChange={(e) =>
+                    onUpdateNode({
+                      properties: { ...selectedNode.properties, align: e.target.value },
+                    })
+                  }
+                  className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono cursor-pointer"
+                >
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </label>
+              <label className="flex flex-col text-white/60">
+                Stroke Width
+                <NumericInput
+                  step="1"
+                  min={0}
+                  max={32}
+                  value={(selectedNode.properties?.strokeWidth as number) ?? 0}
+                  onChange={(val) =>
+                    onUpdateNode({
+                      properties: { ...selectedNode.properties, strokeWidth: val },
+                    })
+                  }
+                  className="mt-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-white font-mono"
+                />
+              </label>
+            </div>
+            <label className="flex flex-col text-white/60">
+              Stroke Color
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="color"
+                  value={toValidHexColor(selectedNode.properties?.strokeColor, '#000000')}
+                  onChange={(e) =>
+                    onUpdateNode({
+                      properties: { ...selectedNode.properties, strokeColor: e.target.value },
+                    })
+                  }
+                  className="w-8 h-8 rounded border border-white/10 cursor-pointer bg-transparent p-0"
+                />
+                <span className="font-mono text-xs text-white/80">
+                  {toValidHexColor(selectedNode.properties?.strokeColor, '#000000')}
+                </span>
+              </div>
+            </label>
           </div>
         )}
 
