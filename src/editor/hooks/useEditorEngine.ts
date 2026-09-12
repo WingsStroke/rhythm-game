@@ -79,6 +79,8 @@ export function useEditorEngine({
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
 
+  const wasPlayingBeforeScrub = useRef(false);
+
   const selectedTriggerIdRef = useRef(selectedTriggerId);
   selectedTriggerIdRef.current = selectedTriggerId;
 
@@ -518,6 +520,7 @@ export function useEditorEngine({
   }, []);
 
   const handleStop = useCallback(() => {
+    wasPlayingBeforeScrub.current = false;
     transportRef.current?.stop();
     setIsPlaying(false);
     setIsRecording(false);
@@ -530,7 +533,7 @@ export function useEditorEngine({
     activeRecordHolds.current.clear();
   }, []);
 
-  const handleSeek = useCallback((t: number) => {
+  const handleSeek = useCallback((t: number, isScrubbing?: boolean) => {
     const clampedTime = Math.max(0, t);
     setCurrentTime(clampedTime);
     currentTimeRef.current = clampedTime;
@@ -538,14 +541,48 @@ export function useEditorEngine({
     const currentLeadIn = levelRef.current.timing?.leadIn ?? 0;
     const audioTime = clampedTime - currentLeadIn;
 
-    transportRef.current?.seek(audioTime);
-    visualRef.current?.seek(audioTime);
-    if (isPlayingRef.current) {
-      gameplayRef.current?.start(audioTime);
-    } else {
+    if (isScrubbing) {
+      // While dragging/scrubbing: pause playback if active to prevent 60 restarts/sec, update visuals & transport time
+      if (isPlayingRef.current) {
+        wasPlayingBeforeScrub.current = true;
+        transportRef.current?.pause();
+        setIsPlaying(false);
+      }
+      transportRef.current?.seek(audioTime);
+      visualRef.current?.seek(audioTime);
       gameplayRef.current?.reset();
+    } else {
+      // Single click seek or scrub release (pointer up)
+      transportRef.current?.seek(audioTime);
+      visualRef.current?.seek(audioTime);
+
+      if (isPlayingRef.current || wasPlayingBeforeScrub.current) {
+        const shouldResume = wasPlayingBeforeScrub.current;
+        wasPlayingBeforeScrub.current = false;
+
+        if (shouldResume && transportRef.current && transportRef.current.state !== 'playing') {
+          const envelope = {
+            fadeIn: levelRef.current.timing?.fadeIn ?? 0,
+            fadeOut: levelRef.current.timing?.fadeOut ?? 0,
+            totalDuration: levelRef.current.song.duration,
+          };
+          if (clampedTime < currentLeadIn) {
+            const remainingLeadIn = currentLeadIn - clampedTime;
+            transportRef.current.play(levelRef.current.timing.bpm, 0, envelope, remainingLeadIn);
+          } else {
+            transportRef.current.play(levelRef.current.timing.bpm, Math.max(0, audioTime), envelope, 0);
+          }
+          setIsPlaying(true);
+        }
+
+        if (activeTab === 'preview') {
+          gameplayRef.current?.start(audioTime);
+        }
+      } else {
+        gameplayRef.current?.reset();
+      }
     }
-  }, []);
+  }, [activeTab]);
 
   const toggleRecord = useCallback(async () => {
     if (isRecording) {

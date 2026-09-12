@@ -762,7 +762,7 @@ interface TimelineProps {
   onToggleNodeSelection?: (id: string, multi: boolean) => void;
   onToggleEffectSelection?: (id: string, multi: boolean) => void;
   onSelectEventRange?: (targetId: string) => void;
-  onSeek?: (time: number) => void;
+  onSeek?: (time: number, isScrubbing?: boolean) => void;
   onAddEvent: (event: PadEvent) => void;
   onUpdateEvent: (event: PadEvent) => void;
   onUpdateEventsBatch?: (events: PadEvent[]) => void;
@@ -1026,7 +1026,7 @@ export function Timeline({
   }, [level.pads, level.events]);
 
   useEffect(() => {
-    if (!isPlaying || !containerRef.current) return;
+    if (!isPlaying || !containerRef.current || isDraggingPlayhead.current) return;
     const container = containerRef.current;
     const playheadX = currentTime * pixelsPerSecond;
     const targetScroll = playheadX - container.clientWidth * 0.35;
@@ -1083,10 +1083,9 @@ export function Timeline({
       if (scrollDelta !== 0) {
         const prevScroll = container.scrollLeft;
         container.scrollLeft = Math.max(0, container.scrollLeft + scrollDelta);
-        if (container.scrollLeft !== prevScroll && onSeek && rulerTrackRef.current) {
-          const trackRect = rulerTrackRef.current.getBoundingClientRect();
-          const clickX = x - trackRect.left + container.scrollLeft;
-          onSeek(getAudioTimeFromClickX(clickX));
+        if (container.scrollLeft !== prevScroll && onSeek) {
+          const clickX = Math.max(0, Math.min(widthPx, (x - rect.left) + container.scrollLeft));
+          onSeek(getAudioTimeFromClickX(clickX), true);
         }
       }
 
@@ -1094,7 +1093,7 @@ export function Timeline({
     };
 
     autoScrollRaf.current = requestAnimationFrame(tick);
-  }, [onSeek, getAudioTimeFromClickX]);
+  }, [onSeek, getAudioTimeFromClickX, widthPx]);
 
   const stopAutoScroller = useCallback(() => {
     if (autoScrollRaf.current !== null) {
@@ -1105,30 +1104,33 @@ export function Timeline({
   }, []);
 
   const handleRulerPointerDown = (e: React.PointerEvent) => {
-    if (!rulerTrackRef.current || !onSeek) return;
+    const container = containerRef.current;
+    if (!container || !onSeek) return;
     isDraggingPlayhead.current = true;
     scrubPointerX.current = e.clientX;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
-    const trackRect = rulerTrackRef.current.getBoundingClientRect();
-    // scrollLeft must be added because the ruler is inside a sticky element:
-    // getBoundingClientRect().left stays fixed on screen and does NOT account for scroll.
-    const scrollLeft = containerRef.current?.scrollLeft ?? 0;
-    const clickX = e.clientX - trackRect.left + scrollLeft;
-    onSeek(getAudioTimeFromClickX(clickX));
+    const containerRect = container.getBoundingClientRect();
+    const clickX = Math.max(0, Math.min(widthPx, (e.clientX - containerRect.left) + container.scrollLeft));
+    onSeek(getAudioTimeFromClickX(clickX), false);
     startAutoScroller();
   };
 
   const handleRulerPointerMove = (e: React.PointerEvent) => {
-    if (!isDraggingPlayhead.current || !rulerTrackRef.current || !onSeek) return;
+    const container = containerRef.current;
+    if (!isDraggingPlayhead.current || !container || !onSeek) return;
     scrubPointerX.current = e.clientX;
-    const trackRect = rulerTrackRef.current.getBoundingClientRect();
-    const scrollLeft = containerRef.current?.scrollLeft ?? 0;
-    const clickX = e.clientX - trackRect.left + scrollLeft;
-    onSeek(getAudioTimeFromClickX(clickX));
+    const containerRect = container.getBoundingClientRect();
+    const clickX = Math.max(0, Math.min(widthPx, (e.clientX - containerRect.left) + container.scrollLeft));
+    onSeek(getAudioTimeFromClickX(clickX), true);
   };
 
   const handleRulerPointerUp = (e: React.PointerEvent) => {
+    if (isDraggingPlayhead.current && onSeek && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(widthPx, (e.clientX - containerRect.left) + containerRef.current.scrollLeft));
+      onSeek(getAudioTimeFromClickX(clickX), false);
+    }
     isDraggingPlayhead.current = false;
     stopAutoScroller();
     // releasePointerCapture may throw if the element was already removed from the DOM; safe to ignore.
