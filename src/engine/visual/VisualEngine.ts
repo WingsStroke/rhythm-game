@@ -43,14 +43,15 @@ import { loadUserKeybindings, getBoundKeyForPad, formatKeyCode, type KeybindingM
  *    - hudLayer (zIndex: 30): Score, combo, and floating judgement labels
  */
 
-const PAD_HEIGHT = 90;
+const PAD_HEIGHT = 100;
 
 interface PadVisual {
   container: Container;
-  rect: Graphics;
-  label: Text;
+  socket: Graphics;
+  buttonContainer: Container;
+  buttonGlow: Graphics;
+  buttonBase: Graphics;
   keyText: Text;
-  glow: Graphics;
   baseColor: number;
   pressed: boolean;
   pressAnim: number;
@@ -658,55 +659,70 @@ export class VisualEngine {
 
       // Dark opaque backing to occlude background visual objects in sceneLayer
       const backing = new Graphics();
-      backing.roundRect(0, 0, 100, PAD_HEIGHT, 10).fill({ color: 0x070716, alpha: 0.96 });
+      backing.roundRect(0, 0, 100, PAD_HEIGHT, 14).fill({ color: 0x000000, alpha: 1.0 });
       backing.zIndex = 0;
       container.addChild(backing);
 
-      const glow = new Graphics();
-      glow.roundRect(-15, -15, 130, PAD_HEIGHT + 30, 14).fill({ color, alpha: 0.15 });
-      glow.zIndex = 1;
-      container.addChild(glow);
+      // Launchpad Socket (black rounded rectangle chassis with subtle rounded corners)
+      const socket = new Graphics();
+      socket.roundRect(0, 0, 100, PAD_HEIGHT, 14).fill({ color: 0x0a0a0f, alpha: 0.98 });
+      socket.stroke({ color: 0x1c1c28, width: 1.5, alpha: 0.85 });
+      socket.roundRect(5, 5, 90, PAD_HEIGHT - 10, 11).fill({ color: 0x050508, alpha: 1.0 });
+      socket.stroke({ color: 0x121218, width: 1, alpha: 0.6 });
+      socket.zIndex = 1;
+      container.addChild(socket);
 
-      const rect = new Graphics();
-      rect.roundRect(0, 0, 100, PAD_HEIGHT, 10).fill({ color, alpha: 0.25 });
-      rect.stroke({ color, width: 2, alpha: 0.7 });
-      rect.zIndex = 2;
-      container.addChild(rect);
+      // Inner Button Container (centered at 50, 50 so scale expands from center)
+      const buttonContainer = new Container();
+      buttonContainer.x = 50;
+      buttonContainer.y = PAD_HEIGHT / 2;
+      buttonContainer.sortableChildren = true;
+      buttonContainer.zIndex = 2;
+      container.addChild(buttonContainer);
 
-      // Key hint (dynamically resolved from user keybindings)
+      // Glow-Neon illumination layer (fixed geometry, color/opacity pulse)
+      const buttonGlow = new Graphics();
+      buttonGlow.zIndex = 1;
+      buttonContainer.addChild(buttonGlow);
+
+      // Inner translucent frosted white silicone button
+      const buttonBase = new Graphics();
+      buttonBase.roundRect(-43, -43, 86, 86, 10).fill({ color: 0x1e1e24, alpha: 0.95 });
+      buttonBase.roundRect(-43, -43, 86, 86, 10).fill({ color: 0xffffff, alpha: 0.12 });
+      buttonBase.stroke({ color: 0xffffff, width: 1.5, alpha: 0.15 });
+      buttonBase.zIndex = 2;
+      buttonContainer.addChild(buttonBase);
+
+      // Centered Key Letter assigned by player (low opacity)
       const userBindings = loadUserKeybindings(this.level.pads);
       const boundKey = getBoundKeyForPad(userBindings, pad.id);
       const displayKey = boundKey ? formatKeyCode(boundKey) : (pad.keyHint || '');
 
       const keyText = new Text({
         text: displayKey,
-        style: { fontFamily: 'monospace', fontSize: 22, fill: 0xffffff, fontWeight: 'bold' },
+        style: {
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          fontSize: 32,
+          fill: 0xffffff,
+          fontWeight: 'bold',
+        },
       });
       keyText.anchor.set(0.5);
-      keyText.x = 50;
-      keyText.y = PAD_HEIGHT / 2 - 10;
+      keyText.x = 0;
+      keyText.y = 0;
+      keyText.alpha = 0.38;
       keyText.zIndex = 3;
-      container.addChild(keyText);
-
-      // Pad role label (Kick, Snare, etc)
-      const label = new Text({
-        text: pad.label,
-        style: { fontFamily: 'monospace', fontSize: 12, fill: 0xcccccc, align: 'center' },
-      });
-      label.anchor.set(0.5);
-      label.x = 50;
-      label.y = PAD_HEIGHT / 2 + 16;
-      label.zIndex = 3;
-      container.addChild(label);
+      buttonContainer.addChild(keyText);
 
       container.sortChildren();
       this.padLayer.addChild(container);
       this.padVisuals.set(pad.id, {
         container,
-        rect,
-        label,
+        socket,
+        buttonContainer,
+        buttonGlow,
+        buttonBase,
         keyText,
-        glow,
         baseColor: color,
         pressed: false,
         pressAnim: 0,
@@ -834,26 +850,31 @@ export class VisualEngine {
       if (x === undefined) continue;
       const color = this.hexToInt(pad.color);
 
-      // Dark opaque backing to occlude background visual objects in sceneLayer
-      this.laneGfx.rect(x, 0, 100, this.padY + PAD_HEIGHT).fill({ color: 0x060714, alpha: 0.92 });
+      // 1. Black translucent lane column (low opacity)
+      this.laneGfx
+        .rect(x, 0, 100, this.padY + PAD_HEIGHT)
+        .fill({ color: 0x000000, alpha: 0.35 });
 
-      // Lane background column
-      this.laneGfx.rect(x, 0, 100, this.padY + PAD_HEIGHT).fill({ color, alpha: 0.035 });
-
-      // Left & Right lane borders
+      // 2. Neon separator lines on left and right borders of the lane
+      // Soft neon glow pass
       this.laneGfx
         .moveTo(x, 0)
         .lineTo(x, this.padY + PAD_HEIGHT)
-        .stroke({ color, width: 1, alpha: 0.18 });
+        .stroke({ color, width: 3, alpha: 0.20 });
       this.laneGfx
         .moveTo(x + 100, 0)
         .lineTo(x + 100, this.padY + PAD_HEIGHT)
-        .stroke({ color, width: 1, alpha: 0.18 });
+        .stroke({ color, width: 3, alpha: 0.20 });
 
-      // Target receptor outline on the pad zone
+      // Crisp vibrant neon core line
       this.laneGfx
-        .roundRect(x + 5, this.padY + 5, 90, PAD_HEIGHT - 10, 8)
-        .stroke({ color, width: 1.5, alpha: 0.35 });
+        .moveTo(x, 0)
+        .lineTo(x, this.padY + PAD_HEIGHT)
+        .stroke({ color, width: 1.5, alpha: 0.65 });
+      this.laneGfx
+        .moveTo(x + 100, 0)
+        .lineTo(x + 100, this.padY + PAD_HEIGHT)
+        .stroke({ color, width: 1.5, alpha: 0.65 });
     }
   }
 
@@ -897,10 +918,8 @@ export class VisualEngine {
       const pv = this.padVisuals.get(pad.id);
       if (pv) {
         pv.x = x;
-        if (!pv.pressed && pv.pressAnim < 0.05) {
-          pv.container.x = x;
-          pv.container.y = this.padY;
-        }
+        pv.container.x = x;
+        pv.container.y = this.padY;
       }
     });
 
@@ -1534,42 +1553,37 @@ export class VisualEngine {
           break;
       }
 
-      let idleGlow = 0.12 + bandValue * 0.28;
-      const pressGlow = pv.pressAnim * 0.55;
-      let fillAlpha = 0.25 + bandValue * 0.18 + pv.pressAnim * 0.45;
-      let strokeColor = pv.baseColor;
-      let strokeWidth = 2 + pv.pressAnim * 2.5;
-      let strokeAlpha = 0.6 + pv.pressAnim * 0.4;
-      let pressScale = 1 + pv.pressAnim * 0.12;
+      // Base idle glow modulated slightly by audio beats
+      let idleGlow = bandValue * 0.15;
+      const pressGlow = pv.pressAnim * 0.85;
+      let totalGlow = Math.min(1, idleGlow + pressGlow);
+      let glowColor = pv.baseColor;
+      let rimColor = 0xffffff;
+      let rimAlpha = 0.12 + totalGlow * 0.5;
+
+      // Button scale animation: ONLY the inner white button scales on input!
+      let buttonScale = 1.0 + pv.pressAnim * 0.12;
 
       // State-specific visual behaviors
       switch (pv.state) {
         case 'queued': {
-          // Pre-cue rhythmic pulse
           const pulse = Math.sin(audioTime * 16) * 0.5 + 0.5;
-          strokeWidth = 3 + pulse * 2;
-          strokeAlpha = 0.8 + pulse * 0.2;
-          idleGlow = 0.25 + pulse * 0.35;
+          totalGlow = Math.max(totalGlow, 0.35 + pulse * 0.45);
           break;
         }
         case 'playing': {
-          // Loop active: 100% full intensity glow modulated in real time
-          idleGlow = 0.6 + bandValue * 0.4;
-          fillAlpha = 0.5 + bandValue * 0.35;
-          strokeWidth = 3 + bandValue * 2;
-          strokeAlpha = 0.95;
-          pressScale = Math.max(pressScale, 1.0 + bandValue * 0.08);
+          // Loop active: full vibrant neon illumination modulated in real-time
+          totalGlow = Math.max(totalGlow, 0.65 + bandValue * 0.35);
+          buttonScale = Math.max(buttonScale, 1.0 + bandValue * 0.05);
           break;
         }
         case 'holding': {
           // Holding sustained note: intense glow and continuous edge particles
-          idleGlow = 0.7 + bandValue * 0.3;
-          fillAlpha = 0.65 + bandValue * 0.25;
-          strokeWidth = 4;
-          strokeAlpha = 1.0;
+          totalGlow = Math.max(totalGlow, 0.85 + bandValue * 0.15);
+          buttonScale = Math.max(buttonScale, 1.04);
           if (Math.random() < 0.35) {
             this.particlePool.spawn(
-              pv.x + 15 + Math.random() * 70,
+              pv.x + 20 + Math.random() * 60,
               this.padY + PAD_HEIGHT / 2 + (Math.random() - 0.5) * 20,
               pv.baseColor,
               1,
@@ -1579,11 +1593,9 @@ export class VisualEngine {
           break;
         }
         case 'miss': {
-          // Warning red tint pulse
           if (pv.stateAnim > 0) {
-            strokeColor = 0xff3344;
-            strokeWidth = 2 + pv.stateAnim * 3;
-            strokeAlpha = 0.9;
+            glowColor = 0xff3344;
+            totalGlow = Math.max(totalGlow, pv.stateAnim * 0.8);
             pv.stateAnim *= 0.88;
           }
           break;
@@ -1593,30 +1605,57 @@ export class VisualEngine {
           break;
       }
 
-      pv.glow.clear();
-      pv.glow
-        .roundRect(
-          -15 - bandValue * 4,
-          -15 - bandValue * 4,
-          130 + bandValue * 8,
-          PAD_HEIGHT + 30 + bandValue * 8,
-          14
-        )
-        .fill({ color: strokeColor, alpha: Math.min(1, idleGlow + pressGlow) });
+      // 1. Render Glow-Neon: fixed geometry, purely color/opacity pulse (no size expansion)
+      pv.buttonGlow.clear();
+      if (totalGlow > 0.02) {
+        // Outer soft diffusion halo
+        pv.buttonGlow
+          .roundRect(-46, -46, 92, 92, 12)
+          .fill({ color: glowColor, alpha: totalGlow * 0.35 });
+        // Core neon aura
+        pv.buttonGlow
+          .roundRect(-43, -43, 86, 86, 10)
+          .fill({ color: glowColor, alpha: totalGlow * 0.65 });
+      }
 
-      pv.rect.clear();
-      pv.rect
-        .roundRect(0, 0, 100, PAD_HEIGHT, 10)
-        .fill({ color: strokeColor, alpha: Math.min(1, fillAlpha) });
-      pv.rect.stroke({
-        color: strokeColor,
-        width: strokeWidth,
-        alpha: strokeAlpha,
+      // 2. Render Button Base (the frosted white translucent silicone pad)
+      pv.buttonBase.clear();
+      // Matte dark silicone substrate
+      pv.buttonBase
+        .roundRect(-43, -43, 86, 86, 10)
+        .fill({ color: 0x1e1e24, alpha: 0.95 });
+      // Frosted white translucent layer (launchpad silicone look)
+      pv.buttonBase
+        .roundRect(-43, -43, 86, 86, 10)
+        .fill({ color: 0xffffff, alpha: 0.12 });
+      // Illuminated neon wash when glowing / pressed
+      if (totalGlow > 0.02) {
+        pv.buttonBase
+          .roundRect(-43, -43, 86, 86, 10)
+          .fill({ color: glowColor, alpha: totalGlow * 0.70 });
+        // Extra translucent white gloss when illuminated
+        pv.buttonBase
+          .roundRect(-43, -43, 86, 86, 10)
+          .fill({ color: 0xffffff, alpha: totalGlow * 0.18 });
+      }
+      // Silicone rim stroke
+      pv.buttonBase.stroke({
+        color: totalGlow > 0.1 ? glowColor : rimColor,
+        width: 1.5,
+        alpha: rimAlpha,
       });
 
-      pv.container.scale.set(pressScale);
-      pv.container.x = pv.x - (pressScale - 1) * 50;
-      pv.container.y = this.padY - (pressScale - 1) * (PAD_HEIGHT / 2);
+      // 3. Key text opacity: subtle in idle, brighter when lit
+      pv.keyText.alpha = 0.38 + totalGlow * 0.38;
+
+      // 4. Animate button size on input: ONLY the inner button container scales!
+      pv.buttonContainer.scale.set(buttonScale);
+
+      // Outer container stays stationary at (pv.x, this.padY)
+      pv.container.scale.set(1.0);
+      pv.container.x = pv.x;
+      pv.container.y = this.padY;
+
       pv.pressAnim *= 0.84;
     }
 
