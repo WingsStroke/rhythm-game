@@ -192,25 +192,22 @@ const PadTracksLane = React.memo(function PadTracksLane({
                     </div>
 
                     {/* Header badge */}
-                    <div className="flex items-center gap-1.5 px-2 pointer-events-none select-none">
-                      <Repeat className="w-3.5 h-3.5 text-[#00ff9d]" />
-                      <span className="text-[10px] font-mono font-bold text-[#00ff9d] tracking-wider uppercase">
+                    <div className="flex items-center gap-1.5 px-2 min-w-0 overflow-hidden pointer-events-none select-none flex-1 mr-6">
+                      <Repeat className="w-3.5 h-3.5 text-[#00ff9d] flex-shrink-0" />
+                      <span className="text-[10px] font-mono font-bold text-[#00ff9d] tracking-wider uppercase truncate">
                         LOOP ({(event.duration || 0).toFixed(2)}s)
                       </span>
                     </div>
-
-                    {/* Flexible space for inner notes */}
-                    <div className="flex-1 h-full pointer-events-none" />
 
                     {/* End handle (Punto de Desactivación & Resize) */}
                     {activeTool === 'select' && (
                       <div
                         data-event-item="true"
-                        className="w-5 h-full bg-[#ff0055]/20 hover:bg-[#ff0055]/40 border-l border-[#ff0055]/60 cursor-ew-resize flex items-center justify-center flex-shrink-0 transition-colors"
+                        className="absolute right-0 top-0 bottom-0 w-6 bg-[#ff0055]/30 hover:bg-[#ff0055]/50 border-l border-[#ff0055]/70 cursor-ew-resize flex items-center justify-center z-30 transition-colors"
                         onPointerDown={(e) => onEventResize(e, event)}
                         title="Fin de Bucle (Presionar para desactivar en gameplay / Arrastrar para duración)"
                       >
-                        <div className="w-2 h-2 bg-[#ff0055] rounded-xs shadow-[0_0_8px_#ff0055] pointer-events-none" />
+                        <div className="w-1.5 h-6 bg-[#ff0055] rounded-full shadow-[0_0_8px_#ff0055] pointer-events-none" />
                       </div>
                     )}
                   </div>
@@ -1715,12 +1712,22 @@ export function Timeline({
           ? Math.max(interval, Math.round(Math.max(0.05, currentDrag.origDuration! + deltaTime) / interval) * interval)
           : Math.max(0.05, currentDrag.origDuration! + deltaTime);
 
-        // Magnetic snap: clamp to avoid overlapping next note on the same pad
-        const nextEventOnPad = otherEvents
-          .filter((ev) => ev.padId === currentDrag.event!.padId && ev.targetTime >= currentDrag.event!.targetTime)
+        // Magnetic snap: clamp to avoid overlapping next barrier on the same pad
+        const isLoop = currentDrag.event.behavior === 'loop';
+        const nextBarrierOnPad = otherEvents
+          .filter((ev) => {
+            if (ev.padId !== currentDrag.event!.padId) return false;
+            if (ev.targetTime < currentDrag.event!.targetTime) return false;
+            if (isLoop) {
+              // Loops can enclose instant notes (tap, trigger); only another Loop or Hold forms an outer boundary
+              return ev.behavior === 'loop' || ev.behavior === 'hold';
+            }
+            return true;
+          })
           .sort((a, b) => a.targetTime - b.targetTime)[0];
-        if (nextEventOnPad) {
-          const maxDuration = Math.max(interval > 0 ? interval : 0.05, nextEventOnPad.targetTime - currentDrag.event!.targetTime);
+
+        if (nextBarrierOnPad) {
+          const maxDuration = Math.max(interval > 0 ? interval : 0.05, nextBarrierOnPad.targetTime - currentDrag.event!.targetTime);
           snapped = Math.min(snapped, maxDuration);
         }
 
